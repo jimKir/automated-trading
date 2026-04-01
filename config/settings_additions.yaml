@@ -1,0 +1,99 @@
+# ============================================================
+# UPGRADE v16 — ADDITIONS TO settings.yaml
+# Add these sections to the existing settings.yaml
+# ============================================================
+
+# Rebalance: change from weekly to biweekly (matches IC peak at 10d)
+strategy:
+  rebalance_frequency: biweekly   # was: weekly — IC peaks at 10d not 5d
+  signal_change_threshold: 0.15   # skip rebalance if signal moved < 15%
+  vix_force_rebalance_pct: 0.20   # force rebalance if VIX spikes >20% intraday
+
+# ============================================================
+# OPTIONS ORDER FLOW SIGNAL (Factor 13)
+# Highest-value new signal: unusual block options activity,
+# IV skew, and put/call ratio momentum.
+# Expected: +0.20-0.30 Sharpe contribution (Pan & Poteshman 2006)
+# ============================================================
+options_flow:
+  enabled: true
+  weight: 0.20                  # 20% of final signal blend
+  lookback_days: 5              # days of options data to analyse
+  min_volume_threshold: 100     # minimum total options volume to consider
+  databento_enabled: true       # try Databento OPRA.PILLAR first
+  yfinance_fallback: true       # fall back to yfinance .option_chain()
+  unusual_volume_multiple: 2.0  # N× average volume = "unusual" (CBOE standard)
+  pcr_contrarian: true          # high PCR = bullish reversal (contrarian)
+  # Component weights
+  unusual_activity_weight: 0.50 # block trades + directional bias
+  iv_skew_weight: 0.30          # 25-delta put/call IV ratio
+  pcr_momentum_weight: 0.20     # 5d vs 21d put/call ratio
+
+# ============================================================
+# EARNINGS NLP SIGNAL (Factor 14)
+# SEC EDGAR 8-K + FinBERT sentiment + management guidance keywords.
+# Captures post-earnings announcement drift (PEAD) effect.
+# Expected: +0.10-0.15 Sharpe contribution
+# ============================================================
+earnings_nlp:
+  enabled: true
+  weight: 0.15                  # 15% of final signal blend
+  lookback_days: 30             # days to look back for recent earnings
+  use_finbert: true             # ProsusAI/finbert (falls back to VADER → keywords)
+  fmp_api_key: ""               # Financial Modeling Prep key (optional free tier)
+  sentiment_decay_days: 21      # half-life for post-earnings drift signal
+  # Component weights
+  transcript_sentiment_weight: 0.40   # FinBERT positive/negative probability
+  sentiment_change_weight: 0.40       # delta vs prior quarter (most predictive)
+  guidance_keywords_weight: 0.20      # Loughran-McDonald bullish/bearish lexicon
+
+# ============================================================
+# CRISIS ALPHA AMPLIFIER
+# Diagnostic: system earns Sharpe 2.03 in VIX-spike weeks,
+# only 0.128 in calm markets. We BOOST in crisis, REDUCE in calm.
+# This INVERTS the previous vol-targeting logic for this system.
+# ============================================================
+crisis_alpha:
+  enabled: true
+  # Scale factors by VIX regime
+  crisis_scale: 1.60        # VIX >30 AND rising → boost 60%
+  elevated_scale: 1.25      # VIX 20-30 → boost 25%
+  normal_scale: 1.00        # VIX 15-20 → no change
+  suppressed_scale: 0.80    # VIX <15 (calm) → reduce 20%
+  # Regime detection
+  vix_crisis_threshold: 30
+  vix_elevated_threshold: 20
+  vix_suppressed_threshold: 15
+  min_days_in_regime: 3     # anti-whipsaw: require 3 days before regime flip
+  # VIX trend detection (crisis must be rising, not just high)
+  require_rising_vix: true  # 5d MA > 10d MA > 20d MA for CRISIS label
+
+# ============================================================
+# KELLY FRACTIONAL SIZING
+# Per-position sizing based on estimated signal edge and win/loss ratio.
+# Replaces uniform heat allocation across positions.
+# Mathematical basis: Kelly (1956), applied at 25% fraction (conservative).
+# ============================================================
+kelly:
+  enabled: true
+  fraction: 0.25              # 25% Kelly — standard conservative fraction
+  min_history_days: 63        # minimum days before Kelly estimate is used
+  max_position_pct: 0.15      # hard cap per position (unchanged)
+  max_portfolio_heat: 0.75    # total gross heat cap (unchanged)
+  ic_window: 63               # rolling window for signal accuracy estimation
+
+# ============================================================
+# H2O META-LEARNER
+# Non-linear combination of all 14+ signal components.
+# Trained on historical features → 10-day forward returns.
+# Blended 40/60 with direct composite to prevent overfit.
+# ============================================================
+meta_learner:
+  enabled: true
+  automl_seconds: 300         # AutoML training budget per retraining run
+  min_train_rows: 500         # minimum observations before training
+  retrain_days: 30            # retrain every 30 days (monthly)
+  blend_weight: 0.40          # 40% meta-signal + 60% direct composite
+  feature_importance_log: true
+  # Walk-forward: always expanding window (never uses future data)
+  # Retrain trigger: time-based OR significant market regime change

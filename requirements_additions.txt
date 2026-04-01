@@ -1,0 +1,34 @@
+# ============================================================
+# v16 UPGRADE — Additional dependencies
+# Add these to existing requirements.txt
+# ============================================================
+
+# Options flow signal
+databento>=0.36.0              # Databento OPRA options data (primary)
+# yfinance already included — used as fallback for options chains
+
+# Earnings NLP signal
+transformers>=4.40.0           # FinBERT (ProsusAI/finbert)
+torch>=2.2.0                   # PyTorch backend for transformers
+vaderSentiment>=3.3.2          # VADER fallback (lightweight)
+# requests already included — used for SEC EDGAR API
+
+# H2O Meta-learner
+h2o>=3.46.0                    # H2O AutoML (already used for vol forecaster)
+
+# Kelly sizer
+# scipy already included — used for spearmanr IC calculation
+
+# Crisis alpha amplifier
+# numpy, pandas already included
+
+# Feature store / AWS integration
+pyarrow>=15.0.0                # Parquet read/write for S3 feature store
+s3fs>=2024.3.1                 # pandas S3 read/write (pd.read_parquet("s3://..."))
+fsspec>=2024.3.1               # filesystem spec (s3fs dependency)
+
+# Prefect flows (for ML pipeline orchestration)
+prefect>=2.19.0                # already in flows/ — ensure version >=2.19
+
+# Optional: enhanced earnings data
+# financialmodelingprep         # pip install financialmodelingprep (free tier)
