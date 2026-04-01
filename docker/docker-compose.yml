@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  market-data:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: market-data-platform
+    env_file:
+      - ../.env
+    environment:
+      - ENVIRONMENT=dev
+      - STORAGE_PROVIDER=local
+      - RAW_LAKE_PATH=/data/raw
+      - ANALYTICS_LAKE_PATH=/data/analytics
+      - FEATURE_STORE_PATH=/data/features
+    volumes:
+      - market-data:/data
+      - ../config:/app/config:ro
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      - prefect-server
+      - prometheus
+    networks:
+      - market-data-net
+
+  prefect-server:
+    image: prefecthq/prefect:2-python3.11
+    container_name: prefect-server
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    environment:
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+    networks:
+      - market-data-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9091:9090"
+    networks:
+      - market-data-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - market-data-net
+
+volumes:
+  market-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  market-data-net:
+    driver: bridge
