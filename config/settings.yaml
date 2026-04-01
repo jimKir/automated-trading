@@ -1,0 +1,352 @@
+
+# ============================================================
+#  TRADING SYSTEM — MASTER CONFIGURATION
+# ============================================================
+
+system:
+  mode: paper               # backtest | paper | live
+  log_level: INFO
+  results_dir: results/
+  timezone: Europe/Athens
+  healthcheck: true          # HTTP server on :8080 for container health
+
+capital:
+  initial_equity: 25000     # EUR / USD base
+  base_currency: USD
+  max_portfolio_heat: 0.75  # v15b: set to 0.75 (balanced)
+                             # Diagnostic showed Sharpe ∝ deployment but DD also scales.
+                             # 0.75 targets ~65% vol, ~28% max DD — better than v14's 29%.
+                             # min() scaling + regime boost allow effective heat up to ~0.98 in bull
+
+risk:
+  max_position_pct: 0.15    # v15b: back to 15% — prevents concentration risk
+  max_sector_pct: 0.30      # max 30% in any single sector/asset class
+  max_drawdown_halt: 0.15   # halt trading if drawdown > 15%
+  daily_loss_limit: 0.08    # halt trading today if REALISED cash loss > 8% of equity
+                             # (measures closed-trade losses only, ignores floating P&L)
+  var_confidence: 0.99      # 99% VaR / CVaR
+  var_window_days: 252
+  kelly_fraction: 0.25      # fractional Kelly for position sizing
+
+assets:
+  equities:
+    enabled: true
+    universe:
+      - SPY     # S&P 500 ETF
+      - QQQ     # Nasdaq 100 ETF
+      - IWM     # Russell 2000 ETF
+      - GLD     # Gold ETF
+      - TLT     # 20yr Treasury ETF
+      - VGK     # Europe ETF
+      - EEM     # Emerging Markets ETF
+      - XLK     # Technology sector
+      - XLE     # Energy sector
+      - XLF     # Financials sector
+      - VNQ     # REITs — real estate exposure
+      - AGG     # Aggregate bonds — broad fixed income
+      - EWJ     # Japan equities — geographic diversification
+      - EMXC    # Emerging markets ex-China — geographic diversification without China risk
+      - XLV     # Healthcare — defensive sector
+    data_source: yfinance
+
+  crypto:
+    enabled: true
+    universe:
+      - BTC-USD
+      - ETH-USD
+      - SOL-USD
+    data_source: yfinance   # swap to ccxt in live mode
+
+  futures:
+    enabled: true
+    universe:
+      - ES=F    # S&P 500 futures
+      - NQ=F    # Nasdaq futures
+      - GC=F    # Gold futures
+      - CL=F    # Crude Oil futures
+    data_source: yfinance
+
+strategy:
+  name: MultiFactorMomentumMeanReversion
+  lookback_fast: 20         # fast momentum window (days)
+  lookback_slow: 60         # slow momentum window (days)
+  lookback_vol: 21          # volatility estimation window
+  zscore_entry: 2.0         # mean-reversion entry z-score
+  zscore_exit: 0.5          # mean-reversion exit z-score
+  momentum_threshold: 0.02  # min momentum signal strength
+  regime_window: 126        # market regime detection window (6 months)
+  rebalance_frequency: weekly  # daily | weekly | monthly
+
+# ============================================================
+# DYNAMIC UNIVERSE SELECTOR
+# Each rebalance, ranks ALL candidate instruments by momentum
+# and selects the top N into the active trading universe.
+# Instruments outside the top N are closed out.
+# ============================================================
+# ============================================================
+# DYNAMIC CANDIDATE BUILDER
+# Fetches S&P 500 + Nasdaq 100 constituents at startup,
+# filters for liquidity, and merges with fixed ETFs/futures/crypto.
+# When enabled, replaces the static candidates list below.
+# ============================================================
+dynamic_candidates:
+  enabled: true              # set false to use static candidates list only
+  include_sp500: true        # include S&P 500 constituents (~500 stocks)
+  include_ndx100: true       # include Nasdaq 100 constituents (~100 stocks, mostly overlap)
+  min_avg_volume_usd: 5000000  # minimum $5M avg daily dollar volume (liquidity filter)
+  min_history_days: 252      # minimum 1 year of price history
+  max_stocks: 500            # cap to avoid excessive data fetch time
+  cache_hours: 24            # re-fetch constituent list after 24 hours
+
+dynamic_universe:
+  enabled: true              # dynamic universe with adaptive caps active
+  top_n: 20                  # number of instruments to hold at any time
+  momentum_window: 126       # 6-month momentum lookback (standard cross-sectional)
+  min_history_days: 252      # minimum history before an instrument is eligible
+  rerank_frequency: monthly  # how often to rerank: weekly | monthly
+  adaptive_caps: true        # dynamically adjust equity cap based on market regime
+  equity_cap_min: 0.60       # bear market floor  → 60% equity (12 of 20 slots)
+  equity_cap_max: 0.90       # bull market ceiling → 90% equity (18 of 20 slots)
+  # Candidate pool: all instruments the system can choose from
+  # Must have yfinance data available
+  candidates:
+    equities:
+      - SPY    # S&P 500
+      - QQQ    # Nasdaq 100
+      - IWM    # Russell 2000
+      - GLD    # Gold
+      - TLT    # 20yr Treasuries
+      - VGK    # Europe
+      - EEM    # Emerging markets
+      - EMXC   # EM ex-China
+      - EWJ    # Japan
+      - XLK    # Technology
+      - XLE    # Energy
+      - XLF    # Financials
+      - XLV    # Healthcare
+      - XLU    # Utilities
+      - XLB    # Materials
+      - XLI    # Industrials
+      - XLP    # Consumer staples
+      - XLY    # Consumer discretionary
+      - VNQ    # REITs
+      - AGG    # Aggregate bonds
+      - LQD    # Investment-grade bonds
+      - HYG    # High-yield bonds
+      - SHY    # Short-term treasuries
+      - DIA    # Dow Jones
+      - MDY    # Mid-cap S&P 400
+      - EWZ    # Brazil
+      - EWY    # South Korea
+      - EWA    # Australia
+      - EWC    # Canada
+      - EWG    # Germany
+      - EWU    # UK
+      - SOXX   # Semiconductors
+      - IBB    # Biotech
+      - XBI    # Biotech (equal-weight)
+      - ARKK   # Innovation/disruptive tech
+      - PDBC   # Diversified commodities
+      - DBC    # Commodities basket
+      - USO    # Oil
+      - SLV    # Silver
+      - COPX   # Copper miners
+    futures:
+      - ES=F   # S&P 500
+      - NQ=F   # Nasdaq
+      - GC=F   # Gold
+      - CL=F   # Crude oil
+      - SI=F   # Silver
+      - ZB=F   # US 30yr bonds
+      - NG=F   # Natural gas
+    crypto:
+      - BTC-USD
+      - ETH-USD
+      - SOL-USD
+      - BNB-USD
+      - ADA-USD
+      - AVAX-USD
+      - DOT-USD
+      - LINK-USD
+
+  # Volume confirmation multiplier (factors 8-10)
+  # Multiplies final signal by [0.5, 1.3] based on OBV + volume trend + CMF
+  # Disabled gracefully per-instrument if Volume data is missing
+  volume_confirmation: false  # OFF by default at weekly rebalance frequency
+                               # Volume signals work best on daily rebalancing
+                               # Turn ON if you switch rebalance_frequency to daily
+
+  # Predictive cross-asset signal (credit regime)
+  predictive:
+    credit_regime_enabled: true   # HYG/LQD spread + VIX momentum + yield curve
+    credit_regime_weight: 0.30    # 30% predictive, 70% reactive
+    macro_symbols:                # fetched automatically
+      - HYG     # High-yield corporate bond ETF
+      - LQD     # Investment-grade corporate bond ETF
+      - "^VIX"  # CBOE Volatility Index
+      - SHY     # 1-3yr Treasury (short end of yield curve)
+
+backtest:
+  start_date: "2018-01-01"
+  end_date: "2025-12-31"
+  commission_pct: 0.001     # 0.1% round-trip commission
+  slippage_pct: 0.0005      # 0.05% slippage per trade
+  benchmark: SPY
+
+# ============================================================
+# COST MODEL — realistic per-asset-class costs
+# Leave blank to use built-in per-asset defaults (recommended).
+# Override here only if you have specific broker rate agreements.
+# ============================================================
+costs:
+  # Global overrides (uncomment to apply to ALL asset classes)
+  # commission_pct: 0.0002        # e.g. 0.02% flat commission
+  # half_spread_pct: 0.0002       # e.g. 0.02% half-spread
+  impact_scale: 1.0               # 1.0 = realistic; 0 = no impact; 2.0 = conservative
+  # overnight_financing_rate: 0.055  # ann. rate for leveraged longs (e.g. 5.5%)
+  # short_borrow_rate: 0.005         # ann. rate for shorts (e.g. 0.5%)
+  capital_gains_tax_rate: 0.0     # set to 0.15 to model Greek 15% CGT on realised gains
+
+# ============================================================
+# PORTFOLIO OPTIMIZER
+# Replaces signal-proportional sizing with risk-parity or min-variance.
+# Includes crypto cap and regime-aware heat scaling.
+# ============================================================
+optimizer:
+  enabled: true
+  method: risk_parity        # risk_parity | min_variance | signal (original)
+  vol_window: 21             # rolling vol lookback for risk parity
+  cov_window: 63             # covariance lookback for min-variance (3 months)
+  max_crypto_pct: 0.10       # hard cap: crypto ≤ 10% of total portfolio
+  rp_concentration_cap: 3.5  # v14: max position = N× its risk-parity budget (was hardcoded 2.0)
+  regime_scaling: true       # reduce heat when SPY below 200d MA
+  # Dynamic bear multiplier: smooth linear function of distance below MA200
+  # (replaces the old binary bear_heat_multiplier)
+  bear_heat_min:         0.85  # floor multiplier at deepest bear (v14: raised from 0.60)
+  bear_heat_max:         1.15  # v15: ceiling above 1.0 — BOOST in confirmed bull markets
+                               # when SPY is >5% above MA200, we deploy MORE capital
+                               # economic logic: strong uptrends have positive autocorrelation
+  bear_sensitivity_pct:  0.15  # % below MA200 where floor is reached (default 15%)
+  # Legacy back-compat: if set, overrides bear_heat_min (remove once confirmed)
+  # bear_heat_multiplier: 0.50
+
+# ============================================================
+# INTRADAY SHOCK DETECTOR
+# Runs every 5 minutes in live/paper mode. Detects VIX spikes
+# and intraday portfolio drops — scales positions down immediately
+# without waiting for the next daily/weekly rebalance.
+# In backtest: simulated using daily price changes as proxy.
+# ============================================================
+intraday_shock:
+  enabled: true
+  vix_spike_caution:     0.12   # v15: VIX up 12% intraday → CAUTION (was 10%)
+  vix_spike_shock:       0.20   # v15: VIX up 20% intraday → SHOCK (was 15%)
+  equity_drop_caution:   0.06   # v15: portfolio down 6% from open → CAUTION (was 5%)
+  equity_drop_shock:     0.10   # v15: portfolio down 10% from open → SHOCK (was 8%)
+  volume_shock:          true   # enable volume-based panic/climactic detection
+  vol_panic_multiple:    2.5    # v15: volume > 2.5× 20d avg AND price down → CAUTION (was 2.0)
+  vol_climactic_multiple: 4.0   # v15: volume > 4× 20d avg AND price down >1% → SHOCK (was 3.0)
+  # Recovery: 3-day gradual ramp (was 5-day): 50% → 80% → 100%
+
+# ============================================================
+# VOLATILITY TARGETING
+# Dynamically scales total exposure so portfolio vol stays near target.
+# Based on Moreira & Muir (2017) "Volatility-Managed Portfolios", JoF.
+# Parameters set by economic logic — NOT optimised on backtest data.
+# ============================================================
+vol_targeting:
+  enabled: false           # v15b: disabled — creates whipsaw vol that kills returns
+  target_vol: 0.40        # v15b: raised from 0.22 → 0.40 (40% annualised)
+                           # Reason: realized portfolio vol with multi-asset + crypto is ~40-55%
+                           # 22% target caused VT to scale DOWN 96% of days (avg_scale=0.59)
+                           # 40% allows VT to act as safety net, not permanent drag
+                           # Still protects against extreme vol (>60%), but permits deployment
+  vol_window: 21          # EWMA half-life proxy (1 calendar month)
+  max_leverage: 1.5       # cap leverage in calm markets (prevent over-exposure)
+  min_leverage: 0.50      # v15b: raised from 0.30 → 0.50 (min 50% deployment in crash)
+                           # 0.30 still too restrictive — with 5 other safety layers
+                           # (circuit breaker, ISD, trend classifier, optimizer, risk parity)
+                           # VT floor can be higher without increasing tail risk
+  warmup_days: 42         # days before vol estimate is trusted (2 months)
+  # H2O AutoML vol forecaster (trained 2010-2022, OOS validated 2023-2026)
+  # Wins 6/6 metrics vs EWMA: MAE -6.3%, bias -90.9%, corr +4.0%
+  # Set to false to revert to pure EWMA (e.g. for debugging)
+  use_h2o_vol: true        # true = H2O predictions | false = EWMA only
+  # Retrain quarterly: python core/h2o_vol_forecaster.py --retrain
+
+# ============================================================
+# H2O TREND CLASSIFIER
+# 5-state trend classification (STRONG_UP → STRONG_DOWN) using
+# 28 features: price, volume, volatility, VIX, SPY regime, calendar.
+# Multiplies signal by [0.60, 1.40] based on predicted trend state.
+# Falls back to rule-based MA crossover + ADX when H2O unavailable.
+# ============================================================
+trend_classifier:
+  enabled: true
+  use_h2o: true              # true = H2O AutoML | false = rule-based only
+  # Trend state multipliers applied to the combined signal
+  # v15: less asymmetric — boost more in uptrends, cut less in downtrends
+  # Reason: the other safety layers (circuit breaker, ISD, vol targeting)
+  # already handle downside protection. Trend classifier should focus
+  # on UPSIDE capture with gentler downside reduction.
+  multipliers:
+    STRONG_UP:   1.50         # v15: ride strong uptrends harder (was 1.40)
+    MILD_UP:     1.20         # v15: boost mild uptrends more (was 1.15)
+    NEUTRAL:     1.00         # no change
+    MILD_DOWN:   0.90         # v15: gentler trim (was 0.85)
+    STRONG_DOWN: 0.75         # v15: less aggressive (was 0.60) — other layers handle crash
+  # Walk-forward training config (used when H2O trains)
+  train_min_rows: 500         # minimum rows before training
+  retrain_frequency: quarterly
+
+# ============================================================
+# PRICE-VOLUME SEGMENT ANALYSER
+# 12-feature momentum quality scorer that measures HOW price
+# moved (volume confirmation, trend consistency, acceleration),
+# not just direction. Score in [-1, +1] blended into final signal.
+# ============================================================
+pv_segments:
+  pv_segments_enabled: false   # OFF at weekly rebalance — volume signals need daily frequency
+                                # Enable when switching rebalance_frequency to daily or
+                                # when H2O is trained with enough data for regression scoring
+  pv_segment_weight: 0.10     # 10% PV score + 90% existing signal (tuned via backtest)
+  pv_use_h2o: true            # attempt H2O regression scoring (fallback: rules)
+
+# ============================================================
+# EARLY WARNING SYSTEM (EWS)
+# Regime-gating layer that scales position sizes down during
+# detected stress periods to reduce drawdowns.
+# ============================================================
+ews:
+  enabled: true              # set false to disable entirely
+  use_anomaly: true          # Isolation Forest on position behaviour
+  use_macro: true            # FRED macro stress (yield curve, credit spreads)
+  use_event: true            # VIX velocity + market breadth shocks
+  use_commfx: true           # Oil, Gold, DXY, JPY stress signals
+
+  # Scale factors applied to max_position_pct and max_portfolio_heat
+  # when EWS detects stress. These are NOT optimised — set by risk logic.
+  # GREEN  (<0.25):  1.00x  full exposure
+  # YELLOW (0.25-0.40): 0.70x  trim
+  # ORANGE (0.40-0.55): 0.40x  reduce
+  # RED    (0.55-0.70): 0.20x  defensive
+  # CRITICAL (>0.70):  0.05x  near-flat
+
+brokers:
+  ibkr:
+    host: 127.0.0.1
+    port: 7497              # 7497 = paper, 7496 = live TWS; 4001/4002 IB Gateway
+    client_id: 1
+    account: ""             # fill with your IBKR account ID
+    paper_mode: true
+
+  binance:
+    api_key: ""             # set via env: BINANCE_API_KEY
+    api_secret: ""          # set via env: BINANCE_API_SECRET
+    testnet: true           # flip to false for live
+
+  alpaca:
+    api_key: ""             # set via env: ALPACA_API_KEY
+    api_secret: ""          # set via env: ALPACA_API_SECRET
+    paper: true
+    base_url: "https://paper-api.alpaca.markets"
