@@ -175,7 +175,7 @@ def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[dict
             try: path.unlink()
             except: pass
             return None
-        return raw
+        return v  # callers expect just the data dict, not the wrapper
     except Exception:
         return None
 
