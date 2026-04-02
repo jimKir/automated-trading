@@ -381,3 +381,37 @@ alpaca_signals:
   options_flow:
     unusual_volume_mult: 2.0  # 2x OI baseline = unusual
     otm_weight_mult:     1.5  # OTM options weighted higher (more informative)
+
+# ============================================================
+# DATABENTO MICROSTRUCTURE SIGNALS
+# Three information-based signals from Databento market data.
+# Requires DATABENTO_KEY env var: db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk
+# ============================================================
+databento_signals:
+  enabled: true
+  weight: 0.25              # 25% of final signal composite
+
+  # Component weights (must sum to 1.0)
+  imbalance_weight:   0.40  # Closing auction imbalance — HIGHEST VALUE
+  cross_weight:       0.35  # Opening cross volume anomaly
+  options_weight:     0.25  # OPRA real options flow
+
+  imbalance_signal:
+    enabled: true
+    lookback_days: 10       # days of imbalance to aggregate
+    decay_halflife: 3       # exponential decay half-life (days)
+    min_paired_qty: 1000    # minimum paired qty to trust signal
+
+  opening_cross_signal:
+    enabled: true
+    lookback_days: 5
+    decay_halflife: 2
+    high_volume_threshold: 1.5
+    volume_baseline_days: 20
+
+  opra_flow_signal:
+    enabled: true
+    lookback_days: 5
+    decay_halflife: 2
+    otm_weight_mult: 1.5
+    min_daily_volume: 100
