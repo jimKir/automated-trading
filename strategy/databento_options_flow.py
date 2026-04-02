@@ -77,11 +77,10 @@ log = logging.getLogger("OPRAOptionsFlow")
 
 DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
 
-CACHE_DIR = Path("/tmp/databento_cache/opra")
+CACHE_DIR = Path.home() / ".databento_cache" / "opra"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-CACHE_TTL_HOURS = 24
-
+CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently
 # Rate limit: 1 request per second
 _RATE_LIMIT_SLEEP = 1.0
 

@@ -56,10 +56,10 @@ log = logging.getLogger("DatabentoImbalance")
 
 DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
 
-CACHE_DIR = Path("/tmp/databento_cache")
+CACHE_DIR = Path.home() / ".databento_cache" / "imbalance"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-CACHE_TTL_HOURS = 24  # cache imbalance data for 24 hours
+CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently
 
 # 4:00 PM ET is 20:00 UTC (valid year-round; NASDAQ close is always 20:00 UTC)
 CLOSE_UTC_HOUR = 20

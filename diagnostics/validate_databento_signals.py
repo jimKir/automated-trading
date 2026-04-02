@@ -30,6 +30,18 @@ WINDOWS   = [
     ("2026", "2026-01-01", "2026-03-21"),
 ]
 
+# ── Migrate any existing /tmp cache to permanent home dir cache ───────────────
+import shutil
+from pathlib import Path
+_old_root = Path("/tmp/databento_cache")
+_new_root = Path.home() / ".databento_cache"
+if _old_root.exists() and not _new_root.exists():
+    print(f"Migrating cache: {_old_root} → {_new_root}")
+    shutil.copytree(str(_old_root), str(_new_root))
+    print("  Migration complete. Old /tmp cache preserved (delete manually if desired).")
+else:
+    _new_root.mkdir(parents=True, exist_ok=True)
+
 print("=" * 68)
 print("  Databento Signal Validation — OOS 2023-2026")
 print(f"  Universe: {len(SYMS)} liquid US equities")
@@ -141,25 +153,45 @@ from strategy.databento_imbalance import ClosingImbalanceSignal
 imb_signal = ClosingImbalanceSignal()
 
 # Walk-forward: compute weekly signal for each week in OOS
-print("  Computing weekly imbalance signals (this fetches real data)...")
+print("  Computing weekly imbalance signals...")
+print("  (cached dates replay instantly, new dates hit Databento API ~11s each)")
 imb_rows = {}
 # Use biweekly steps to limit API calls during validation
 week_dates = [d.date() for d in wc.index
               if pd.Timestamp(OOS_START) <= d <= pd.Timestamp(OOS_END)]
 step_dates = week_dates[::2]  # every 2 weeks
 
+from pathlib import Path
+imb_cache_dir = Path.home() / ".databento_cache" / "imbalance"
+imb_cache_dir.mkdir(parents=True, exist_ok=True)
+
+n_cached = n_fetched = n_failed = 0
 for i, d in enumerate(step_dates):
-    if i % 10 == 0:
-        print(f"  {i}/{len(step_dates)} {d}", end="\r")
+    # Check cache status for display
+    import hashlib, json as _json
+    ck = imb_cache_dir / f"{hashlib.md5(str(('imbalance', sorted(SYMS), str(d))).encode()).hexdigest()}.json"
+    was_cached = ck.exists()
     try:
         sigs = imb_signal.compute_weekly(SYMS, d)
         if sigs:
             imb_rows[pd.Timestamp(d)] = sigs
+            if was_cached:
+                n_cached += 1
+                status = "📁 cache"
+            else:
+                n_fetched += 1
+                status = "🌐 fetch"
+        else:
+            n_failed += 1
+            status = "⚠️  empty"
     except Exception as e:
-        pass
+        n_failed += 1
+        status = f"❌ error"
+    print(f"  [{i+1:>3}/{len(step_dates)}] {d}  {status}")
 
 imb_df = pd.DataFrame(imb_rows).T if imb_rows else pd.DataFrame()
-print(f"\n  Imbalance signal: {len(imb_df)} weekly observations")
+print(f"\n  Imbalance: {len(imb_df)} observations  "
+      f"(📁 {n_cached} cached  🌐 {n_fetched} fetched  ❌ {n_failed} failed)")
 
 # ── SIGNAL 2: OPRA OPTIONS FLOW ───────────────────────────────────────────────
 print("\n[3/5] Building OPRA options flow signal...")

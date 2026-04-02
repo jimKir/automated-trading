@@ -66,11 +66,10 @@ log = logging.getLogger("OpeningCrossSignal")
 
 DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
 
-CACHE_DIR = Path("/tmp/databento_cache/stats")
+CACHE_DIR = Path.home() / ".databento_cache" / "stats"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-CACHE_TTL_HOURS = 24
-
+CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently
 # NASDAQ opening cross time window: 09:00–09:35 ET = 14:00–14:35 UTC
 OPEN_CROSS_START_UTC = (14, 0)   # (hour, minute)
 OPEN_CROSS_END_UTC   = (14, 35)  # includes all pre-open auction prints
