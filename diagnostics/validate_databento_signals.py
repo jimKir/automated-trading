@@ -202,23 +202,32 @@ imb_df = pd.DataFrame(imb_rows).T if imb_rows else pd.DataFrame()
 print(f"\n  Imbalance: {len(imb_df)} observations collected")
 
 # ── SIGNAL 2: OPRA OPTIONS FLOW ───────────────────────────────────────────────
-print("\n[3/5] Building OPRA options flow signal...")
-
+print("\n[3/5] Building OPRA options flow signal (last 12 months)...")
 from strategy.databento_options_flow import OPRAOptionsFlowSignal
 opra_signal = OPRAOptionsFlowSignal()
 
+# Limit to 2025-04-01+ — OPRA most reliable recent data, saves ~55 min vs full scan
+opra_step_dates = [d for d in step_dates
+                   if pd.Timestamp(d) >= pd.Timestamp("2025-04-01")]
+print(f"  Using {len(opra_step_dates)} dates")
+
+import time as _ot
 opra_rows = {}
-for i, d in enumerate(step_dates):
-    if i % 10 == 0:
-        print(f"  {i}/{len(step_dates)} {d}", end="\r")
+for i, d in enumerate(opra_step_dates):
+    _t0 = _ot.time()
     try:
         sigs = opra_signal.compute_weekly(SYMS, d)
+        _el = _ot.time() - _t0
         if sigs:
             opra_rows[pd.Timestamp(d)] = sigs
-    except Exception as e:
-        pass
+            _st = f"📁 cache" if _el < 1.0 else f"🌐 fetch ({_el:.0f}s)"
+        else: _st = "⚠️  empty"
+    except Exception as _e:
+        _st = f"❌ {str(_e)[:40]}"
+    print(f"  [{i+1:>3}/{len(opra_step_dates)}] {d}  {_st}")
 
 opra_df = pd.DataFrame(opra_rows).T if opra_rows else pd.DataFrame()
+print(f"\n  OPRA options signal: {len(opra_df)} weekly observations")
 print(f"\n  OPRA options signal: {len(opra_df)} weekly observations")
 
 # ── SIGNAL 3: OPENING CROSS ───────────────────────────────────────────────────
