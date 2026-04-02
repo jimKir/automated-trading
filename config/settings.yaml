@@ -350,3 +350,34 @@ brokers:
     api_secret: ""          # set via env: ALPACA_API_SECRET
     paper: true
     base_url: "https://paper-api.alpaca.markets"
+
+
+# ============================================================
+# ALPACA MICROSTRUCTURE SIGNALS
+# Four information-based signals from Alpaca market data.
+# Requires ALPACA_API_KEY + ALPACA_API_SECRET env vars.
+# ============================================================
+alpaca_signals:
+  enabled: true
+  weight: 0.25              # 25% of final signal composite
+
+  # Component weights (must sum to 1.0)
+  vwap_weight:      0.35    # VWAP distance trend — IC@5d 0.054 ✅ (p=0.007)
+  gap_weight:       0.30    # Gap fill rate — IC@5d 0.027 (p=0.175, directional)
+  intensity_weight: 0.00    # Trade intensity — negative IC, disabled
+  options_weight:   0.35    # Real OPRA options flow (paid tier)
+
+  # VWAP signal config
+  vwap_signal:
+    roll_weeks:    4         # rolling VWAP distance trend window
+    lookback_days: 126       # 6 months normalisation window
+
+  # Gap fill signal config
+  gap_fill_signal:
+    lookback_days: 20        # days for gap fill rate estimation
+    min_gap_pct:   0.003     # minimum gap size to count (0.3%)
+
+  # Options flow config (Alpaca paid tier)
+  options_flow:
+    unusual_volume_mult: 2.0  # 2x OI baseline = unusual
+    otm_weight_mult:     1.5  # OTM options weighted higher (more informative)
