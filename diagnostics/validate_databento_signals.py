@@ -162,7 +162,13 @@ week_dates = [d.date() for d in wc.index
 step_dates = week_dates[::2]  # every 2 weeks
 
 from pathlib import Path
-from strategy.databento_imbalance import _cache_path as _imb_cache_path
+from strategy.databento_imbalance import _cache_path as _imb_cache_path, CACHE_DIR as _IMB_CACHE_DIR
+
+# Show cache location + first key so we can verify cache is being found
+_first_ck = _imb_cache_path("imbalance", sorted(SYMS), str(step_dates[0]))
+print(f"  Cache dir : {_IMB_CACHE_DIR}")
+print(f"  First key : {_first_ck.name}  (exists={_first_ck.exists()})")
+print(f"  Cached files: {len(list(_IMB_CACHE_DIR.glob('*.json')))}")
 
 n_cached = n_fetched = n_failed = 0
 for i, d in enumerate(step_dates):

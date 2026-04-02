@@ -147,8 +147,14 @@ def _lookback_trading_days(as_of: date, n: int) -> List[date]:
 # ── CACHE HELPERS ─────────────────────────────────────────────────────────────
 
 def _cache_path(*parts) -> Path:
-    key = hashlib.md5("|".join(str(p) for p in parts).encode()).hexdigest()
+    raw = "|".join(str(p) for p in parts)
+    key = hashlib.md5(raw.encode()).hexdigest()
     return CACHE_DIR / f"{key}.json"
+
+
+def get_cache_path_for(*parts) -> Path:
+    """Public alias — lets the validation script use the exact same key."""
+    return _cache_path(*parts)
 
 
 def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[dict]:
