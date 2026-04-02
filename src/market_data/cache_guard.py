@@ -170,17 +170,49 @@ class CacheGuard:
             raise RuntimeError(f"Cache directory is not functional: {msg}")
 
         # 2. Scan all dates
+        # The module stores cache by TRADING DAY (not week-end date).
+        # So we scan the actual cache directory for valid files and
+        # count what proportion of expected dates are covered.
+        # A date is "cached" if ANY of its 10 surrounding trading days are cached.
+        all_valid_files = {
+            f.stem  # MD5 hash
+            for f in self.cache_dir.glob("*.json")
+            if not f.name.startswith(".") and f.name != "catalogue.json"
+            and f.stat().st_size >= 100
+        }
+
+        # Generate all trading days covered by the requested dates
+        # For each week-end date, check the 10 preceding trading days
+        def trading_days_before(d: date, n: int = 10):
+            days, cur = [], d - timedelta(days=1)
+            while len(days) < n:
+                if cur.weekday() < 5:
+                    days.append(cur)
+                cur -= timedelta(days=1)
+            return days
+
         cached, empty_deleted, missing = [], [], []
         for d in dates:
-            f = _file(schema, symbols, d)
-            valid, reason = _is_valid(f)
-            if valid:
+            # Check if ANY of the 10 trading days before this date are cached
+            trading_days = trading_days_before(d, 10)
+            hits = sum(
+                1 for td in trading_days
+                if _key(schema, symbols, td) in all_valid_files
+            )
+            if hits >= 8:  # 8/10 days cached = this week is covered
                 cached.append(d)
-            elif f.exists():
-                # File exists but invalid — delete it
-                if not dry_run:
-                    f.unlink(missing_ok=True)
-                empty_deleted.append((d, reason))
+            elif hits > 0:
+                # Partial — some days cached, some not
+                # Check for corrupt files (exist but invalid)
+                for td in trading_days:
+                    f = _file(schema, symbols, td)
+                    if f.exists():
+                        valid, reason = _is_valid(f)
+                        if not valid:
+                            if not dry_run:
+                                f.unlink(missing_ok=True)
+                            empty_deleted.append((td, reason))
+                missing.append(d)  # will re-check at fetch time
             else:
                 missing.append(d)
 
