@@ -461,8 +461,9 @@ class _OPRAFetcher:
 
             # Filter to contracts whose symbol starts with underlying
             # OPRA OCC format: AAPL260410C00185000 — starts with underlying ticker
+            # FIX: fillna("") before startswith to avoid NaN boolean mask error
             if "symbol" in df.columns:
-                df = df[df["symbol"].str.startswith(underlying.upper())]
+                df = df[df["symbol"].fillna("").str.startswith(underlying.upper())]
 
             if df.empty:
                 _cache_save(ck, {})
