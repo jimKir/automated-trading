@@ -1,0 +1,386 @@
+"""
+Cache Guard — Pre/Post Fetch Validator
+=======================================
+Prevents unnecessary (and costly) API calls by rigorously validating
+what is already cached before touching any external data source.
+
+Run BEFORE any fetch session:
+    python src/market_data/cache_guard.py --check
+
+Run AFTER a fetch session:
+    python src/market_data/cache_guard.py --verify
+
+Or in code:
+    from src.market_data.cache_guard import CacheGuard
+    guard = CacheGuard()
+    guard.preflight_check(dates, symbols, schema)   # raises if suspicious
+    guard.post_fetch_verify()                        # confirms what was written
+    guard.estimate_cost(dates, symbols, schema)      # prints cost before committing
+"""
+from __future__ import annotations
+
+import json
+import hashlib
+import sys
+import time
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+# ── Databento cost table (USD per GB, approximate as of 2026) ────────────────
+# Source: https://databento.com/pricing
+COST_PER_GB = {
+    ("XNAS.ITCH",   "imbalance"):  16.00,
+    ("XNAS.ITCH",   "statistics"): 16.00,
+    ("XNAS.ITCH",   "trades"):     32.00,
+    ("XNAS.ITCH",   "mbp-1"):      64.00,
+    ("OPRA.PILLAR", "ohlcv-1d"):  150.00,
+    ("OPRA.PILLAR", "trades"):    280.00,
+    ("OPRA.PILLAR", "definition"):  5.00,
+    ("DBEQ.BASIC",  "trades"):     11.00,
+    ("DBEQ.BASIC",  "ohlcv-1m"):   11.00,
+    ("IEXG.TOPS",   "trades"):      1.00,
+}
+
+# Approximate GB per symbol per day (empirical from our usage)
+GB_PER_SYMBOL_DAY = {
+    ("XNAS.ITCH",   "imbalance"):  0.0016,  # 1.33GB / 20syms / 42days ≈ 0.0016
+    ("XNAS.ITCH",   "statistics"): 0.00002,
+    ("XNAS.ITCH",   "trades"):     0.008,
+    ("OPRA.PILLAR", "ohlcv-1d"):   0.021,   # $245 for 20syms × ~60days
+    ("OPRA.PILLAR", "trades"):     0.028,   # $185 for ~60 days
+    ("DBEQ.BASIC",  "trades"):     0.0005,
+}
+
+CACHE_DIR = Path(__file__).parent.parent.parent / ".cache" / "databento"
+
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+
+def _key(schema: str, symbols: List[str], day: date) -> str:
+    raw = "|".join(str(p) for p in [schema, sorted(symbols), str(day)])
+    return hashlib.md5(raw.encode()).hexdigest()
+
+def _file(schema: str, symbols: List[str], day: date) -> Path:
+    return CACHE_DIR / f"{_key(schema, symbols, day)}.json"
+
+def _is_valid(path: Path) -> Tuple[bool, str]:
+    """Returns (is_valid, reason)."""
+    if not path.exists():
+        return False, "not found"
+    size = path.stat().st_size
+    if size < 100:
+        return False, f"too small ({size}B — empty/failed entry)"
+    try:
+        data = json.loads(path.read_text())
+        if not isinstance(data, dict):
+            return False, "not a dict"
+        if "_ts" not in data:
+            return False, "missing _ts timestamp"
+        v = data.get("v", {})
+        if not isinstance(v, dict):
+            return False, f"v is {type(v).__name__} not dict"
+        if len(v) == 0:
+            return False, "v is empty {}"
+        return True, f"ok ({len(v)} rows, {size//1024}KB)"
+    except Exception as e:
+        return False, f"parse error: {e}"
+
+def _round_trip_test(schema: str, symbols: List[str], day: date) -> Tuple[bool, str]:
+    """Write a test entry, read it back, confirm they match."""
+    test_path = CACHE_DIR / f"_test_{_key(schema, symbols, day)}.json"
+    test_data = {
+        "v": {"0": {"symbol": "TEST", "value": 42.0}, "1": {"symbol": "TEST2", "value": -1.0}},
+        "_ts": time.time()
+    }
+    try:
+        test_path.write_text(json.dumps(test_data))
+        loaded = json.loads(test_path.read_text())
+        test_path.unlink()
+        if loaded.get("v") != test_data["v"]:
+            return False, "round-trip mismatch"
+        return True, "ok"
+    except Exception as e:
+        try: test_path.unlink()
+        except: pass
+        return False, str(e)
+
+
+# ── Main Guard Class ───────────────────────────────────────────────────────────
+
+class CacheGuard:
+    """
+    Pre/post fetch validator. Prevents costly API re-fetches.
+
+    Usage pattern:
+        guard = CacheGuard()
+
+        # Before ANY fetch:
+        plan = guard.preflight(dates, symbols, "imbalance", dataset="XNAS.ITCH")
+        # → prints what's cached, what's missing, estimated cost
+        # → raises if cost estimate exceeds budget
+
+        # After fetch:
+        guard.verify_written(dates, symbols, "imbalance")
+        # → confirms all expected files were written with real data
+    """
+
+    def __init__(self, cache_dir: Optional[Path] = None, cost_budget_usd: float = 10.0):
+        self.cache_dir = cache_dir or CACHE_DIR
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cost_budget = cost_budget_usd
+
+    # ── Preflight check ──────────────────────────────────────────────────────
+
+    def preflight(
+        self,
+        dates:    List[date],
+        symbols:  List[str],
+        schema:   str,
+        dataset:  str = "XNAS.ITCH",
+        dry_run:  bool = False,
+        abort_on_over_budget: bool = True,
+    ) -> dict:
+        """
+        Run before any fetch session.
+
+        1. Round-trip test: confirm cache dir is writable and reads correctly
+        2. Scan all dates: classify as CACHED / EMPTY / MISSING
+        3. Delete empty/corrupt files (they cause re-fetches)
+        4. Estimate cost for missing dates
+        5. Print clear summary
+        6. Return plan dict
+
+        dry_run=True: analyse only, don't delete anything
+        abort_on_over_budget=True: raise if estimated cost > self.cost_budget
+        """
+        print()
+        print("=" * 62)
+        print("  CACHE PREFLIGHT CHECK")
+        print(f"  Schema:  {dataset} / {schema}")
+        print(f"  Dates:   {len(dates)} dates  ({min(dates)} → {max(dates)})")
+        print(f"  Symbols: {len(symbols)}")
+        print(f"  Cache:   {self.cache_dir}")
+        print("=" * 62)
+
+        # 1. Round-trip test
+        ok, msg = _round_trip_test(schema, symbols[:3], dates[0])
+        print(f"\n  [1/4] Cache read/write test:  {'✅ ' + msg if ok else '❌ FAIL: ' + msg}")
+        if not ok:
+            raise RuntimeError(f"Cache directory is not functional: {msg}")
+
+        # 2. Scan all dates
+        cached, empty_deleted, missing = [], [], []
+        for d in dates:
+            f = _file(schema, symbols, d)
+            valid, reason = _is_valid(f)
+            if valid:
+                cached.append(d)
+            elif f.exists():
+                # File exists but invalid — delete it
+                if not dry_run:
+                    f.unlink(missing_ok=True)
+                empty_deleted.append((d, reason))
+            else:
+                missing.append(d)
+
+        print(f"\n  [2/4] Cache scan:")
+        print(f"    ✅ Cached (will skip):          {len(cached):>4} dates")
+        print(f"    🗑  Invalid/deleted:             {len(empty_deleted):>4} dates"
+              + (" (dry-run, not deleted)" if dry_run else ""))
+        print(f"    🌐 Missing (will fetch from API): {len(missing):>4} dates")
+
+        if empty_deleted:
+            print(f"\n  Deleted invalid files:")
+            for d, reason in empty_deleted[:5]:
+                print(f"    {d}: {reason}")
+            if len(empty_deleted) > 5:
+                print(f"    ... and {len(empty_deleted)-5} more")
+
+        # 3. Cost estimate
+        cost_per_gb = COST_PER_GB.get((dataset, schema), 20.0)
+        gb_per_sym_day = GB_PER_SYMBOL_DAY.get((dataset, schema), 0.001)
+        est_gb   = len(missing) * len(symbols) * gb_per_sym_day
+        est_cost = est_gb * cost_per_gb
+
+        print(f"\n  [3/4] Cost estimate for {len(missing)} missing dates:")
+        print(f"    Rate:      ${cost_per_gb:.2f}/GB  (~{gb_per_sym_day*1000:.2f} MB/symbol/day)")
+        print(f"    Est. data: {est_gb*1024:.1f} MB")
+        print(f"    Est. cost: ${est_cost:.2f} USD")
+        print(f"    Budget:    ${self.cost_budget:.2f} USD")
+
+        over_budget = est_cost > self.cost_budget
+        if over_budget:
+            print(f"\n  ⚠️  OVER BUDGET — estimated ${est_cost:.2f} > budget ${self.cost_budget:.2f}")
+            if abort_on_over_budget:
+                print(f"  Aborting. To proceed anyway: CacheGuard(cost_budget_usd={est_cost*1.1:.0f})")
+                raise RuntimeError(
+                    f"Estimated cost ${est_cost:.2f} exceeds budget ${self.cost_budget:.2f}. "
+                    f"Set cost_budget_usd={est_cost*1.1:.0f} to proceed."
+                )
+        else:
+            print(f"    Status:    ✅ Within budget")
+
+        # 4. Summary
+        print(f"\n  [4/4] Plan:")
+        if not missing:
+            print(f"    ✅ Nothing to fetch — all {len(cached)} dates cached")
+        else:
+            print(f"    🌐 Will fetch {len(missing)} dates (~${est_cost:.2f})")
+            print(f"    📁 Will use cache for {len(cached)} dates ($0.00)")
+            print(f"    ⏱  Est. time: {len(missing)*50//60}–{len(missing)*70//60} min"
+                  f" at ~50–70s/date")
+        print("=" * 62)
+        print()
+
+        return {
+            "cached": cached,
+            "missing": missing,
+            "deleted_invalid": [d for d, _ in empty_deleted],
+            "est_cost_usd": round(est_cost, 2),
+            "est_gb": round(est_gb, 3),
+            "over_budget": over_budget,
+        }
+
+    # ── Post-fetch verification ───────────────────────────────────────────────
+
+    def verify_written(
+        self,
+        dates:   List[date],
+        symbols: List[str],
+        schema:  str,
+    ) -> dict:
+        """
+        Run immediately after a fetch session.
+        Confirms every expected file was written with real data.
+        """
+        print()
+        print("=" * 62)
+        print("  POST-FETCH VERIFICATION")
+        print("=" * 62)
+
+        good, bad = [], []
+        for d in dates:
+            f = _file(schema, symbols, d)
+            valid, reason = _is_valid(f)
+            if valid:
+                good.append(d)
+            else:
+                bad.append((d, reason, f))
+
+        total_mb = sum(
+            _file(schema, symbols, d).stat().st_size
+            for d in good
+            if _file(schema, symbols, d).exists()
+        ) / 1024 / 1024
+
+        print(f"\n  ✅ Successfully written: {len(good)}/{len(dates)} dates ({total_mb:.1f} MB)")
+        if bad:
+            print(f"  ❌ Failed/missing:       {len(bad)} dates")
+            for d, reason, f in bad[:10]:
+                print(f"    {d}: {reason}")
+
+        # Spot-check a few files
+        import random
+        sample = random.sample(good, min(3, len(good)))
+        print(f"\n  Spot-check ({len(sample)} random files):")
+        for d in sample:
+            f = _file(schema, symbols, d)
+            data = json.loads(f.read_text())
+            v = data.get("v", {})
+            rows = list(v.values())[:1]
+            print(f"    {d}: {len(v)} rows — sample: {rows[0] if rows else 'empty'}")
+
+        success_rate = len(good) / len(dates) * 100 if dates else 0
+        verdict = "✅ PASS" if success_rate >= 95 else ("⚠️  PARTIAL" if success_rate >= 50 else "❌ FAIL")
+        print(f"\n  Result: {verdict} ({success_rate:.0f}% success rate)")
+        print("=" * 62)
+        print()
+
+        return {"good": good, "bad": bad, "success_rate": success_rate}
+
+    # ── Inventory ─────────────────────────────────────────────────────────────
+
+    def inventory(self) -> None:
+        """Print a complete inventory of what's cached."""
+        files = [f for f in self.cache_dir.glob("*.json")
+                 if not f.name.startswith(".") and f.name != "catalogue.json"]
+
+        valid = [(f, json.loads(f.read_text())) for f in files
+                 if f.stat().st_size >= 100]
+        invalid = [f for f in files if f.stat().st_size < 100]
+
+        total_mb = sum(f.stat().st_size for f, _ in valid) / 1024 / 1024
+
+        print()
+        print("=" * 62)
+        print(f"  CACHE INVENTORY: {self.cache_dir}")
+        print("=" * 62)
+        print(f"  Valid files:   {len(valid)} ({total_mb:.1f} MB)")
+        print(f"  Invalid files: {len(invalid)} (will be auto-deleted on next read)")
+        print()
+
+        # Date coverage — infer from _ts field
+        ts_list = [d.get("_ts", 0) for _, d in valid if "_ts" in d]
+        if ts_list:
+            oldest = datetime.fromtimestamp(min(ts_list)).strftime("%Y-%m-%d %H:%M")
+            newest = datetime.fromtimestamp(max(ts_list)).strftime("%Y-%m-%d %H:%M")
+            print(f"  Fetched between: {oldest} → {newest}")
+
+        # Row count stats
+        row_counts = [len(d.get("v", {})) for _, d in valid]
+        if row_counts:
+            print(f"  Rows per file:   min={min(row_counts)}  max={max(row_counts)}  "
+                  f"avg={sum(row_counts)//len(row_counts)}")
+            zero_rows = sum(1 for r in row_counts if r == 0)
+            if zero_rows:
+                print(f"  ⚠️  Files with 0 rows: {zero_rows} (will be cleaned on next read)")
+
+        print("=" * 62)
+        print()
+
+    # ── Cleanup ───────────────────────────────────────────────────────────────
+
+    def cleanup(self) -> int:
+        """Delete all invalid/empty cache files. Returns count deleted."""
+        deleted = 0
+        for f in self.cache_dir.glob("*.json"):
+            if f.name.startswith(".") or f.name == "catalogue.json":
+                continue
+            valid, _ = _is_valid(f)
+            if not valid:
+                f.unlink(missing_ok=True)
+                deleted += 1
+        print(f"  Cleaned {deleted} invalid cache files.")
+        return deleted
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Databento cache guard")
+    parser.add_argument("--check",    action="store_true", help="Run inventory + cleanup")
+    parser.add_argument("--cleanup",  action="store_true", help="Delete all invalid files")
+    parser.add_argument("--preflight",action="store_true", help="Run preflight for imbalance signal")
+    parser.add_argument("--budget",   type=float, default=5.0, help="Cost budget in USD")
+    args = parser.parse_args()
+
+    guard = CacheGuard(cost_budget_usd=args.budget)
+
+    if args.check or (not any([args.cleanup, args.preflight])):
+        guard.inventory()
+
+    if args.cleanup:
+        n = guard.cleanup()
+        print(f"Deleted {n} invalid files.")
+
+    if args.preflight:
+        # Default: check imbalance signal for 2023-2026
+        SYMS = ["AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA","AVGO",
+                "JPM","V","MA","UNH","JNJ","PG","HD","KO","XOM","CVX","BAC","GS"]
+        from datetime import date
+        dates = [date(2023,1,1) + timedelta(days=14*i) for i in range(84)]
+        guard.preflight(dates, SYMS, "imbalance", dataset="XNAS.ITCH",
+                       dry_run=True, abort_on_over_budget=False)

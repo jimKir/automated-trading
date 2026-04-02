@@ -185,6 +185,31 @@ print(f"  Cache dir : {_IMB_CACHE_DIR}")
 print(f"  Cached files: {len(_all_cache_files)} total, {_real_cached} with real data")
 print(f"  (Each weekly date uses 10 trading day fetches internally)")
 
+# ── PREFLIGHT: validate cache, estimate cost, abort if over budget ──────────
+from src.market_data.cache_guard import CacheGuard
+import os as _env_os
+from datetime import date as _date_cls
+_guard = CacheGuard(cost_budget_usd=float(_env_os.environ.get("DATABENTO_BUDGET","20")))
+_preflight_dates = [d if isinstance(d, _date_cls) else _date_cls.fromisoformat(str(d)) for d in step_dates]
+try:
+    _plan = _guard.preflight(
+        dates=_preflight_dates, symbols=SYMS,
+        schema="imbalance", dataset="XNAS.ITCH",
+        abort_on_over_budget=True,
+    )
+    # Collect already-cached dates without any API call
+    for _cd in [d for d in step_dates if (d if isinstance(d, _date_cls) else _date_cls.fromisoformat(str(d))) not in _plan["missing"]]:
+        try:
+            sigs = imb_signal.compute_weekly(SYMS, _cd)
+            if sigs: imb_rows[pd.Timestamp(_cd)] = sigs
+        except: pass
+    # Only fetch genuinely missing dates
+    step_dates = [d for d in step_dates
+                  if (d if isinstance(d, _date_cls) else _date_cls.fromisoformat(str(d))) in _plan["missing"]]
+except RuntimeError as _e:
+    print(f"\n  ABORTED by cache guard: {_e}")
+    sys.exit(1)
+
 import time as _time
 n_obs = 0
 for i, d in enumerate(step_dates):
@@ -205,6 +230,12 @@ for i, d in enumerate(step_dates):
 
 imb_df = pd.DataFrame(imb_rows).T if imb_rows else pd.DataFrame()
 print(f"\n  Imbalance: {len(imb_df)} observations collected")
+
+# ── POST-FETCH VERIFICATION ───────────────────────────────────────────────────
+if step_dates:  # only verify if we actually fetched anything
+    _fetched_dates = [d if isinstance(d, _date) else _date.fromisoformat(str(d))
+                      for d in step_dates]
+    _guard.verify_written(_fetched_dates, SYMS, "imbalance")
 
 # ── SIGNAL 2: OPRA OPTIONS FLOW (disabled by default — $245 to re-fetch) ──
 import os as _os
