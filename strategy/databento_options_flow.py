@@ -413,16 +413,16 @@ class _OPRAFetcher:
 
         self._rate_limit()
         try:
+            # OPRA ohlcv-1d: no stype filter supported — fetch all and filter
+            # by underlying symbol in post-processing
             store = self._client.timeseries.get_range(
                 dataset="OPRA.PILLAR",
                 schema="ohlcv-1d",
                 start=start_dt,
                 end=end_dt,
-                symbols=[f"{underlying}.OPT"],
-                stype_in="parent",
-                stype_out="raw_symbol",
+                limit=5000,
             )
-            df = store.to_df(pretty_ts=True, map_symbols=True, tz="UTC")
+            df = store.to_df()
 
             if df.empty:
                 _cache_save(ck, {})
@@ -430,10 +430,23 @@ class _OPRAFetcher:
 
             df.columns = [c.lower() for c in df.columns]
 
+            # Add symbol column from instrument_id if not present
+            if "symbol" not in df.columns and "instrument_id" in df.columns:
+                df["symbol"] = df["instrument_id"].astype(str)
+
             col_map = {"raw_symbol": "symbol"}
             for old, new in col_map.items():
                 if old in df.columns and new not in df.columns:
                     df = df.rename(columns={old: new})
+
+            # Filter to contracts whose symbol starts with underlying
+            # OPRA OCC format: AAPL260410C00185000 — starts with underlying ticker
+            if "symbol" in df.columns:
+                df = df[df["symbol"].str.startswith(underlying.upper())]
+
+            if df.empty:
+                _cache_save(ck, {})
+                return pd.DataFrame()
 
             needed = ["symbol", "open", "high", "low", "close", "volume"]
             available = [c for c in needed if c in df.columns]
