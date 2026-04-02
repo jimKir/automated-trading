@@ -39,16 +39,21 @@ _old_roots = [
 ]
 _new_root = Path(__file__).parent.parent / ".cache" / "databento"
 _new_root.mkdir(parents=True, exist_ok=True)
-for _old_root in _old_roots:
-    if _old_root.exists():
-        moved = 0
-        for f in _old_root.glob("*.json"):
-            dest = _new_root / f.name
-            if not dest.exists():
-                shutil.copy2(str(f), str(dest))
-                moved += 1
-        if moved:
-            print(f"Migrated {moved} cache files: {_old_root} → {_new_root}")
+# Migration: run ONCE only (sentinel file prevents repeated copies of bad data)
+_migration_done = _new_root / ".migrated"
+if not _migration_done.exists():
+    for _old_root in [Path("/tmp/databento_cache"), Path.home() / ".databento_cache"]:
+        if _old_root.exists():
+            _moved = 0
+            for _f in _old_root.glob("*.json"):
+                if _f.stat().st_size < 100: continue  # skip empty files
+                _dest = _new_root / _f.name
+                if not _dest.exists():
+                    shutil.copy2(str(_f), str(_dest))
+                    _moved += 1
+            if _moved:
+                print(f"Migrated {_moved} real files: {_old_root} → {_new_root}")
+    _migration_done.touch()  # mark done — never run again
 
 print("=" * 68)
 print("  Databento Signal Validation — OOS 2023-2026")
