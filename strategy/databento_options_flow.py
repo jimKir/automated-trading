@@ -170,7 +170,7 @@ def _cache_path(*parts) -> Path:
       opra-trades_2025-03-20_AAPL_e5f6g7h8.json
     The hash ensures uniqueness even if the description collides.
     """
-    import hashlib as _hl
+    import hashlib as _hl, re
     raw = "|".join(str(p) for p in parts)
     h8  = _hl.md5(raw.encode()).hexdigest()[:8]
 
