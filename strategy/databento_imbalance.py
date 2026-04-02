@@ -260,6 +260,10 @@ class _DatabentoFetcher:
             df = df[needed].copy()
             df.index = df.index.tz_localize("UTC") if df.index.tzinfo is None else df.index
 
+            # FIX: index may be non-unique (multiple snapshots per symbol per day)
+            # Reset to integer index before saving to avoid orient='index' error
+            df = df.reset_index(drop=True)
+
             # Persist to cache
             cache_dict = df.to_dict("index")
             _cache_save(ck, {str(k): v for k, v in cache_dict.items()})
