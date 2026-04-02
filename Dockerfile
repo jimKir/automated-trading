@@ -1,37 +1,39 @@
 # ============================================================
 #  Trading System — Docker Image
-#  Base: Python 3.11 slim (matches AWS Lambda / ECS defaults)
+#  Base: Python 3.11 slim
 # ============================================================
 FROM python:3.11-slim
 
-# System dependencies
+# System dependencies + Java (required for H2O AutoML)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
         tzdata \
+        openjdk-17-jre-headless \
+        wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Set timezone (configurable via TZ env var at runtime)
+# Java env for H2O
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+# Set timezone
 ENV TZ=Europe/Athens
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# Install Python dependencies first (cached layer)
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir boto3  # AWS SDK for SES / S3 reporting
+    && pip install --no-cache-dir boto3
 
 # Copy application code
 COPY . .
 
-# Create results directories
-RUN mkdir -p results/daily logs
+# Create dirs
+RUN mkdir -p results/daily logs diagnostics /tmp/databento_cache /tmp/alpaca_signal_cache /tmp/signal_cache
 
-# Expose health check port
 EXPOSE 8080
 
-# Default: paper trading mode
-# Override CMD in docker-compose or ECS task definition
 CMD ["python", "main.py", "paper"]

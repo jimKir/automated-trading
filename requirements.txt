@@ -40,3 +40,19 @@ scikit-learn>=1.4.0        # Isolation Forest for EWS anomaly detection
 pytz>=2024.1
 requests>=2.31.0
 tqdm>=4.66.0
+
+# Databento (microstructure signals)
+databento>=0.36.0
+
+# Alpaca SDK (microstructure signals + execution)
+alpaca-py>=0.25.0
+
+# H2O AutoML (vol forecaster + meta-learner)
+h2o>=3.46.0
+
+# Earnings NLP
+vaderSentiment>=3.3.2
+
+# Feature store (S3 parquet)
+pyarrow>=15.0.0
+s3fs>=2024.3.1
