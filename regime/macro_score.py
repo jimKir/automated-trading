@@ -54,19 +54,124 @@ class MacroStressScorer:
 
     # ------------------------------------------------------------------
     def _fetch_fred(self, series_id: str, start: str, end: str) -> pd.Series:
-        """Fetch a FRED time series. Falls back to zeros on failure."""
+        """
+        Fetch a FRED time series.
+        Strategy:
+          1. Direct FRED API (fast JSON endpoint, no auth required)
+          2. pandas_datareader fallback
+          3. yfinance proxy for key series (VIX -> ^VIX, yield spreads -> ETF proxies)
+          4. Zeros fallback (safe, returns no signal)
+        """
         cache_key = f"{series_id}_{start}_{end}"
         if cache_key in self._cache:
             return self._cache[cache_key]
+
+        # ── Method 1: Direct FRED JSON API (fastest, no dependency) ──────────
+        try:
+            import requests as _req
+            url = (
+                f"https://fred.stlouisfed.org/graph/fredgraph.csv"
+                f"?id={series_id}&vintage_date={end}"
+            )
+            resp = _req.get(url, timeout=15)
+            if resp.status_code == 200:
+                from io import StringIO
+                s = pd.read_csv(
+                    StringIO(resp.text),
+                    index_col=0, parse_dates=True, squeeze=True
+                )
+                s = s.replace(".", float("nan")).astype(float).dropna()
+                s = s[(s.index >= start) & (s.index <= end)]
+                if not s.empty:
+                    if hasattr(s.index, "tz") and s.index.tz is not None:
+                        s.index = s.index.tz_localize(None)
+                    self._cache[cache_key] = s
+                    return s
+        except Exception:
+            pass
+
+        # ── Method 2: pandas_datareader (original, kept as fallback) ─────────
         try:
             import pandas_datareader.data as web
             s = web.DataReader(series_id, "fred", start, end)[series_id].dropna()
             self._cache[cache_key] = s
             return s
-        except Exception as e:
-            log.warning(f"FRED fetch failed for {series_id}: {e} — using zeros")
-            idx = pd.date_range(start, end, freq="B")
-            return pd.Series(0.0, index=idx)
+        except Exception:
+            pass
+
+        # ── Method 3: yfinance proxies for key series ─────────────────────────
+        YFINANCE_PROXIES = {
+            "VIXCLS":       "^VIX",      # VIX
+            "T10Y2Y":       None,        # computed from ETF proxies below
+            "T10Y3M":       None,        # computed from ETF proxies below
+            "BAMLH0A0HYM2": None,        # no direct proxy
+        }
+        if series_id == "VIXCLS":
+            try:
+                import yfinance as yf
+                df = yf.download("^VIX", start=start, end=end,
+                                 auto_adjust=True, progress=False)
+                s = df["Close"].squeeze().dropna()
+                if hasattr(s.index, "tz") and s.index.tz is not None:
+                    s.index = s.index.tz_localize(None)
+                if not s.empty:
+                    self._cache[cache_key] = s
+                    return s
+            except Exception:
+                pass
+        elif series_id in ("T10Y2Y", "T10Y3M"):
+            # Yield curve proxy: TLT (long) / SHY (short) log ratio momentum
+            # Not perfect but captures inversion direction
+            try:
+                import yfinance as yf
+                tlt = yf.download("TLT", start=start, end=end,
+                                  auto_adjust=True, progress=False)["Close"].squeeze().dropna()
+                shy = yf.download("SHY", start=start, end=end,
+                                  auto_adjust=True, progress=False)["Close"].squeeze().dropna()
+                # Proxy: when TLT/SHY ratio is falling (long rates rising faster),
+                # yield curve is steepening (positive). When rising, flattening/inverting.
+                ratio = (tlt / shy.reindex(tlt.index, method="ffill")).dropna()
+                # Scale to approximate T10Y2Y units: typical range -1 to 3
+                z = (ratio - ratio.rolling(252).mean()) / ratio.rolling(252).std().replace(0, float("nan"))
+                # Positive z = steepening (healthy), negative = inversion risk
+                s = (-z * 0.5).fillna(0).clip(-2, 3)  # rough approximation
+                if hasattr(s.index, "tz") and s.index.tz is not None:
+                    s.index = s.index.tz_localize(None)
+                if not s.empty:
+                    self._cache[cache_key] = s
+                    return s
+            except Exception:
+                pass
+        elif series_id == "BAMLH0A0HYM2":
+            # Credit spread proxy: HYG/LQD ratio decline = spreads widening
+            try:
+                import yfinance as yf
+                hyg = yf.download("HYG", start=start, end=end,
+                                  auto_adjust=True, progress=False)["Close"].squeeze().dropna()
+                lqd = yf.download("LQD", start=start, end=end,
+                                  auto_adjust=True, progress=False)["Close"].squeeze().dropna()
+                ratio = (hyg / lqd.reindex(hyg.index, method="ffill")).dropna()
+                # Convert to approximate OAS units: typical HY spread 3-10%
+                # When ratio is at 52w low, spreads are wide (~7-10%)
+                # When ratio is at 52w high, spreads are tight (~3-4%)
+                roll_min = ratio.rolling(252, min_periods=63).min()
+                roll_max = ratio.rolling(252, min_periods=63).max()
+                # Normalise: 0 = tight (ratio at max), 1 = wide (ratio at min)
+                spread_proxy = 1 - (ratio - roll_min) / (roll_max - roll_min).replace(0, float("nan"))
+                # Scale to OAS-like units (3% tight, 10% wide)
+                s = (3.0 + spread_proxy * 7.0).fillna(3.5)
+                if hasattr(s.index, "tz") and s.index.tz is not None:
+                    s.index = s.index.tz_localize(None)
+                if not s.empty:
+                    self._cache[cache_key] = s
+                    return s
+            except Exception:
+                pass
+
+        # ── Method 4: zeros fallback ──────────────────────────────────────────
+        log.warning(f"FRED fetch failed for {series_id}: all methods exhausted — using zeros")
+        idx = pd.date_range(start, end, freq="B")
+        return pd.Series(0.0, index=idx)
 
     def _fetch_yfinance(self, symbol: str, start: str, end: str) -> pd.Series:
         """Fetch price series from yfinance."""
@@ -194,7 +299,7 @@ class MacroStressScorer:
                 weights["dxy"]    * ds
             )
 
-        return scores.fillna(method="ffill").fillna(0.0)
+        return scores.ffill().fillna(0.0)
 
     def score_today(self) -> float:
         """Score for live/paper trading — uses last 90 days of data."""

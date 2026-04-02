@@ -65,7 +65,23 @@ class CommodityFXScorer:
             import yfinance as yf
             df = yf.download(symbol, start=start, end=end,
                              auto_adjust=True, progress=False)
-            s = df["Close"].dropna()
+            if df.empty:
+                return pd.Series(dtype=float)
+            # FIX: handle both single-level and multi-level column DataFrames
+            # yfinance can return MultiIndex columns like ('Close', 'CL=F')
+            if isinstance(df.columns, pd.MultiIndex):
+                if "Close" in df.columns.get_level_values(0):
+                    s = df["Close"].iloc[:, 0]
+                else:
+                    return pd.Series(dtype=float)
+            else:
+                if "Close" not in df.columns:
+                    return pd.Series(dtype=float)
+                s = df["Close"]
+            # Always squeeze to a 1-D Series and strip tz
+            s = s.squeeze().dropna()
+            if hasattr(s.index, "tz") and s.index.tz is not None:
+                s.index = s.index.tz_localize(None)
             self._cache[key] = s
             return s
         except Exception as e:
@@ -207,7 +223,7 @@ class CommodityFXScorer:
                 weights["eur"]      * eur_s
             )
 
-        return scores.fillna(method="ffill").fillna(0.0)
+        return scores.ffill().fillna(0.0)
 
     def score_today(self) -> float:
         """Score for live/paper trading."""

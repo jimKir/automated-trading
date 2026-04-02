@@ -65,6 +65,11 @@ class PositionAnomalyDetector:
           - Vol-of-vol: rolling std of 10d realised vol
           - Average vol ratio: current 10d vol / 60d vol baseline
         """
+        # FIX: strip timezone info to prevent datetime64[ns, UTC] vs
+        # datetime64[ns] comparison errors when reindexing against tz-naive dates
+        if hasattr(prices.index, "tz") and prices.index.tz is not None:
+            prices = prices.copy()
+            prices.index = prices.index.tz_localize(None)
         rets = prices.pct_change().dropna()
 
         if rets.shape[0] < 20:
@@ -176,6 +181,10 @@ class PositionAnomalyDetector:
         Score every day in the price history (for backtest use).
         Uses walk-forward: fits on data up to each point, never future data.
         """
+        # FIX: ensure tz-naive index before feature computation
+        if hasattr(prices.index, "tz") and prices.index.tz is not None:
+            prices = prices.copy()
+            prices.index = prices.index.tz_localize(None)
         features = self._build_features(prices)
         if features.empty:
             return pd.Series(dtype=float)
