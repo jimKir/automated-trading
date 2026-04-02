@@ -160,14 +160,24 @@ def get_cache_path_for(*parts) -> Path:
 def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[dict]:
     if not path.exists():
         return None
+    # Auto-delete and treat as miss: empty files (<100 bytes) or expired TTL
+    if path.stat().st_size < 100:
+        try: path.unlink()
+        except: pass
+        return None
     try:
         raw = json.loads(path.read_text())
-        if time.time() - raw.get("_ts", 0) < ttl_hours * 3600:
-            return raw.get("v")
+        if time.time() - raw.get("_ts", 0) > ttl_hours * 3600:
+            return None
+        v = raw.get("v", {})
+        # Treat empty v={} as cache miss — auto-delete to avoid infinite re-fetch
+        if isinstance(v, dict) and len(v) == 0:
+            try: path.unlink()
+            except: pass
+            return None
+        return raw
     except Exception:
-        pass
-    return None
-
+        return None
 
 def _cache_save(path: Path, value) -> None:
     try:

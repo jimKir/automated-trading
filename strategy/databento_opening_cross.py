@@ -158,17 +158,25 @@ def _cache_path(*parts) -> Path:
     return CACHE_DIR / f"{key}.json"
 
 
-def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[object]:
+def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[Any]:
     if not path.exists():
+        return None
+    if path.stat().st_size < 100:
+        try: path.unlink()
+        except: pass
         return None
     try:
         raw = json.loads(path.read_text())
-        if time.time() - raw.get("_ts", 0) < ttl_hours * 3600:
-            return raw.get("v")
+        if time.time() - raw.get("_ts", 0) > ttl_hours * 3600:
+            return None
+        v = raw.get("v")
+        if isinstance(v, dict) and len(v) == 0:
+            try: path.unlink()
+            except: pass
+            return None
+        return v
     except Exception:
-        pass
-    return None
-
+        return None
 
 def _cache_save(path: Path, value: object) -> None:
     try:
