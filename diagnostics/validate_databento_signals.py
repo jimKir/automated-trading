@@ -201,34 +201,35 @@ for i, d in enumerate(step_dates):
 imb_df = pd.DataFrame(imb_rows).T if imb_rows else pd.DataFrame()
 print(f"\n  Imbalance: {len(imb_df)} observations collected")
 
-# ── SIGNAL 2: OPRA OPTIONS FLOW ───────────────────────────────────────────────
-print("\n[3/5] Building OPRA options flow signal (last 12 months)...")
-from strategy.databento_options_flow import OPRAOptionsFlowSignal
-opra_signal = OPRAOptionsFlowSignal()
-
-# Limit to 2025-04-01+ — OPRA most reliable recent data, saves ~55 min vs full scan
-opra_step_dates = [d for d in step_dates
-                   if pd.Timestamp(d) >= pd.Timestamp("2025-04-01")]
-print(f"  Using {len(opra_step_dates)} dates")
-
-import time as _ot
-opra_rows = {}
-for i, d in enumerate(opra_step_dates):
-    _t0 = _ot.time()
-    try:
-        sigs = opra_signal.compute_weekly(SYMS, d)
-        _el = _ot.time() - _t0
-        if sigs:
-            opra_rows[pd.Timestamp(d)] = sigs
-            _st = f"📁 cache" if _el < 1.0 else f"🌐 fetch ({_el:.0f}s)"
-        else: _st = "⚠️  empty"
-    except Exception as _e:
-        _st = f"❌ {str(_e)[:40]}"
-    print(f"  [{i+1:>3}/{len(opra_step_dates)}] {d}  {_st}")
-
-opra_df = pd.DataFrame(opra_rows).T if opra_rows else pd.DataFrame()
-print(f"\n  OPRA options signal: {len(opra_df)} weekly observations")
-print(f"\n  OPRA options signal: {len(opra_df)} weekly observations")
+# ── SIGNAL 2: OPRA OPTIONS FLOW (disabled by default — $245 to re-fetch) ──
+import os as _os
+print("\n[3/5] OPRA options flow...")
+if _os.environ.get("ENABLE_OPRA"):
+    print("  OPRA ENABLED (ENABLE_OPRA=1)")
+    from strategy.databento_options_flow import OPRAOptionsFlowSignal
+    _opra = OPRAOptionsFlowSignal()
+    _opra_dates = [d for d in step_dates if pd.Timestamp(d) >= pd.Timestamp("2025-04-01")]
+    import time as _ot
+    opra_rows = {}
+    for i, d in enumerate(_opra_dates):
+        _t0 = _ot.time()
+        try:
+            sigs = _opra.compute_weekly(SYMS, d)
+            _el = _ot.time() - _t0
+            if sigs:
+                opra_rows[pd.Timestamp(d)] = sigs
+                _st = "\U0001f4c1 cache" if _el < 1.0 else f"\U0001f310 fetch ({_el:.0f}s)"
+            else: _st = "\u26a0\ufe0f  empty"
+        except Exception as _e:
+            _st = f"\u274c {str(_e)[:40]}"
+        print(f"  [{i+1:>3}/{len(_opra_dates)}] {d}  {_st}")
+    opra_df = pd.DataFrame(opra_rows).T if opra_rows else pd.DataFrame()
+    print(f"  OPRA: {len(opra_df)} observations")
+else:
+    opra_df = pd.DataFrame()
+    print("  \u26a0\ufe0f  OPRA skipped (set ENABLE_OPRA=1 to enable)")
+    print("  Reason: ohlcv-1d schema costs $245 per full re-fetch if cache misses")
+    print("  Safe to enable ONLY after confirming cache works with spot-check below")
 
 # ── SIGNAL 3: OPENING CROSS ───────────────────────────────────────────────────
 print("\n[4/5] Building opening cross volume anomaly signal...")
