@@ -162,14 +162,12 @@ week_dates = [d.date() for d in wc.index
 step_dates = week_dates[::2]  # every 2 weeks
 
 from pathlib import Path
-imb_cache_dir = Path.home() / ".databento_cache" / "imbalance"
-imb_cache_dir.mkdir(parents=True, exist_ok=True)
+from strategy.databento_imbalance import _cache_path as _imb_cache_path
 
 n_cached = n_fetched = n_failed = 0
 for i, d in enumerate(step_dates):
-    # Check cache status for display
-    import hashlib, json as _json
-    ck = imb_cache_dir / f"{hashlib.md5(str(('imbalance', sorted(SYMS), str(d))).encode()).hexdigest()}.json"
+    # Use the module's own cache key function — guaranteed to match
+    ck = _imb_cache_path("imbalance", sorted(SYMS), str(d))
     was_cached = ck.exists()
     try:
         sigs = imb_signal.compute_weekly(SYMS, d)
