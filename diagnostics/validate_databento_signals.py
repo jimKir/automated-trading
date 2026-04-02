@@ -33,14 +33,22 @@ WINDOWS   = [
 # ── Migrate any existing /tmp cache to permanent home dir cache ───────────────
 import shutil
 from pathlib import Path
-_old_root = Path("/tmp/databento_cache")
-_new_root = Path.home() / ".databento_cache"
-if _old_root.exists() and not _new_root.exists():
-    print(f"Migrating cache: {_old_root} → {_new_root}")
-    shutil.copytree(str(_old_root), str(_new_root))
-    print("  Migration complete. Old /tmp cache preserved (delete manually if desired).")
-else:
-    _new_root.mkdir(parents=True, exist_ok=True)
+_old_roots = [
+    Path("/tmp/databento_cache"),
+    Path.home() / ".databento_cache",
+]
+_new_root = Path(__file__).parent.parent / ".cache" / "databento"
+_new_root.mkdir(parents=True, exist_ok=True)
+for _old_root in _old_roots:
+    if _old_root.exists():
+        moved = 0
+        for f in _old_root.glob("*.json"):
+            dest = _new_root / f.name
+            if not dest.exists():
+                shutil.copy2(str(f), str(dest))
+                moved += 1
+        if moved:
+            print(f"Migrated {moved} cache files: {_old_root} → {_new_root}")
 
 print("=" * 68)
 print("  Databento Signal Validation — OOS 2023-2026")
@@ -166,9 +174,10 @@ from strategy.databento_imbalance import _cache_path as _imb_cache_path, CACHE_D
 
 # Show cache location + first key so we can verify cache is being found
 _first_ck = _imb_cache_path("imbalance", sorted(SYMS), str(step_dates[0]))
+_all_cached = list(_IMB_CACHE_DIR.glob("*.json"))
 print(f"  Cache dir : {_IMB_CACHE_DIR}")
 print(f"  First key : {_first_ck.name}  (exists={_first_ck.exists()})")
-print(f"  Cached files: {len(list(_IMB_CACHE_DIR.glob('*.json')))}")
+print(f"  Cached files: {len(_all_cached)}")
 
 n_cached = n_fetched = n_failed = 0
 for i, d in enumerate(step_dates):

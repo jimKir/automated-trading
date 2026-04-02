@@ -32,3 +32,6 @@ logs/
 # Docker
 *.tar
 trading-deploy_accessKeys.csv
+
+# Databento local data cache (keep folder structure, not data files)
+.cache/databento/*.json

@@ -71,7 +71,7 @@ log = logging.getLogger("OpeningCrossSignal")
 
 DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
 
-CACHE_DIR = Path.home() / ".databento_cache" / "stats"
+CACHE_DIR = Path(__file__).parent.parent / ".cache" / "databento"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently

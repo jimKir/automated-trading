@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 # ── Catalogue file location ───────────────────────────────────────────────────
-CATALOGUE_DIR  = Path.home() / ".databento_cache"
+CATALOGUE_DIR  = Path(__file__).parent.parent.parent / ".cache" / "databento"
 CATALOGUE_FILE = CATALOGUE_DIR / "catalogue.json"
 
 # Frequency normalisation
