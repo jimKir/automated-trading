@@ -170,41 +170,36 @@ week_dates = [d.date() for d in wc.index
 step_dates = week_dates[::2]  # every 2 weeks
 
 from pathlib import Path
-from strategy.databento_imbalance import _cache_path as _imb_cache_path, CACHE_DIR as _IMB_CACHE_DIR
+from strategy.databento_imbalance import CACHE_DIR as _IMB_CACHE_DIR
 
-# Show cache location + first key so we can verify cache is being found
-_first_ck = _imb_cache_path("imbalance", sorted(SYMS), str(step_dates[0]))
-_all_cached = list(_IMB_CACHE_DIR.glob("*.json"))
+# Cache status: count real (non-empty) files already on disk
+_all_cache_files = list(_IMB_CACHE_DIR.glob("*.json"))
+_real_cached = sum(1 for f in _all_cache_files
+                   if f.stat().st_size > 100)  # >100 bytes = has real data
 print(f"  Cache dir : {_IMB_CACHE_DIR}")
-print(f"  First key : {_first_ck.name}  (exists={_first_ck.exists()})")
-print(f"  Cached files: {len(_all_cached)}")
+print(f"  Cached files: {len(_all_cache_files)} total, {_real_cached} with real data")
+print(f"  (Each weekly date uses 10 trading day fetches internally)")
 
-n_cached = n_fetched = n_failed = 0
+import time as _time
+n_obs = 0
 for i, d in enumerate(step_dates):
-    # Use the module's own cache key function — guaranteed to match
-    ck = _imb_cache_path("imbalance", sorted(SYMS), str(d))
-    was_cached = ck.exists()
+    t0 = _time.time()
     try:
         sigs = imb_signal.compute_weekly(SYMS, d)
+        elapsed = _time.time() - t0
         if sigs:
             imb_rows[pd.Timestamp(d)] = sigs
-            if was_cached:
-                n_cached += 1
-                status = "📁 cache"
-            else:
-                n_fetched += 1
-                status = "🌐 fetch"
+            n_obs += 1
+            # Fast = cache hit (<1s), slow = API fetch (>5s)
+            status = "📁 cache" if elapsed < 1.0 else f"🌐 fetch ({elapsed:.0f}s)"
         else:
-            n_failed += 1
             status = "⚠️  empty"
     except Exception as e:
-        n_failed += 1
-        status = f"❌ error"
+        status = f"❌ {str(e)[:40]}"
     print(f"  [{i+1:>3}/{len(step_dates)}] {d}  {status}")
 
 imb_df = pd.DataFrame(imb_rows).T if imb_rows else pd.DataFrame()
-print(f"\n  Imbalance: {len(imb_df)} observations  "
-      f"(📁 {n_cached} cached  🌐 {n_fetched} fetched  ❌ {n_failed} failed)")
+print(f"\n  Imbalance: {len(imb_df)} observations collected")
 
 # ── SIGNAL 2: OPRA OPTIONS FLOW ───────────────────────────────────────────────
 print("\n[3/5] Building OPRA options flow signal...")
