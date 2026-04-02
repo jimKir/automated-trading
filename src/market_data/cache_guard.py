@@ -108,7 +108,7 @@ def _is_valid(path: Path) -> Tuple[bool, str]:
 
 def _round_trip_test(schema: str, symbols: List[str], day: date) -> Tuple[bool, str]:
     """Write a test entry, read it back, confirm they match."""
-    test_path = CACHE_DIR / f"_test_{_key(schema, symbols, day)}.json"
+    test_path = CACHE_DIR / f"_test_{_key_raw(schema, symbols, day)}.json"
     test_data = {
         "v": {"0": {"symbol": "TEST", "value": 42.0}, "1": {"symbol": "TEST2", "value": -1.0}},
         "_ts": time.time()
