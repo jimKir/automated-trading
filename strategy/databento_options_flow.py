@@ -71,6 +71,14 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+
+# Data catalogue — tracks all fetched data (source/schema/date/path)
+try:
+    from src.market_data.catalogue import get_catalogue as _get_catalogue
+    _CATALOGUE_AVAILABLE = True
+except ImportError:
+    _CATALOGUE_AVAILABLE = False
+
 log = logging.getLogger("OPRAOptionsFlow")
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
