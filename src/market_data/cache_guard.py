@@ -57,12 +57,32 @@ CACHE_DIR = Path(__file__).parent.parent.parent / ".cache" / "databento"
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
-def _key(schema: str, symbols: List[str], day: date) -> str:
+def _key_raw(schema: str, symbols: List[str], day: date) -> str:
+    """MD5 hash of the canonical key — matches _cache_path() in the signal modules."""
     raw = "|".join(str(p) for p in [schema, sorted(symbols), str(day)])
     return hashlib.md5(raw.encode()).hexdigest()
 
+def _key_readable(schema: str, symbols: List[str], day: date) -> str:
+    """Human-readable filename prefix — matches the new _cache_path() format."""
+    h8 = _key_raw(schema, symbols, day)[:8]
+    sym_part = "-".join(sorted(symbols)[:3]) if len(symbols) <= 3 else f"{len(symbols)}syms"
+    return f"{schema}_{day}_{sym_part}_{h8}"
+
 def _file(schema: str, symbols: List[str], day: date) -> Path:
-    return CACHE_DIR / f"{_key(schema, symbols, day)}.json"
+    """Return the expected cache file path (new human-readable format)."""
+    return CACHE_DIR / f"{_key_readable(schema, symbols, day)}.json"
+
+def _file_any_format(schema: str, symbols: List[str], day: date) -> Optional[Path]:
+    """Find the cache file for this key in either old (MD5) or new (readable) format."""
+    # Check new readable format first
+    new_path = _file(schema, symbols, day)
+    if new_path.exists():
+        return new_path
+    # Fall back to old MD5-only format
+    old_path = CACHE_DIR / f"{_key_raw(schema, symbols, day)}.json"
+    if old_path.exists():
+        return old_path
+    return None
 
 def _is_valid(path: Path) -> Tuple[bool, str]:
     """Returns (is_valid, reason)."""
@@ -132,6 +152,22 @@ class CacheGuard:
 
     # ── Preflight check ──────────────────────────────────────────────────────
 
+    def rename_legacy_files(self, schema: str, symbols: List[str],
+                             dates: List[date]) -> int:
+        """
+        Rename old MD5-only files to human-readable format.
+        E.g.: a1b2c3d4e5f6g7h8.json → imbalance_2024-06-15_20syms_a1b2c3d4.json
+        Returns count of files renamed.
+        """
+        renamed = 0
+        for d in dates:
+            old_path = CACHE_DIR / f"{_key_raw(schema, symbols, d)}.json"
+            new_path = _file(schema, symbols, d)
+            if old_path.exists() and not new_path.exists():
+                old_path.rename(new_path)
+                renamed += 1
+        return renamed
+
     def preflight(
         self,
         dates:    List[date],
@@ -162,6 +198,12 @@ class CacheGuard:
         print(f"  Symbols: {len(symbols)}")
         print(f"  Cache:   {self.cache_dir}")
         print("=" * 62)
+
+        # 0. Rename legacy MD5 files to human-readable format
+        if not dry_run:
+            renamed = self.rename_legacy_files(schema, symbols, dates)
+            if renamed:
+                print(f"  Renamed {renamed} legacy cache files to human-readable format")
 
         # 1. Round-trip test
         ok, msg = _round_trip_test(schema, symbols[:3], dates[0])
@@ -197,7 +239,7 @@ class CacheGuard:
             trading_days = trading_days_before(d, 10)
             hits = sum(
                 1 for td in trading_days
-                if _key(schema, symbols, td) in all_valid_files
+                if _key_raw(schema, symbols, td) in all_valid_files
             )
             if hits >= 8:  # 8/10 days cached = this week is covered
                 cached.append(d)

@@ -147,9 +147,44 @@ def _lookback_trading_days(as_of: date, n: int) -> List[date]:
 # ── CACHE HELPERS ─────────────────────────────────────────────────────────────
 
 def _cache_path(*parts) -> Path:
+    """
+    Human-readable cache filename: {schema}_{date}_{syms_short}_{hash8}.json
+    Examples:
+      imbalance_2024-06-15_20syms_a1b2c3d4.json
+      opra-trades_2025-03-20_AAPL_e5f6g7h8.json
+    The hash ensures uniqueness even if the description collides.
+    """
+    import hashlib as _hl
     raw = "|".join(str(p) for p in parts)
-    key = hashlib.md5(raw.encode()).hexdigest()
-    return CACHE_DIR / f"{key}.json"
+    h8  = _hl.md5(raw.encode()).hexdigest()[:8]
+
+    # Build readable prefix from parts
+    readable_parts = []
+    for p in parts:
+        s = str(p)
+        if s.startswith("["):          # symbol list like "['AAPL', 'MSFT', ...]"
+            syms = [x.strip().strip("'") for x in s.strip("[]").split(",")]
+            if len(syms) <= 3:
+                readable_parts.append("-".join(syms))
+            else:
+                readable_parts.append(f"{len(syms)}syms")
+        elif re.match(r"\d{4}-\d{2}-\d{2}", s):  # date
+            readable_parts.append(s)
+        else:
+            # schema / type label — clean up special chars
+            readable_parts.append(re.sub(r"[^a-zA-Z0-9_-]", "", s)[:20])
+
+    prefix = "_".join(p for p in readable_parts if p)
+    filename = f"{prefix}_{h8}.json"
+    # Keep filenames filesystem-safe (max 200 chars)
+    if len(filename) > 200:
+        filename = f"{prefix[:180]}_{h8}.json"
+    return CACHE_DIR / filename
+
+
+def get_cache_path_for(*parts) -> Path:
+    """Public alias — lets callers use the same key as the module."""
+    return _cache_path(*parts)
 
 
 def get_cache_path_for(*parts) -> Path:
