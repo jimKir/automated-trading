@@ -322,7 +322,8 @@ ews:
   use_anomaly: true          # Isolation Forest on position behaviour
   use_macro: true            # FRED macro stress (yield curve, credit spreads)
   use_event: true            # VIX velocity + market breadth shocks
-  use_commfx: true           # Oil, Gold, DXY, JPY stress signals
+  use_commfx: true
+  use_intraday:    true    # Layer E: intraday regime           # Oil, Gold, DXY, JPY stress signals
 
   # Scale factors applied to max_position_pct and max_portfolio_heat
   # when EWS detects stress. These are NOT optimised — set by risk logic.

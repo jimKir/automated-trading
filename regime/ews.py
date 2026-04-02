@@ -1,14 +1,15 @@
 """
 Early Warning System (EWS)
 ===========================
-Orchestrates three independent stress signal layers into a single
+Orchestrates five independent stress signal layers into a single
 position scale factor that gates the main strategy.
 
 Architecture:
-  Layer A — Position Anomaly Score    (Isolation Forest, weight 0.40)
-  Layer B — Macro Stress Score        (Rule-based FRED, weight 0.35)
+  Layer A — Position Anomaly Score    (Isolation Forest, weight 0.35)
+  Layer B — Macro Stress Score        (Rule-based FRED, weight 0.30)
   Layer C — Event Shock Score         (VIX velocity + breadth, weight 0.15)
   Layer D — Commodity/FX Score        (Oil, Gold, DXY, JPY, weight 0.10)
+  Layer E — Intraday Regime Score     (ADX + SPY EMA + VIX, weight 0.10)
 
 Combined EWS Score → Position Scale Factor:
   Score < 0.25  → 1.00×  GREEN  (full exposure)
@@ -22,6 +23,14 @@ Design principles:
   - Scale factor never goes to zero — always keeps a small position
     (going fully flat and then re-entering has its own timing risk)
   - All layers produce independent signals, reducing false positive rate
+
+Config keys (under ews: section):
+  use_macro:      true
+  use_anomaly:    true
+  use_event:      true
+  use_commfx:     true
+  use_intraday:   true    # Layer E — intraday regime detector
+  enabled:        true
 """
 from __future__ import annotations
 
@@ -38,10 +47,11 @@ log = get_logger("EWS")
 
 # Layer weights — must sum to 1.0
 LAYER_WEIGHTS = {
-    "anomaly":      0.40,
-    "macro":        0.35,
-    "event_shock":  0.15,
-    "commodity_fx": 0.10,
+    "anomaly":         0.35,
+    "macro":           0.30,
+    "event_shock":     0.15,
+    "commodity_fx":    0.10,
+    "intraday_regime": 0.10,
 }
 
 # EWS score → position scale factor
@@ -71,17 +81,19 @@ class EarlyWarningSystem:
 
     def __init__(self, config: dict):
         self.config = config
-        self._use_macro    = config.get("ews", {}).get("use_macro",    True)
-        self._use_anomaly  = config.get("ews", {}).get("use_anomaly",  True)
-        self._use_event    = config.get("ews", {}).get("use_event",    True)
-        self._use_commfx   = config.get("ews", {}).get("use_commfx",   True)
-        self._enabled      = config.get("ews", {}).get("enabled",      True)
+        self._use_macro     = config.get("ews", {}).get("use_macro",     True)
+        self._use_anomaly   = config.get("ews", {}).get("use_anomaly",   True)
+        self._use_event     = config.get("ews", {}).get("use_event",     True)
+        self._use_commfx    = config.get("ews", {}).get("use_commfx",    True)
+        self._use_intraday  = config.get("ews", {}).get("use_intraday",  True)
+        self._enabled       = config.get("ews", {}).get("enabled",       True)
 
         # Lazy-loaded sub-modules
-        self._anomaly_detector = None
-        self._macro_scorer     = None
-        self._event_detector   = None
-        self._commfx_scorer    = None
+        self._anomaly_detector  = None
+        self._macro_scorer      = None
+        self._event_detector    = None
+        self._commfx_scorer     = None
+        self._intraday_scorer   = None
 
         # Cached series for backtest (keyed by start+end)
         self._score_cache: Dict[str, pd.Series] = {}
@@ -100,6 +112,9 @@ class EarlyWarningSystem:
         if self._commfx_scorer is None and self._use_commfx:
             from regime.commodity_fx import CommodityFXScorer
             self._commfx_scorer = CommodityFXScorer()
+        if self._intraday_scorer is None and self._use_intraday:
+            from regime.intraday_regime import IntradayRegimeScorer
+            self._intraday_scorer = IntradayRegimeScorer()
 
     # ------------------------------------------------------------------
     def compute_backtest_scores(
@@ -180,12 +195,26 @@ class EarlyWarningSystem:
         else:
             combined["commodity_fx"] = 0.0
 
+        # Layer E — Intraday Regime
+        if self._use_intraday and self._intraday_scorer is not None:
+            try:
+                log.info("EWS Layer E: computing intraday regime scores...")
+                e_scores = self._intraday_scorer.compute_series(start, end)
+                combined["intraday_regime"] = e_scores.reindex(biz_days, method="ffill").fillna(0)
+                log.info("EWS Layer E: done")
+            except Exception as e:
+                log.warning(f"EWS Layer E failed: {e}")
+                combined["intraday_regime"] = 0.0
+        else:
+            combined["intraday_regime"] = 0.0
+
         # Weighted combination
         ews_scores = (
-            LAYER_WEIGHTS["anomaly"]      * combined.get("anomaly",      0) +
-            LAYER_WEIGHTS["macro"]        * combined.get("macro",        0) +
-            LAYER_WEIGHTS["event_shock"]  * combined.get("event_shock",  0) +
-            LAYER_WEIGHTS["commodity_fx"] * combined.get("commodity_fx", 0)
+            LAYER_WEIGHTS["anomaly"]         * combined.get("anomaly",         0) +
+            LAYER_WEIGHTS["macro"]           * combined.get("macro",           0) +
+            LAYER_WEIGHTS["event_shock"]     * combined.get("event_shock",     0) +
+            LAYER_WEIGHTS["commodity_fx"]    * combined.get("commodity_fx",    0) +
+            LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0)
         )
 
         # Smooth with 3-day EMA to avoid single-day noise spikes
@@ -267,6 +296,13 @@ class EarlyWarningSystem:
             except Exception as e:
                 log.warning(f"EWS live commfx failed: {e}")
                 scores_by_layer["commodity_fx"] = 0.0
+
+        if self._use_intraday and self._intraday_scorer is not None:
+            try:
+                scores_by_layer["intraday_regime"] = self._intraday_scorer.score_today()
+            except Exception as e:
+                log.warning(f"EWS live intraday failed: {e}")
+                scores_by_layer["intraday_regime"] = 0.0
 
         ews_score = sum(
             LAYER_WEIGHTS[k] * v
