@@ -287,3 +287,11 @@ for name, r in results.items():
 with open("/tmp/databento_validation.json", "w") as f:
     json.dump(results, f, indent=2, default=str)
 print("\n  Saved: /tmp/databento_validation.json")
+
+# Print data catalogue so you can see exactly what's been stored
+try:
+    from src.market_data.catalogue import get_catalogue
+    print()
+    get_catalogue().summary()
+except Exception:
+    pass

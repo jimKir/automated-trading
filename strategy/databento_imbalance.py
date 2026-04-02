@@ -267,6 +267,20 @@ class _DatabentoFetcher:
             # Persist to cache
             cache_dict = df.to_dict("index")
             _cache_save(ck, {str(k): v for k, v in cache_dict.items()})
+            # Record in data catalogue
+            if _CATALOGUE_AVAILABLE:
+                try:
+                    _get_catalogue().record(
+                        source="databento", dataset="XNAS.ITCH",
+                        schema="imbalance", symbols=list(symbols),
+                        frequency="snapshot", start=str(trading_date),
+                        end=str(trading_date), rows=len(df),
+                        cache_path=str(ck),
+                        notes="closing auction window 19:50-19:59 UTC",
+                        tags=["signal", "microstructure", "imbalance"],
+                    )
+                except Exception:
+                    pass
             log.debug(
                 f"Fetched {len(df)} imbalance records for {len(symbols)} symbols "
                 f"on {trading_date}"

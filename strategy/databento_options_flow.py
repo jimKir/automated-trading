@@ -370,6 +370,19 @@ class _OPRAFetcher:
 
             result = df[["symbol", "price", "size", "side"]].copy()
             _cache_save(ck, result.to_dict(orient="index"))
+            if _CATALOGUE_AVAILABLE:
+                try:
+                    _get_catalogue().record(
+                        source="databento", dataset="OPRA.PILLAR",
+                        schema="trades", symbols=[underlying],
+                        frequency="tick", start=str(trading_date),
+                        end=str(trading_date), rows=len(result),
+                        cache_path=str(ck),
+                        notes="options tick trades, first 30min of session",
+                        tags=["signal", "options", "flow"],
+                    )
+                except Exception:
+                    pass
             return result
 
         except Exception as e:
