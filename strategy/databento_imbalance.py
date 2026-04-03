@@ -273,12 +273,20 @@ class _DatabentoFetcher:
             if len(cached) == 0:
                 return pd.DataFrame()
             try:
-                df = pd.DataFrame(cached)
-                if not df.empty:
-                    df.index = pd.to_datetime(df.index, utc=True)
+                # orient='index': keys are row indices, values are {col: val} dicts
+                # DO NOT use pd.DataFrame(cached) — that treats keys as COLUMN names
+                # (transposed), causing pd.to_datetime(index) to fail on field names
+                # like "symbol", which then silently falls through to an API re-fetch.
+                df = pd.DataFrame.from_dict(cached, orient="index")
+                if df.empty:
+                    return pd.DataFrame()
+                # Convert string row indices back to integers, then drop (not timestamps)
+                df = df.reset_index(drop=True)
                 return df
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"Cache reconstruct failed: {e}")
+                # Do NOT fall through to API — return empty to avoid charges
+                return pd.DataFrame()
 
         if self._client is None:
             log.debug("Databento client not available; returning empty DataFrame")
