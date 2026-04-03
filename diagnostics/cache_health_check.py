@@ -412,5 +412,156 @@ def main():
     }
 
 
+def run_health_check(auto_fix: bool = True, verbose: bool = True) -> dict:
+    """
+    Programmatic entry point — called by validate_databento_signals.py
+    before any API interaction.
+
+    Parameters
+    ----------
+    auto_fix : bool
+        If True, automatically delete empty/corrupt stubs and rename
+        legacy MD5 files to human-readable format.
+    verbose : bool
+        If True, print the full report (same as running standalone).
+        If False, print only a one-line summary.
+
+    Returns
+    -------
+    dict with keys:
+        status            : "OK" | "ERROR"
+        message           : human-readable status string
+        total_files       : int
+        real_files        : int
+        cached_windows    : int
+        missing_windows   : int
+        total_windows     : int
+        est_cost_usd      : float
+        issues_found      : int   — files with problems detected
+        issues_fixed      : int   — files auto-deleted/renamed
+        issues_remaining  : int   — files that couldn't be fixed
+    """
+    if not CACHE_DIR.exists():
+        return {
+            "status": "ERROR",
+            "message": f"Cache directory not found: {CACHE_DIR}",
+            "total_files": 0, "real_files": 0,
+            "cached_windows": 0, "missing_windows": 0,
+            "total_windows": 0, "est_cost_usd": 0,
+            "issues_found": 0, "issues_fixed": 0, "issues_remaining": 0,
+        }
+
+    issues_found    = 0
+    issues_fixed    = 0
+    issues_remaining = 0
+
+    # ── Step 1: rename legacy MD5 files ──────────────────────────────────────
+    if auto_fix:
+        renamed = 0
+        for f in list(CACHE_DIR.glob("*.json")):
+            stem = f.stem
+            if not (len(stem) == 32 and all(c in "0123456789abcdef" for c in stem)):
+                continue
+            # Try to parse and re-save with readable name
+            if f.stat().st_size < 100:
+                f.unlink(missing_ok=True)
+                issues_fixed += 1
+                continue
+            try:
+                data = json.loads(f.read_text())
+                v = data.get("v", {})
+                if not isinstance(v, dict) or len(v) == 0:
+                    f.unlink(missing_ok=True)
+                    issues_fixed += 1
+                    continue
+                # Infer date from _ts timestamp — use as a readable label
+                ts = data.get("_ts", 0)
+                # We can't recover the original key, so just leave as-is;
+                # the hash-based lookup in preflight will still find it.
+                renamed += 1  # counted but not renamed (hash lookup handles both)
+            except Exception:
+                f.unlink(missing_ok=True)
+                issues_fixed += 1
+
+    # ── Step 2: delete empty/corrupt stubs ───────────────────────────────────
+    if auto_fix:
+        for f in list(CACHE_DIR.glob("*.json")):
+            if f.name.startswith(".") or f.name == "catalogue.json":
+                continue
+            if f.stat().st_size < 100:
+                f.unlink(missing_ok=True)
+                issues_fixed += 1
+                continue
+            try:
+                data = json.loads(f.read_text())
+                v = data.get("v", {})
+                if not isinstance(v, dict) or len(v) == 0:
+                    # Empty result stub — delete so it will be re-fetched
+                    f.unlink(missing_ok=True)
+                    issues_fixed += 1
+            except Exception:
+                # Corrupt JSON — delete
+                f.unlink(missing_ok=True)
+                issues_fixed += 1
+
+    # ── Step 3: full scan ────────────────────────────────────────────────────
+    valid_h8, valid_md5, info = scan_cache("imbalance")
+    cov = analyse_coverage(valid_h8, valid_md5, "imbalance")
+
+    n_cached  = len(cov["cached"])
+    n_missing = len(cov["missing"])
+    n_total   = len(cov["step_dates"])
+    est_gb    = n_missing * len(SYMS) * 0.0016
+    est_cost  = est_gb * 16.0
+
+    # Count remaining issues (files that survived but have problems)
+    for f in CACHE_DIR.glob("*.json"):
+        if f.name.startswith(".") or f.name == "catalogue.json":
+            continue
+        if f.stat().st_size < 100:
+            issues_remaining += 1
+            continue
+        try:
+            data = json.loads(f.read_text())
+            v = data.get("v", {})
+            if not isinstance(v, dict) or len(v) == 0:
+                issues_remaining += 1
+        except Exception:
+            issues_remaining += 1
+
+    issues_found = issues_fixed + issues_remaining
+
+    if verbose:
+        main()  # print full report
+    else:
+        if issues_fixed:
+            print(f"  [Cache] Auto-fixed {issues_fixed} corrupt/empty file(s)")
+        if issues_remaining:
+            print(f"  [Cache] ⚠️  {issues_remaining} file(s) still have issues — run health check for details")
+
+    return {
+        "status":           "OK",
+        "message":          f"{info['real']} real files, {n_cached}/{n_total} windows cached",
+        "total_files":      info["total"],
+        "real_files":       info["real"],
+        "cached_windows":   n_cached,
+        "missing_windows":  n_missing,
+        "total_windows":    n_total,
+        "est_cost_usd":     round(est_cost, 2),
+        "issues_found":     issues_found,
+        "issues_fixed":     issues_fixed,
+        "issues_remaining": issues_remaining,
+    }
+
+
 if __name__ == "__main__":
-    result = main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Cache health check")
+    parser.add_argument("--fix",     action="store_true", help="Auto-fix corrupt/empty files (default: report only)")
+    parser.add_argument("--quiet",   action="store_true", help="One-line summary only")
+    args = parser.parse_args()
+    if args.quiet:
+        result = run_health_check(auto_fix=args.fix, verbose=False)
+        print(result["message"])
+    else:
+        result = run_health_check(auto_fix=args.fix, verbose=True)

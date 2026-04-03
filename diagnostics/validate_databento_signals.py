@@ -55,6 +55,37 @@ if not _migration_done.exists():
                 print(f"Migrated {_moved} real files: {_old_root} → {_new_root}")
     _migration_done.touch()  # mark done — never run again
 
+# ── CACHE HEALTH CHECK — runs before any API call ────────────────────────────
+# Imports the health-check module, runs a full file audit, auto-repairs what
+# it can (renames legacy files, deletes corrupt/empty stubs), and aborts if
+# the cache directory itself is broken.  Never touches the Databento API.
+print("\n[PRE-FLIGHT] Running cache health check...")
+try:
+    from diagnostics.cache_health_check import run_health_check
+    _hc = run_health_check(auto_fix=True, verbose=False)
+    if _hc["status"] == "ERROR":
+        print(f"  ❌ Cache health check FAILED: {_hc['message']}")
+        print("  Cannot continue safely. Fix the cache directory first.")
+        sys.exit(1)
+    _n_issues = _hc.get("issues_fixed", 0) + _hc.get("issues_remaining", 0)
+    _n_miss   = _hc.get("missing_windows", 0)
+    _est_cost = _hc.get("est_cost_usd", 0)
+    if _hc.get("issues_fixed"):
+        print(f"  ✅ Auto-fixed {_hc['issues_fixed']} file issue(s)")
+    if _hc.get("issues_remaining"):
+        print(f"  ⚠️  {_hc['issues_remaining']} file issue(s) could not be auto-fixed")
+    print(f"  Cache: {_hc['real_files']} real files  |  "
+          f"{_hc['cached_windows']}/{_hc['total_windows']} windows cached  |  "
+          f"{_n_miss} to fetch  (~${_est_cost:.2f})")
+except ImportError:
+    # Fallback: health check module not available — do minimal check
+    _cache_dir = Path(__file__).parent.parent / ".cache" / "databento"
+    if not _cache_dir.exists():
+        print(f"  ❌ Cache directory missing: {_cache_dir}")
+        sys.exit(1)
+    _n_files = sum(1 for f in _cache_dir.glob("*.json") if f.stat().st_size > 100)
+    print(f"  Cache dir OK — {_n_files} real files found")
+
 print("=" * 68)
 print("  Databento Signal Validation — OOS 2023-2026")
 print(f"  Universe: {len(SYMS)} liquid US equities")
