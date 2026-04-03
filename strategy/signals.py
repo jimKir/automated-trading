@@ -733,7 +733,7 @@ class SignalGenerator:
 
         # --- Factor 7: Credit regime (predictive, cross-asset) ---
         if self.credit_regime_enabled and len(credit_signal) > 0:
-            cs_aligned = credit_signal.reindex(close.index).fillna(0)
+            cs_aligned = credit_signal[~credit_signal.index.duplicated(keep="last")].reindex(close.index).fillna(0)
             combined = (
                 self.reactive_weight * reactive.fillna(0)
                 + self.credit_regime_weight * cs_aligned

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 import pandas as pd
+import pandas as _pd
 
 from core.portfolio import Portfolio
 from risk.manager import RiskManager
@@ -81,6 +82,15 @@ class LiveEngine:
         self.feed = DataFeed(config)
         self.signal_gen = SignalGenerator(config)
         self.risk_mgr = RiskManager(config)
+
+        # Vol-engine for per-symbol position sizing (priority: vol_engine > H2O > EWMA)
+        self._vol_engine = None
+        try:
+            from volatility_prediction.vol_engine import VolatilityPredictionEngine
+            self._vol_engine = VolatilityPredictionEngine()
+            log.info("Vol-engine loaded (HAR+GBM ensemble) — priority vol forecaster")
+        except Exception as _e:
+            log.warning(f"Vol-engine unavailable ({_e}) — will fall back to H2O/EWMA")
         self._running = False
         self._rebalance_freq = config.get("strategy", {}).get("rebalance_frequency", "weekly")
         self._last_rebalance: Optional[datetime] = None
@@ -215,6 +225,21 @@ class LiveEngine:
             try:
                 price_df = pd.DataFrame({sym: df["Close"] for sym, df in all_data.items()})
                 _, ews_scale, ews_colour = self._ews.score_today(price_df)
+
+                # Vol-engine per-symbol scale (live path)
+                self._sym_vol_scales_live: dict = {}
+                if self._vol_engine is not None:
+                    try:
+                        for sym, df in all_data.items():
+                            if len(df) < 30: continue
+                            ve_vol = self._vol_engine.predict_one(sym, df)
+                            if ve_vol and 0.01 < ve_vol < 2.0:
+                                target = 0.15
+                                self._sym_vol_scales_live[sym] = float(
+                                    np.clip(target / ve_vol, 0.2, 1.5)
+                                )
+                    except Exception as _vee:
+                        log.debug(f"Live vol_engine scaling failed: {_vee}")
                 log.info(f"EWS: {ews_colour} — position scale = {ews_scale:.0%}")
             except Exception as e:
                 log.warning(f"EWS live scoring failed: {e}")
@@ -228,6 +253,32 @@ class LiveEngine:
         combined_scale = max(min(ews_scale, isd_scale), 0.50)
         if combined_scale < 1.0:
             log.info(f"Combined scale: min(EWS={ews_scale:.0%}, ISD={isd_scale:.0%}) = {combined_scale:.0%}")
+
+        # Apply per-symbol vol-engine scaling to signals
+        # High predicted vol → smaller signal → smaller position (same logic as backtest)
+        if hasattr(self, "_sym_vol_scales_live") and self._sym_vol_scales_live:
+            signals = {
+                sym: sig * self._sym_vol_scales_live.get(sym, 1.0)
+                for sym, sig in signals.items()
+            }
+            log.debug(f"Vol-engine signal scaling applied: {len(self._sym_vol_scales_live)} syms")
+
+        # Inject macro data for regime switching (VIX + SPY needed for bull/bear detection)
+        try:
+            import yfinance as _yf
+            _macro_syms = ["^VIX", "SPY", "HYG", "LQD"]
+            _macro_data = {}
+            for _ms in _macro_syms:
+                _mdf = _yf.download(_ms, start=start_date, end=end_date,
+                                    auto_adjust=True, progress=False)
+                if not _mdf.empty:
+                    if isinstance(_mdf.columns, _pd.MultiIndex):
+                        _mdf.columns = _mdf.columns.get_level_values(0)
+                    _macro_data[_ms] = _mdf
+            if _macro_data:
+                self.signal_gen.set_macro_data(_macro_data)
+        except Exception as _me:
+            log.debug(f"Live macro data update failed: {_me}")
 
         temp_portfolio = Portfolio(self.config)
         temp_portfolio.cash = account.cash
