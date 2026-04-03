@@ -8,10 +8,10 @@ Modules:
 - analysis_dashboard: Consolidate analysis into reports and dashboards
 """
 
-from ranking_comparison import RankingComparison
-from databento_integration import DataBentoTester
-from backtest_ranking_methods import RankingMethodsBacktest
-from analysis_dashboard import AnalysisDashboard
+from momentum_signals_exploration.analysis.ranking_comparison import RankingComparison
+from momentum_signals_exploration.analysis.databento_integration import DataBentoTester
+from momentum_signals_exploration.analysis.backtest_ranking_methods import RankingMethodsBacktest
+from momentum_signals_exploration.analysis.analysis_dashboard import AnalysisDashboard
 
 __all__ = [
     'RankingComparison',

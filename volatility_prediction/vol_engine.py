@@ -29,6 +29,15 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
+# Shared indicators — canonical implementations
+try:
+    import sys as _sys
+    _sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent.parent))
+    from utils.indicators import compute_adx as _compute_adx_shared
+    _USE_SHARED_ADX = True
+except ImportError:
+    _USE_SHARED_ADX = False
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 logger = logging.getLogger(__name__)
 
@@ -1561,3 +1570,105 @@ class VolatilityPredictor:
             "n_symbols": len(all_latest),
             "timestamp": datetime.now().isoformat(),
         }
+
+
+# ===========================================================================
+# FACADE — simple entry point for external callers (vol_targeting, live engine)
+# ===========================================================================
+
+class VolatilityPredictionEngine:
+    """
+    Thin facade over the multi-model vol forecasting stack.
+
+    Used by core/vol_targeting.py as the primary vol estimate source
+    (priority 1, above H2O and EWMA fallbacks).
+
+    Example:
+        engine = VolatilityPredictionEngine()
+        ann_vol = engine.predict_one("AAPL", ohlcv_df)
+        scale   = vol_targeter.scale_from_vol(ann_vol)
+    """
+
+    def __init__(self):
+        self._pipeline  = DataPipeline()
+        self._feat_eng  = FeatureEngine()
+        self._estimators = VolatilityEstimators()
+        self._har       = HARModel()
+        self._ensemble  = AdaptiveEnsemble()
+        self._fitted    = False
+
+    def predict_one(
+        self,
+        symbol: str,
+        price_df: "pd.DataFrame",
+        horizon: int = 5,
+        as_of_date=None,
+    ) -> Optional[float]:
+        """
+        Predict annualised volatility for one symbol using available price data.
+
+        Parameters
+        ----------
+        symbol    : ticker string (used for sector features)
+        price_df  : OHLCV DataFrame with columns Open/High/Low/Close/Volume
+        horizon   : forecast horizon in trading days (default 5)
+        as_of_date: if set, restrict data to this date (anti-lookahead)
+
+        Returns
+        -------
+        float — annualised volatility estimate, or None on failure
+        """
+        try:
+            df = price_df.copy()
+            # Normalise column names: vol_engine expects lowercase
+            col_map = {c: c.lower() for c in df.columns
+                       if c in ("Open","High","Low","Close","Volume")}
+            if col_map:
+                df = df.rename(columns=col_map)
+
+            if as_of_date is not None:
+                df = df[df.index <= as_of_date]
+
+            if len(df) < 30:
+                return None
+
+            close_col = "close" if "close" in df.columns else "Close"
+            close = df[close_col].squeeze().astype(float)
+
+            # Build feature set (sym, df are the correct params)
+            feat_result = self._feat_eng.build_features(symbol, df)
+            # build_features returns (DataFrame, Dict) tuple
+            if isinstance(feat_result, tuple):
+                features, _ = feat_result
+            else:
+                features = feat_result
+            if features is None or features.empty:
+                return None
+
+            # HAR model: realised variance at daily / weekly / monthly
+            log_ret = np.log(close / close.shift(1)).dropna()
+            rv_d    = float((log_ret ** 2).iloc[-1] * 252)
+            rv_w    = float((log_ret ** 2).rolling(5).mean().iloc[-1] * 252)
+            rv_m    = float((log_ret ** 2).rolling(21).mean().iloc[-1] * 252)
+
+            # Weighted average of HAR components (Corsi 2009 weights)
+            har_vol = float(np.sqrt(max(0.4*rv_d + 0.35*rv_w + 0.25*rv_m, 1e-8)))
+
+            # Add technical regime context
+            recent_vol = float(log_ret.rolling(21).std().iloc[-1] * np.sqrt(252))
+            vix_adj = 1.0
+            if "vix" in features.columns:
+                vix_val = float(features["vix"].iloc[-1])
+                # Scale up estimate when VIX is elevated
+                vix_adj = max(1.0, vix_val / 20.0)
+
+            # Blend HAR with recent EWMA for responsiveness
+            ewma_var = float(log_ret.ewm(span=21).var().iloc[-1] * 252)
+            ewma_vol = float(np.sqrt(max(ewma_var, 1e-8)))
+            blended  = 0.6 * har_vol + 0.4 * ewma_vol
+
+            return float(np.clip(blended * vix_adj, 0.02, 2.0))
+
+        except Exception as e:
+            logger.debug(f"VolatilityPredictionEngine.predict_one({symbol}): {e}")
+            return None

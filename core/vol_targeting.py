@@ -291,36 +291,54 @@ class VolatilityTargeter:
         returns:     pd.Series,
         vix_series:  Optional[pd.Series] = None,
         as_of_date:  Optional[pd.Timestamp] = None,
+        price_df:    Optional["pd.DataFrame"] = None,
     ) -> float:
         """
         Get the best available vol estimate for a symbol at a given date.
 
-        Priority:
-          1. H2O AutoML model (if enabled + loaded + sufficient history)
-          2. EWMA fallback (always available)
+        Priority order (highest to lowest accuracy):
+          1. vol_engine ensemble (HAR + LSTM + GBM adaptive)  — most accurate
+          2. H2O AutoML model (if enabled + loaded)           — strong fallback
+          3. EWMA                                              — always available
+
+        H2O is NOT removed — it stays as fallback tier 2.
+        vol_engine is the new primary when price_df is supplied.
 
         Returns annualised vol as a float (e.g. 0.18 = 18%).
-        Used by the backtest engine and live engine at each rebalance.
         """
-        # Try H2O first
+        # ── Priority 1: vol_engine ensemble ───────────────────────────────
+        if price_df is not None and len(returns.dropna()) >= 30:
+            try:
+                import sys as _sys, pathlib as _pl
+                _sys.path.insert(0, str(_pl.Path(__file__).parent.parent))
+                from volatility_prediction.vol_engine import VolatilityPredictionEngine
+                _ve = VolatilityPredictionEngine()
+                ve_vol = _ve.predict_one(sym, price_df, as_of_date=as_of_date)
+                if ve_vol is not None and 0.01 < ve_vol < 2.0:
+                    log.debug(f'VT [{sym}]: vol_engine={ve_vol:.2%}')
+                    return float(ve_vol)
+            except Exception as _e:
+                log.debug(f'VT [{sym}]: vol_engine unavailable ({_e}) — trying H2O')
+
+        # ── Priority 2: H2O AutoML (legacy — kept as fallback, not removed) ──
         h2o_vol = self._h2o_vol_estimate(sym, returns, vix_series, as_of_date)
-        if h2o_vol is not None and 0.01 < h2o_vol < 2.0:  # >200% annualised = model failure
+        if h2o_vol is not None and 0.01 < h2o_vol < 2.0:
             log.debug(f'VT [{sym}]: H2O vol={h2o_vol:.2%}')
             return h2o_vol
 
-        # EWMA fallback
+        # ── Priority 3: EWMA (always available) ───────────────────────────
         ret = returns.dropna()
         if as_of_date is not None:
             ret = ret[ret.index <= as_of_date]
         if len(ret) < 5:
-            return self.target_vol  # not enough data — assume target
+            return self.target_vol
 
         lam = EWMA_LAMBDA
         var = float(ret.iloc[:min(20, len(ret))].var())
         for r in ret.iloc[20:].values:
             var = lam * var + (1 - lam) * r**2
         ewma_vol = float(np.sqrt(max(var, 1e-10) * TRADING_DAYS))
-        log.debug(f'VT [{sym}]: EWMA vol={ewma_vol:.2%} (H2O unavailable)')
+        log.debug(f'VT [{sym}]: EWMA vol={ewma_vol:.2%} (vol_engine+H2O unavailable)')
         return ewma_vol
 
     def scale_from_vol(
