@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -357,44 +358,96 @@ class CacheGuard:
     ) -> dict:
         """
         Run immediately after a fetch session.
-        Confirms every expected file was written with real data.
+        Confirms that files were written for the requested dates.
+
+        The signal modules cache by TRADING DAY (not week-end date) and use
+        their own _cache_path() key format. Rather than trying to reconstruct
+        the exact filename, we:
+          1. Build the MD5 hash that _cache_path() would produce for each
+             trading day in a ±10-day window around each requested date.
+          2. Scan the cache directory for any .json file whose name contains
+             that MD5 (both legacy MD5-only and new readable formats).
+        This matches both old and new filename formats automatically.
         """
+        from datetime import timedelta as _td
+
         print()
         print("=" * 62)
         print("  POST-FETCH VERIFICATION")
         print("=" * 62)
 
-        good, bad = [], []
-        for d in dates:
-            f = _file(schema, symbols, d)
-            valid, reason = _is_valid(f)
-            if valid:
-                good.append(d)
+        # Build a lookup: MD5-hash → path for all valid cache files
+        valid_by_hash: dict = {}
+        for f in self.cache_dir.glob("*.json"):
+            if f.name.startswith(".") or f.name == "catalogue.json":
+                continue
+            if f.stat().st_size < 100:
+                continue
+            # The last 8 chars before .json is the hash8 (new format)
+            # Or the whole stem is a 32-char MD5 (old format)
+            stem = f.stem
+            # Old format: pure 32-char MD5
+            if len(stem) == 32 and all(c in "0123456789abcdef" for c in stem):
+                valid_by_hash[stem] = f
             else:
-                bad.append((d, reason, f))
+                # New readable format: ends in _{hash8}
+                parts = stem.rsplit("_", 1)
+                if len(parts) == 2 and len(parts[1]) == 8:
+                    valid_by_hash[parts[1]] = f  # hash8 key
 
-        total_mb = sum(
-            _file(schema, symbols, d).stat().st_size
-            for d in good
-            if _file(schema, symbols, d).exists()
-        ) / 1024 / 1024
+        def _trading_days_window(d: date, n: int = 12):
+            """Return trading days in a ±n-day window around d."""
+            days = []
+            for delta in range(-2, n + 2):
+                td = d - _td(days=delta)
+                if td.weekday() < 5:  # Mon-Fri
+                    days.append(td)
+            return days
+
+        good, bad = [], []
+        good_files = []
+
+        for d in dates:
+            # Check if ANY trading day in the window around this date is cached
+            found = False
+            for td in _trading_days_window(d, n=12):
+                # Compute the full MD5 that the signal module would use
+                full_md5 = _key_raw(schema, symbols, td)
+                hash8 = full_md5[:8]
+                # Check both full MD5 (old format) and hash8 (new format)
+                if full_md5 in valid_by_hash:
+                    good.append(d)
+                    good_files.append(valid_by_hash[full_md5])
+                    found = True
+                    break
+                if hash8 in valid_by_hash:
+                    good.append(d)
+                    good_files.append(valid_by_hash[hash8])
+                    found = True
+                    break
+            if not found:
+                bad.append((d, "not found", self.cache_dir / f"{schema}_{d}_<not found>"))
+
+        total_mb = sum(f.stat().st_size for f in good_files) / 1024 / 1024
 
         print(f"\n  ✅ Successfully written: {len(good)}/{len(dates)} dates ({total_mb:.1f} MB)")
         if bad:
             print(f"  ❌ Failed/missing:       {len(bad)} dates")
-            for d, reason, f in bad[:10]:
+            for d, reason, _ in bad[:10]:
                 print(f"    {d}: {reason}")
 
         # Spot-check a few files
         import random
-        sample = random.sample(good, min(3, len(good)))
-        print(f"\n  Spot-check ({len(sample)} random files):")
-        for d in sample:
-            f = _file(schema, symbols, d)
-            data = json.loads(f.read_text())
-            v = data.get("v", {})
-            rows = list(v.values())[:1]
-            print(f"    {d}: {len(v)} rows — sample: {rows[0] if rows else 'empty'}")
+        sample_files = random.sample(good_files, min(3, len(good_files)))
+        print(f"\n  Spot-check ({len(sample_files)} random files):")
+        for f in sample_files:
+            try:
+                data = json.loads(f.read_text())
+                v = data.get("v", {})
+                rows = list(v.values())[:1]
+                print(f"    {f.name[:60]}: {len(v)} rows — sample: {rows[0] if rows else 'empty'}")
+            except Exception as e:
+                print(f"    {f.name[:60]}: parse error — {e}")
 
         success_rate = len(good) / len(dates) * 100 if dates else 0
         verdict = "✅ PASS" if success_rate >= 95 else ("⚠️  PARTIAL" if success_rate >= 50 else "❌ FAIL")
