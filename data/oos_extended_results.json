@@ -1,0 +1,140 @@
+{
+  "oos_start": "2023-01-01",
+  "oos_end": "2026-04-02",
+  "params": {
+    "bull_w_ts_mom": 0.5,
+    "bull_w_mr": 0.15,
+    "bull_w_macd": 0.3,
+    "bull_w_rsi": 0.05,
+    "is_sharpe": 0.7802689182407884,
+    "oos_sharpe": 0.15379633806475085,
+    "overfit_sharpe": -0.007040847963098883,
+    "baseline_sharpe": -0.20089806554624795,
+    "fit_period": "2018-2022",
+    "oos_period": "2023-2025",
+    "pit_universe": true,
+    "exec_delay": true
+  },
+  "sub_periods": {
+    "2023": {
+      "label": "2023",
+      "sharpe": 1.155,
+      "sortino": 2.005,
+      "cagr": 22.33,
+      "max_dd": -12.76,
+      "calmar": 1.75,
+      "vol": 19.33,
+      "n": 250
+    },
+    "2024": {
+      "label": "2024",
+      "sharpe": 2.088,
+      "sortino": 3.218,
+      "cagr": 53.42,
+      "max_dd": -15.08,
+      "calmar": 3.542,
+      "vol": 25.59,
+      "n": 252
+    },
+    "2025": {
+      "label": "2025",
+      "sharpe": 0.658,
+      "sortino": 0.858,
+      "cagr": 16.57,
+      "max_dd": -28.37,
+      "calmar": 0.584,
+      "vol": 25.19,
+      "n": 250
+    },
+    "Q1-2026": {
+      "label": "Q1-2026",
+      "sharpe": 0.009,
+      "sortino": 0.014,
+      "cagr": 0.16,
+      "max_dd": -6.35,
+      "calmar": 0.025,
+      "vol": 17.93,
+      "n": 63
+    },
+    "Full OOS 2023-Q1'26": {
+      "label": "Full OOS 2023-Q1'26",
+      "sharpe": 1.179,
+      "sortino": 1.738,
+      "cagr": 27.29,
+      "max_dd": -28.37,
+      "calmar": 0.962,
+      "vol": 23.14,
+      "n": 815
+    }
+  },
+  "spy_sub_periods": {
+    "SPY 2023": {
+      "label": "SPY 2023",
+      "sharpe": 2.068,
+      "sortino": 3.406,
+      "cagr": 27.07,
+      "max_dd": -9.97,
+      "calmar": 2.714,
+      "vol": 13.09,
+      "n": 249
+    },
+    "SPY 2024": {
+      "label": "SPY 2024",
+      "sharpe": 1.98,
+      "sortino": 2.598,
+      "cagr": 24.89,
+      "max_dd": -8.41,
+      "calmar": 2.961,
+      "vol": 12.57,
+      "n": 252
+    },
+    "SPY 2025": {
+      "label": "SPY 2025",
+      "sharpe": 0.917,
+      "sortino": 1.17,
+      "cagr": 17.87,
+      "max_dd": -18.76,
+      "calmar": 0.953,
+      "vol": 19.49,
+      "n": 250
+    },
+    "SPY Q1-2026": {
+      "label": "SPY Q1-2026",
+      "sharpe": -0.954,
+      "sortino": -1.421,
+      "cagr": -13.51,
+      "max_dd": -8.88,
+      "calmar": -1.52,
+      "vol": 14.17,
+      "n": 63
+    },
+    "SPY Full OOS 2023-Q1'26": {
+      "label": "SPY Full OOS 2023-Q1'26",
+      "sharpe": 1.303,
+      "sortino": 1.769,
+      "cagr": 19.88,
+      "max_dd": -18.76,
+      "calmar": 1.06,
+      "vol": 15.27,
+      "n": 814
+    }
+  },
+  "q1_2026_dd_strategy": {
+    "peak": "2026-02-02",
+    "trough": "2026-03-30",
+    "depth_pct": -6.35,
+    "duration_days": 56,
+    "recovery": "ongoing"
+  },
+  "q1_2026_dd_spy": {
+    "peak": "2026-01-27",
+    "trough": "2026-03-30",
+    "depth_pct": -8.88,
+    "duration_days": 62,
+    "recovery": "ongoing"
+  },
+  "regime_distribution": {
+    "bull": "131",
+    "bear": "39"
+  }
+}
