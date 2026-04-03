@@ -300,7 +300,9 @@ class _DatabentoFetcher:
             log.debug("Databento client not available; returning empty DataFrame")
             return pd.DataFrame()
 
-        # NASDAQ closing imbalance window: 3:50 PM – 4:00 PM ET = 19:50–20:01 UTC
+        # NASDAQ closing imbalance window: 3:50 PM – 4:01 PM ET
+        # Summer (EDT/UTC-4): 19:50–21:01 UTC  |  Winter (EST/UTC-5): 20:50–21:01 UTC
+        # Converted at runtime via _et_to_utc() — DST-aware
         imb_start_utc = _et_to_utc(*_IMBALANCE_START_ET, trading_date)
         close_utc = _et_to_utc(*_CLOSE_ET, trading_date)
         start_dt = datetime(
@@ -363,7 +365,7 @@ class _DatabentoFetcher:
                         frequency="snapshot", start=str(trading_date),
                         end=str(trading_date), rows=len(df),
                         cache_path=str(ck),
-                        notes="closing auction window 19:50-19:59 UTC",
+                        notes="closing auction window 3:50-4:01 PM ET (DST-aware)",
                         tags=["signal", "microstructure", "imbalance"],
                     )
                 except Exception:
