@@ -298,7 +298,7 @@ class VolatilityTargeter:
         """
         # Try H2O first
         h2o_vol = self._h2o_vol_estimate(sym, returns, vix_series, as_of_date)
-        if h2o_vol is not None and 0.01 < h2o_vol < 5.0:
+        if h2o_vol is not None and 0.01 < h2o_vol < 2.0:  # >200% annualised = model failure
             log.debug(f'VT [{sym}]: H2O vol={h2o_vol:.2%}')
             return h2o_vol
 
@@ -320,14 +320,29 @@ class VolatilityTargeter:
     def scale_from_vol(
         self,
         ann_vol: float,
+        smooth: bool = True,
     ) -> float:
         """
         Convert an annualised vol estimate to a clamped scale factor.
-        Convenience method so callers don't need to replicate the clamp.
+
+        Parameters
+        ----------
+        ann_vol : annualised volatility (e.g. 0.18 = 18%)
+        smooth  : if True, applies the same 3-day EWM smoothing used by
+                  compute_scale_series() to prevent whipsawing.
+                  Set False only when you need the raw unsmoothed scale.
         """
         if ann_vol <= 0:
             return 1.0
-        return float(np.clip(self.target_vol / ann_vol, self.min_leverage, self.max_leverage))
+        raw = float(np.clip(self.target_vol / ann_vol, self.min_leverage, self.max_leverage))
+        if not smooth:
+            return raw
+        # Apply EWM smoothing using running state (same as update_and_get_scale)
+        alpha = 2.0 / (SCALE_SMOOTHING + 1)
+        if self._scale_ewm is None:
+            self._scale_ewm = raw
+        self._scale_ewm = alpha * raw + (1 - alpha) * self._scale_ewm
+        return float(self._scale_ewm)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Diagnostics

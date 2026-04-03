@@ -146,7 +146,7 @@ class H2OVolForecaster:
         lam     = self.lam
 
         # EWMA vol
-        var = float(np.var(ret_arr[:20]))
+        var = float(np.var(ret_arr[:20], ddof=1))  # ddof=1 matches vol_targeting seed
         for r in ret_arr[20:]:
             var = lam * var + (1 - lam) * r**2
         ewma_now = float(np.sqrt(max(var, 1e-10) * 252))
@@ -309,7 +309,7 @@ def retrain(train_end: str = None):
     Call quarterly: python core/h2o_vol_forecaster.py --retrain
     """
     import subprocess, sys
-    train_script = Path(__file__).parent.parent.parent / 'tirex_validation' / 'h2o_full_train.py'
+    train_script = Path(__file__).parent.parent / 'scripts' / 'h2o_full_train.py'
     if not train_script.exists():
         log.error(f'Retrain script not found: {train_script}')
         return
