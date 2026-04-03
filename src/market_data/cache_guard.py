@@ -248,15 +248,33 @@ class CacheGuard:
         # So we scan the actual cache directory for valid files and
         # count what proportion of expected dates are covered.
         # A date is "cached" if ANY of its 10 surrounding trading days are cached.
-        all_valid_files = {
-            f.stem  # MD5 hash
-            for f in self.cache_dir.glob("*.json")
-            if not f.name.startswith(".") and f.name != "catalogue.json"
-            and f.stat().st_size >= 100
-        }
+        # Build a hash → path index for all valid cache files.
+        # Handles both formats:
+        #   Old: pure 32-char MD5 stem  (e.g. "2f80128823f45770d80c6e334f1371e8.json")
+        #   New: readable stem ending in _{hash8}  (e.g. "imbalance_2023-01-02_20syms_a1b2c3d4.json")
+        valid_by_full_md5: dict = {}   # full_md5 → Path
+        valid_by_hash8:    dict = {}   # hash8    → Path
+        for f in self.cache_dir.glob("*.json"):
+            if f.name.startswith(".") or f.name == "catalogue.json":
+                continue
+            if f.stat().st_size < 100:
+                continue
+            stem = f.stem
+            if len(stem) == 32 and all(c in "0123456789abcdef" for c in stem):
+                # Old format: the stem IS the full MD5
+                valid_by_full_md5[stem] = f
+                valid_by_hash8[stem[:8]] = f
+            else:
+                # New readable format: last segment after "_" is hash8
+                parts = stem.rsplit("_", 1)
+                if len(parts) == 2 and len(parts[1]) == 8:
+                    valid_by_hash8[parts[1]] = f
 
-        # Generate all trading days covered by the requested dates
-        # For each week-end date, check the 10 preceding trading days
+        def _is_cached(schema_: str, symbols_: list, day: date) -> bool:
+            full_md5 = _key_raw(schema_, symbols_, day)
+            hash8    = full_md5[:8]
+            return full_md5 in valid_by_full_md5 or hash8 in valid_by_hash8
+
         def trading_days_before(d: date, n: int = 10):
             days, cur = [], d - timedelta(days=1)
             while len(days) < n:
@@ -267,24 +285,20 @@ class CacheGuard:
 
         cached, empty_deleted, missing = [], [], []
         for d in dates:
-            # Check if ANY of the 10 trading days before this date are cached
+            # Check if MOST of the 10 trading days before this date are cached
             trading_days = trading_days_before(d, 10)
-            hits = sum(
-                1 for td in trading_days
-                if _key_raw(schema, symbols, td) in all_valid_files
-            )
+            hits = sum(1 for td in trading_days if _is_cached(schema, symbols, td))
             if hits >= 8:  # 8/10 days cached = this week is covered
                 cached.append(d)
             elif hits > 0:
-                # Partial — some days cached, some not
-                # Check for corrupt files (exist but invalid)
+                # Partial — some days cached, some not; clean up any corrupt files
                 for td in trading_days:
-                    f = _file(schema, symbols, td)
-                    if f.exists():
-                        valid, reason = _is_valid(f)
-                        if not valid:
+                    f_path = valid_by_full_md5.get(_key_raw(schema, symbols, td)) or                              valid_by_hash8.get(_key_raw(schema, symbols, td)[:8])
+                    if f_path and f_path.exists():
+                        valid_check, reason = _is_valid(f_path)
+                        if not valid_check:
                             if not dry_run:
-                                f.unlink(missing_ok=True)
+                                f_path.unlink(missing_ok=True)
                             empty_deleted.append((td, reason))
                 missing.append(d)  # will re-check at fetch time
             else:
