@@ -1,9 +1,0 @@
-{
-  "min_volume": 100000,
-  "min_price": 5.0,
-  "max_price": 1000.0,
-  "min_magnitude": 0.005,
-  "direction": "both",
-  "min_liquidity_score": 500000,
-  "blacklist": []
-}

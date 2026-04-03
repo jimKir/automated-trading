@@ -424,9 +424,12 @@ strategy:
     enabled: true
     bull_vix_threshold: 20.0
     bull_spy_ma_period: 200
-    bull_w_ts_mom: 0.60
-    bull_w_mr: 0.10
-    bull_w_macd: 0.25
+    # IS-validated weights — grid-search on 2018-2022 only
+    # OOS Sharpe: +0.15 (2023-2025, PIT universe, exec delay)
+    # Overfit weights (ts=0.60/mr=0.10/macd=0.25) gave: -0.007 OOS — do NOT revert
+    bull_w_ts_mom: 0.50   # IS-fitted: 2018-2022
+    bull_w_mr: 0.15
+    bull_w_macd: 0.30
     bull_w_rsi: 0.05
     bull_use_pmo: false
     bull_use_adx: false
