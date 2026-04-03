@@ -78,19 +78,23 @@ def signal_window(sd: date, n: int = 10) -> list:
 
 def scan_cache(schema: str = "imbalance") -> tuple:
     """
-    Returns (valid_hash8s, valid_full_md5s, all_files_info)
-    valid_hash8s: set of 8-char hashes found in cache (real data only)
-    valid_full_md5s: set of 32-char md5s (old format)
+    Returns (real_hash8s, real_full_md5s, fetched_hash8s, all_files_info)
+
+    real_hash8s   — hash8s of files with actual data rows (v has entries)
+    real_full_md5s — full MD5s of real-data files in old format
+    fetched_hash8s — hash8s of ALL fetched files: real + empty "no data" responses
+                     Used for window coverage: both count as "we already tried this day"
     """
     if not CACHE_DIR.exists():
         print(f"  ❌ Cache directory not found: {CACHE_DIR}")
         sys.exit(1)
 
-    valid_h8   = set()
-    valid_md5  = set()
-    total      = 0
+    real_h8    = set()   # files with actual data
+    real_md5   = set()
+    fetched_h8 = set()   # real + empty (both = already fetched from API)
+    total       = 0
     real        = 0
-    empty       = 0
+    no_data     = 0      # valid fetch, Databento returned nothing (v={})
     corrupt     = 0
     old_format  = 0
     new_format  = 0
@@ -102,40 +106,53 @@ def scan_cache(schema: str = "imbalance") -> tuple:
         total += 1
         total_bytes += f.stat().st_size
 
-        # Classify format
-        stem = f.stem
+        stem   = f.stem
         is_old = len(stem) == 32 and all(c in "0123456789abcdef" for c in stem)
-
         if is_old:
             old_format += 1
         else:
             new_format += 1
 
-        # Validate content
-        if f.stat().st_size < 100:
-            empty += 1
+        # Extract hash8 for this file
+        if is_old:
+            h8 = stem[:8]
+        else:
+            parts = stem.rsplit("_", 1)
+            h8 = parts[1] if (len(parts) == 2 and len(parts[1]) == 8) else None
+
+        # Classify by content
+        sz = f.stat().st_size
+
+        # Size 20-80 bytes = {"v": {}, "_ts": ...} — valid "no data" response
+        if sz < 100:
+            no_data += 1
+            if h8:
+                fetched_h8.add(h8)   # counts for coverage (we tried this day)
             continue
 
         try:
             data = json.loads(f.read_text())
             v = data.get("v", {})
-            if not isinstance(v, dict) or len(v) == 0:
-                empty += 1
+            if not isinstance(v, dict):
+                corrupt += 1
                 continue
+            if len(v) == 0:
+                no_data += 1
+                if h8:
+                    fetched_h8.add(h8)  # tried, got nothing — still counts
+                continue
+            # Real data file
             real += 1
-            # Register in lookup
+            if h8:
+                fetched_h8.add(h8)
+                real_h8.add(h8)
             if is_old:
-                valid_md5.add(stem)
-                valid_h8.add(stem[:8])
-            else:
-                parts = stem.rsplit("_", 1)
-                if len(parts) == 2 and len(parts[1]) == 8:
-                    valid_h8.add(parts[1])
+                real_md5.add(stem)
         except Exception:
             corrupt += 1
 
-    return valid_h8, valid_md5, {
-        "total": total, "real": real, "empty": empty, "corrupt": corrupt,
+    return real_h8, real_md5, fetched_h8, {
+        "total": total, "real": real, "no_data": no_data, "corrupt": corrupt,
         "old_format": old_format, "new_format": new_format,
         "total_mb": total_bytes / 1024 / 1024,
     }
@@ -143,18 +160,30 @@ def scan_cache(schema: str = "imbalance") -> tuple:
 
 # ── Coverage analysis ──────────────────────────────────────────────────────────
 
-def analyse_coverage(valid_h8: set, valid_md5: set, schema: str = "imbalance") -> dict:
+def analyse_coverage(real_h8: set, real_md5: set, fetched_h8: set,
+                     schema: str = "imbalance") -> dict:
     """
     For each biweekly step_date, count how many of its 10-day guard window
-    hash8s are present in the cache. Report cached/missing/tight.
+    days have been fetched (real data OR empty "no data" response).
+
+    A window is CACHED if >=8 of its 10 preceding weekdays were fetched.
+    Both real-data files and empty "no data" files count — both mean
+    "we already hit the API for this day, no need to do it again."
     """
     week_idx   = pd.date_range(OOS_START, OOS_END, freq="W-SUN")
     step_dates = [d.date() for i, d in enumerate(week_idx) if i % 2 == 0]
 
-    def is_cached(d: date) -> bool:
+    def is_fetched(d: date) -> bool:
+        """True if this day was fetched (real data OR empty response)."""
         h8  = hash8(schema, SYMS, d)
         md5 = full_md5(schema, SYMS, d)
-        return h8 in valid_h8 or md5 in valid_md5
+        return h8 in fetched_h8 or md5 in real_md5
+
+    def has_real_data(d: date) -> bool:
+        """True if this day has actual data rows."""
+        h8  = hash8(schema, SYMS, d)
+        md5 = full_md5(schema, SYMS, d)
+        return h8 in real_h8 or md5 in real_md5
 
     cached_dates  = []
     missing_dates = []
@@ -165,13 +194,15 @@ def analyse_coverage(valid_h8: set, valid_md5: set, schema: str = "imbalance") -
         sw    = signal_window(sd)
         phantom = [d for d in gw if not is_td(d)]
 
-        hits          = sum(1 for d in gw if is_cached(d))
+        hits          = sum(1 for d in gw if is_fetched(d))
+        real_hits     = sum(1 for d in gw if has_real_data(d))
         real_possible = 10 - len(phantom)   # max possible score (some days = holidays)
         passes        = hits >= 8
 
         coverage_detail.append({
             "date":         sd,
-            "hits":         hits,
+            "hits":         hits,        # total fetched (real + empty)
+            "real_hits":    real_hits,   # days with actual data
             "max_possible": real_possible,
             "phantom_days": len(phantom),
             "passes":       passes,
@@ -209,12 +240,12 @@ def main():
     # 1. File inventory
     print("\n[1/4] File inventory")
     print("  " + "─" * 40)
-    valid_h8, valid_md5, info = scan_cache("imbalance")
+    real_h8, real_md5, fetched_h8, info = scan_cache("imbalance")
 
     bar_real = _bar(info["real"], info["total"])
     print(f"  Total files:     {info['total']:>5}")
     print(f"  Real data:       {info['real']:>5}  [{bar_real}]  {info['real']/max(info['total'],1)*100:.0f}%")
-    print(f"  Empty/v={{}}:      {info['empty']:>5}")
+    print(f"  No data (v={{}})   {info['no_data']:>5}  ← valid 'Databento returned nothing' markers, NOT errors")
     print(f"  Corrupt:         {info['corrupt']:>5}")
     print(f"  Old MD5 format:  {info['old_format']:>5}  (pure 32-char hash filename)")
     print(f"  New format:      {info['new_format']:>5}  (human-readable filename)")
@@ -228,7 +259,7 @@ def main():
     # 2. Coverage analysis
     print("\n[2/4] Window coverage  (biweekly OOS dates {OOS_START} → {OOS_END})".format(**globals()))
     print("  " + "─" * 40)
-    cov = analyse_coverage(valid_h8, valid_md5, "imbalance")
+    cov = analyse_coverage(real_h8, real_md5, fetched_h8, "imbalance")
 
     n_cached  = len(cov["cached"])
     n_missing = len(cov["missing"])
@@ -301,7 +332,10 @@ def main():
             size_buckets["<1KB"] += 1
 
         if sz < 100:
-            issues.append((f.name, "EMPTY", f"size={sz}B"))
+            # Small files = valid "no data" response from Databento (v={}, _ts=...)
+            # NOT an error — this means we tried and the API had no data that day.
+            # Counted separately in inventory; do not flag as issue.
+            size_buckets["<1KB"] += 1
             continue
 
         # ── JSON parse ───────────────────────────────────────────────
@@ -319,7 +353,8 @@ def main():
             continue
 
         if len(v) == 0:
-            issues.append((f.name, "EMPTY_V", "v={} — no data rows"))
+            # v={} in a larger file = also a valid "no data" response
+            # Do not flag as issue.
             continue
 
         row_counts.append(len(v))
@@ -371,7 +406,7 @@ def main():
     print()
 
     if issues:
-        print(f"  ⚠️  Issues found: {len(issues)}")
+        print(f"  ⚠️  Issues found: {len(issues)}  (corrupt JSON or malformed filenames)")
         # Show first 20, group the rest
         shown = issues[:20]
         for fname, kind, detail in shown:
@@ -505,8 +540,8 @@ def run_health_check(auto_fix: bool = True, verbose: bool = True) -> dict:
                 issues_fixed += 1
 
     # ── Step 3: full scan ────────────────────────────────────────────────────
-    valid_h8, valid_md5, info = scan_cache("imbalance")
-    cov = analyse_coverage(valid_h8, valid_md5, "imbalance")
+    real_h8, real_md5, fetched_h8, info = scan_cache("imbalance")
+    cov = analyse_coverage(real_h8, real_md5, fetched_h8, "imbalance")
 
     n_cached  = len(cov["cached"])
     n_missing = len(cov["missing"])
