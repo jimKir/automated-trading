@@ -104,7 +104,8 @@ class DataCatalogue:
       "cache_path": "~/.databento_cache/imbalance/abc.json",
       "fetched_at": "2026-04-02T14:32:11",
       "notes":      "closing auction window 19:50-19:59 UTC",
-      "tags":       ["signal", "microstructure"]
+      "tags":       ["signal", "microstructure"],
+      "artifact_type": "raw_fetch"   # raw_fetch | computed_factors | ic_results | prices
     }
     """
 
@@ -144,9 +145,10 @@ class DataCatalogue:
         frequency:  str            = "1day",
         rows:       int            = 0,
         cache_path: Optional[str]  = None,
-        notes:      str            = "",
-        tags:       List[str]      = None,
-        extra:      Dict[str, Any] = None,
+        notes:         str            = "",
+        tags:          List[str]      = None,
+        extra:         Dict[str, Any] = None,
+        artifact_type: str            = "raw_fetch",
     ) -> str:
         """
         Record a data fetch in the catalogue.
@@ -174,8 +176,9 @@ class DataCatalogue:
             "cache_path": str(cache_path) if cache_path else None,
             "fetched_at": datetime.now().isoformat(timespec="seconds"),
             "notes":      notes,
-            "tags":       tags or [],
-            "extra":      extra or {},
+            "tags":          tags or [],
+            "artifact_type": artifact_type,
+            "extra":         extra or {},
         }
 
         # Merge if entry already exists (update end date and row count)
