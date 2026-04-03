@@ -497,10 +497,8 @@ def run_health_check(auto_fix: bool = True, verbose: bool = True) -> dict:
             stem = f.stem
             if not (len(stem) == 32 and all(c in "0123456789abcdef" for c in stem)):
                 continue
-            # Try to parse and re-save with readable name
+            # Small old-MD5 files: valid empty stubs — leave them alone
             if f.stat().st_size < 100:
-                f.unlink(missing_ok=True)
-                issues_fixed += 1
                 continue
             try:
                 data = json.loads(f.read_text())
@@ -518,24 +516,25 @@ def run_health_check(auto_fix: bool = True, verbose: bool = True) -> dict:
                 f.unlink(missing_ok=True)
                 issues_fixed += 1
 
-    # ── Step 2: delete empty/corrupt stubs ───────────────────────────────────
+    # ── Step 2: delete ONLY corrupt (unparseable) files ─────────────────────
+    # NOTE: files with v={} (size < 100 bytes) are VALID "no data" responses
+    # from Databento — do NOT delete them. They prevent expensive re-fetches.
     if auto_fix:
         for f in list(CACHE_DIR.glob("*.json")):
             if f.name.startswith(".") or f.name == "catalogue.json":
                 continue
             if f.stat().st_size < 100:
-                f.unlink(missing_ok=True)
-                issues_fixed += 1
-                continue
+                continue  # valid empty stub — leave it alone
             try:
                 data = json.loads(f.read_text())
                 v = data.get("v", {})
-                if not isinstance(v, dict) or len(v) == 0:
-                    # Empty result stub — delete so it will be re-fetched
+                if not isinstance(v, dict):
+                    # Genuinely corrupt structure — delete
                     f.unlink(missing_ok=True)
                     issues_fixed += 1
+                # v={} in a large file is also valid — leave it alone
             except Exception:
-                # Corrupt JSON — delete
+                # Unparseable JSON — delete
                 f.unlink(missing_ok=True)
                 issues_fixed += 1
 
@@ -549,20 +548,20 @@ def run_health_check(auto_fix: bool = True, verbose: bool = True) -> dict:
     est_gb    = n_missing * len(SYMS) * 0.0016
     est_cost  = est_gb * 16.0
 
-    # Count remaining issues (files that survived but have problems)
+    # Count remaining issues — only truly corrupt files, NOT valid empty stubs
     for f in CACHE_DIR.glob("*.json"):
         if f.name.startswith(".") or f.name == "catalogue.json":
             continue
         if f.stat().st_size < 100:
-            issues_remaining += 1
-            continue
+            continue  # valid empty stub — not an issue
         try:
             data = json.loads(f.read_text())
             v = data.get("v", {})
-            if not isinstance(v, dict) or len(v) == 0:
-                issues_remaining += 1
+            if not isinstance(v, dict):
+                issues_remaining += 1  # corrupt structure
+            # v={} in large file = valid, skip
         except Exception:
-            issues_remaining += 1
+            issues_remaining += 1  # unparseable JSON
 
     issues_found = issues_fixed + issues_remaining
 

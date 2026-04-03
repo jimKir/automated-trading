@@ -248,32 +248,50 @@ class CacheGuard:
         # So we scan the actual cache directory for valid files and
         # count what proportion of expected dates are covered.
         # A date is "cached" if ANY of its 10 surrounding trading days are cached.
-        # Build a hash → path index for all valid cache files.
-        # Handles both formats:
-        #   Old: pure 32-char MD5 stem  (e.g. "2f80128823f45770d80c6e334f1371e8.json")
-        #   New: readable stem ending in _{hash8}  (e.g. "imbalance_2023-01-02_20syms_a1b2c3d4.json")
-        valid_by_full_md5: dict = {}   # full_md5 → Path
-        valid_by_hash8:    dict = {}   # hash8    → Path
+        # Build two hash → path indexes:
+        #   valid_by_*   — files with real data rows (used for signal quality)
+        #   fetched_by_* — ALL fetched files: real + empty "no data" stubs
+        #                  Empty stubs (v={}, size<100B) mean "we tried, got nothing"
+        #                  and count toward coverage — prevents pointless re-fetches.
+        valid_by_full_md5:   dict = {}   # full_md5 → Path  (real data only)
+        valid_by_hash8:      dict = {}   # hash8    → Path  (real data only)
+        fetched_by_hash8:    dict = {}   # hash8    → Path  (real + empty stubs)
+
         for f in self.cache_dir.glob("*.json"):
             if f.name.startswith(".") or f.name == "catalogue.json":
                 continue
-            if f.stat().st_size < 100:
-                continue
             stem = f.stem
+            # Extract hash8 for this file regardless of size
             if len(stem) == 32 and all(c in "0123456789abcdef" for c in stem):
-                # Old format: the stem IS the full MD5
-                valid_by_full_md5[stem] = f
-                valid_by_hash8[stem[:8]] = f
+                h8 = stem[:8]
+                full = stem
             else:
-                # New readable format: last segment after "_" is hash8
                 parts = stem.rsplit("_", 1)
-                if len(parts) == 2 and len(parts[1]) == 8:
-                    valid_by_hash8[parts[1]] = f
+                h8    = parts[1] if (len(parts) == 2 and len(parts[1]) == 8) else None
+                full  = None
+
+            if f.stat().st_size < 100:
+                # Empty stub — counts as fetched (we tried), not as real data
+                if h8:
+                    fetched_by_hash8[h8] = f
+                continue
+
+            # Real data file
+            if full:
+                valid_by_full_md5[full] = f
+                valid_by_hash8[full[:8]] = f
+                fetched_by_hash8[full[:8]] = f
+            elif h8:
+                valid_by_hash8[h8] = f
+                fetched_by_hash8[h8] = f
 
         def _is_cached(schema_: str, symbols_: list, day: date) -> bool:
+            """True if this day was fetched (real data OR confirmed-empty stub)."""
             full_md5 = _key_raw(schema_, symbols_, day)
             hash8    = full_md5[:8]
-            return full_md5 in valid_by_full_md5 or hash8 in valid_by_hash8
+            return (full_md5 in valid_by_full_md5
+                    or hash8  in valid_by_hash8
+                    or hash8  in fetched_by_hash8)
 
         def trading_days_before(d: date, n: int = 10):
             days, cur = [], d - timedelta(days=1)
