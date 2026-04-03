@@ -63,10 +63,12 @@ def _key_raw(schema: str, symbols: List[str], day: date) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 def _key_readable(schema: str, symbols: List[str], day: date) -> str:
-    """Human-readable filename prefix — matches the new _cache_path() format."""
+    """Human-readable filename prefix — matches the new _cache_path() format.
+    Order: {schema}_{syms}_{date}_{hash8}  (matches module output)
+    """
     h8 = _key_raw(schema, symbols, day)[:8]
     sym_part = "-".join(sorted(symbols)[:3]) if len(symbols) <= 3 else f"{len(symbols)}syms"
-    return f"{schema}_{day}_{sym_part}_{h8}"
+    return f"{schema}_{sym_part}_{day}_{h8}"
 
 def _file(schema: str, symbols: List[str], day: date) -> Path:
     """Return the expected cache file path (new human-readable format)."""
@@ -156,17 +158,42 @@ class CacheGuard:
                              dates: List[date]) -> int:
         """
         Rename old MD5-only files to human-readable format.
-        E.g.: a1b2c3d4e5f6g7h8.json → imbalance_2024-06-15_20syms_a1b2c3d4.json
+        Handles both pure-MD5 and wrong-order readable formats.
         Returns count of files renamed.
         """
         renamed = 0
         for d in dates:
-            old_path = CACHE_DIR / f"{_key_raw(schema, symbols, d)}.json"
             new_path = _file(schema, symbols, d)
-            if old_path.exists() and not new_path.exists():
-                old_path.rename(new_path)
+            if new_path.exists():
+                continue  # already in correct format
+            # Try old pure-MD5 format
+            old_md5 = CACHE_DIR / f"{_key_raw(schema, symbols, d)}.json"
+            if old_md5.exists() and old_md5.stat().st_size >= 100:
+                old_md5.rename(new_path)
+                renamed += 1
+                continue
+            # Try old wrong-order readable format (schema_date_syms_hash)
+            h8 = _key_raw(schema, symbols, d)[:8]
+            sym_part = f"{len(symbols)}syms" if len(symbols) > 3 else "-".join(sorted(symbols)[:3])
+            alt_name = CACHE_DIR / f"{schema}_{d}_{sym_part}_{h8}.json"
+            if alt_name.exists() and alt_name.stat().st_size >= 100:
+                alt_name.rename(new_path)
                 renamed += 1
         return renamed
+
+    def delete_orphan_md5_files(self) -> int:
+        """
+        Delete any remaining pure-MD5 named files (32-char hex + .json).
+        These are old cache files superseded by human-readable ones.
+        Run after rename_legacy_files() to clean up.
+        Returns count deleted.
+        """
+        deleted = 0
+        for f in self.cache_dir.glob("*.json"):
+            if re.match(r"^[0-9a-f]{32}[.]json$", f.name):
+                f.unlink(missing_ok=True)
+                deleted += 1
+        return deleted
 
     def preflight(
         self,
@@ -199,11 +226,15 @@ class CacheGuard:
         print(f"  Cache:   {self.cache_dir}")
         print("=" * 62)
 
-        # 0. Rename legacy MD5 files to human-readable format
+        # 0. Rename legacy MD5 files to human-readable format, then clean up orphans
         if not dry_run:
             renamed = self.rename_legacy_files(schema, symbols, dates)
-            if renamed:
-                print(f"  Renamed {renamed} legacy cache files to human-readable format")
+            deleted = self.delete_orphan_md5_files()
+            if renamed or deleted:
+                msg = []
+                if renamed: msg.append(f"renamed {renamed} legacy files")
+                if deleted: msg.append(f"deleted {deleted} orphan MD5 files")
+                print(f"  Cache cleanup: {', '.join(msg)}")
 
         # 1. Round-trip test
         ok, msg = _round_trip_test(schema, symbols[:3], dates[0])
