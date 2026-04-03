@@ -36,10 +36,20 @@ log = get_logger("CostModel")
 # Asset classification helpers
 # ---------------------------------------------------------------------------
 
+# Mega/large-cap equities with ETF-like liquidity (SPY-comparable)
+_MEGA_CAP_EQUITIES = frozenset({
+    "AAPL","MSFT","NVDA","GOOGL","GOOG","AMZN","META","TSLA","AVGO",
+    "JPM","V","MA","UNH","JNJ","PG","HD","KO","XOM","CVX","BAC","GS",
+    "BRK-B","LLY","WMT","COST","NFLX","ORCL","AMD","INTC","QCOM",
+    "TMO","ABT","DHR","MS","BLK","SCHW","C","AXP","RTX","LMT",
+})
+
 def _classify(symbol: str) -> str:
     """
     Returns asset class string:
-      'etf_large'   : SPY, QQQ, IWM, GLD, TLT, VGK, EEM
+      'equity_mega' : AAPL, MSFT, NVDA — mega-cap stocks with ETF-like liquidity
+      'equity_large': typical S&P 500 names — slightly wider spread
+      'etf_large'   : SPY, QQQ, IWM, GLD, TLT
       'etf_sector'  : XLK, XLE, XLF
       'future'      : ES=F, NQ=F, GC=F, CL=F
       'crypto_major': BTC-USD, ETH-USD
@@ -53,7 +63,12 @@ def _classify(symbol: str) -> str:
         return "crypto_minor"
     if symbol in ("XLK", "XLE", "XLF", "XLV", "XLP", "XLI", "XLB", "XLU", "XLRE"):
         return "etf_sector"
-    return "etf_large"
+    if symbol in ("SPY","QQQ","IWM","GLD","TLT","SHY","HYG","LQD","VGK","EEM","VTI"):
+        return "etf_large"
+    if symbol in _MEGA_CAP_EQUITIES:
+        return "equity_mega"   # SPY-like liquidity, slightly higher spread than ETF
+    # Default: treat as liquid large-cap equity
+    return "equity_large"
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +156,35 @@ COST_PARAMS: Dict[str, AssetCostParams] = {
         roll_cost_pct=0.0,
         rolls_per_year=0,
         funding_rate_daily=0.0002,  # higher funding on smaller cryptos
+    ),
+
+    # ── Equities ───────────────────────────────────────────────────────────────
+    # Mega-cap stocks (AAPL, MSFT, NVDA, JPM…) — SPY-like liquidity
+    # Spread ~$0.01 on $150-$800 stock = 0.001-0.007%; use 0.005% (conservative)
+    # Commission: IBKR tiered ~$0.005/share ≈ 0.005% on $100 stock
+    # Short borrow: 0.3% ann for S&P 500 members (easy to borrow)
+    "equity_mega": AssetCostParams(
+        commission_pct=0.0001,      # IBKR tiered: ~$0.005/share on $100 stock
+        half_spread_pct=0.0005,     # $0.01 spread on $200 stock = 0.005%
+        impact_coeff=0.05,          # similar to SPY (very liquid)
+        adv_estimate=5_000_000_000, # AAPL: ~$10B ADV; NVDA: ~$15B; use conservative $5B
+        long_financing_rate=0.00,   # no leverage assumed
+        short_borrow_rate=0.003,    # 0.3% ann. (S&P 500 easy-to-borrow)
+        roll_cost_pct=0.0,
+        rolls_per_year=0,
+        funding_rate_daily=0.0,
+    ),
+    # Standard large-cap equity (S&P 500, not mega-cap)
+    "equity_large": AssetCostParams(
+        commission_pct=0.0002,      # slightly higher for lower-priced shares
+        half_spread_pct=0.0010,     # $0.01-0.02 spread on $100-200 stock
+        impact_coeff=0.08,
+        adv_estimate=500_000_000,   # typical S&P 500: $500M-$2B ADV
+        long_financing_rate=0.00,
+        short_borrow_rate=0.005,    # 0.5% ann.
+        roll_cost_pct=0.0,
+        rolls_per_year=0,
+        funding_rate_daily=0.0,
     ),
 }
 
