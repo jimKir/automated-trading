@@ -193,24 +193,31 @@ def get_cache_path_for(*parts) -> Path:
 
 
 def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[dict]:
+    """
+    Load cached data. Returns:
+      None — file missing, expired, or corrupt  → caller should re-fetch
+      {}   — confirmed "no data" from Databento → caller must NOT re-fetch
+      dict — real data rows                     → caller uses directly
+
+    IMPORTANT: v={} is a permanent sentinel meaning "we already asked Databento
+    and it returned nothing for this day." Treat it as a valid cached result,
+    NOT as a miss. Deleting it would trigger an API call that returns the same
+    empty result, wasting money and time.
+    """
     if not path.exists():
         return None
-    # Auto-delete and treat as miss: empty files (<100 bytes) or expired TTL
+    # Files < 100 bytes = v={} sentinel written by _cache_save — valid "no data"
     if path.stat().st_size < 100:
-        try: path.unlink()
-        except: pass
-        return None
+        return {}   # confirmed no-data — do NOT delete, do NOT re-fetch
     try:
         raw = json.loads(path.read_text())
         if time.time() - raw.get("_ts", 0) > ttl_hours * 3600:
-            return None
+            return None  # expired — allow re-fetch
         v = raw.get("v", {})
-        # Treat empty v={} as cache miss — auto-delete to avoid infinite re-fetch
-        if isinstance(v, dict) and len(v) == 0:
-            try: path.unlink()
-            except: pass
-            return None
-        return v  # callers expect just the data dict, not the wrapper
+        if not isinstance(v, dict):
+            return None  # corrupt structure — allow re-fetch
+        # v={} in a larger file = also a valid "no data" sentinel
+        return v  # callers get {} for no-data, or populated dict for real data
     except Exception:
         return None
 
@@ -262,6 +269,9 @@ class _DatabentoFetcher:
         ck = _cache_path("imbalance", sorted(symbols), str(trading_date))
         cached = _cache_load(ck)
         if cached is not None:
+            # {} = confirmed no-data sentinel — return empty DataFrame immediately
+            if len(cached) == 0:
+                return pd.DataFrame()
             try:
                 df = pd.DataFrame(cached)
                 if not df.empty:

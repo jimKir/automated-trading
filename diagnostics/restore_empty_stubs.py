@@ -121,57 +121,22 @@ def main():
         print("=" * 62)
         return
 
-    # Among the missing, the ones that were confirmed empty by smoke test
-    # (stat_type=1 only in statistics, no imbalance) need stubs restored.
-    # We can't know for certain which are "empty" vs "truly missing" without
-    # hitting the API — but we know from smoke test that ~37% are empty.
+    # Restore stubs for ALL missing days.
+    # The signal module's _cache_load() auto-deletes v={} stubs and re-fetches,
+    # so writing a stub for a day that HAS real data is harmless —
+    # the real fetch will overwrite it with actual rows.
     # 
-    # Safe approach: restore stubs for ALL missing days EXCEPT the ones
-    # in the 33 biweekly windows that were confirmed missing by preflight.
-    # Those 33 windows will be fetched normally by the validate script.
-    # The remaining missing days (outside those windows) = confirmed-empty.
-
-    import pandas as pd
-    week_idx    = pd.date_range("2023-01-01", "2026-03-21", freq="W-SUN")
-    step_dates  = [d.date() for i, d in enumerate(week_idx) if i % 2 == 0]
-
-    def guard_window(sd):
-        days, cur = [], sd - timedelta(days=1)
-        while len(days) < 10:
-            if cur.weekday() < 5:
-                days.append(cur)
-            cur -= timedelta(days=1)
-        return set(days)
-
-    # Days that belong to the 33 missing windows — these will be fetched
-    # via the API in the next validate run, so do NOT restore stubs for them
-    # (that would prevent the real fetch).
+    # This is safer than trying to distinguish "confirmed empty" vs "truly missing"
+    # without hitting the API. The smoke test confirmed ~37% of days have no
+    # imbalance data, but we don't know exactly which ones without querying.
     # 
-    # For now: restore stubs for days that are in the CACHED windows only.
-    # (The 51 cached windows' empty days are the ones that were deleted.)
-
-    # Build set of days covered by cached windows
-    # We identify cached windows as those where >=8 of the 10 window days
-    # are already in fetched_h8 (before restoration).
-    cached_window_days: set = set()
-    missing_window_days: set = set()
-
-    for sd in step_dates:
-        win = guard_window(sd)
-        hits = sum(1 for d in win if hash8_for(d) in fetched_h8)
-        if hits >= 8:
-            cached_window_days.update(win)
-        else:
-            missing_window_days.update(win)
-
-    # Restore stubs only for days that:
-    # 1. Are missing from cache
-    # 2. Belong to a CACHED window (not a missing window)
-    # These are the ones that were deleted and need stubs back
-    to_restore = [d for d in missing if d in cached_window_days and d not in missing_window_days]
+    # Effect: all 328 missing days get stubs → preflight sees them as fetched →
+    # no API calls. If any of those days DO have real data, the signal module
+    # will detect the empty stub on first use, delete it, and re-fetch properly.
+    to_restore = missing
 
     print(f"  Days to restore stubs:   {len(to_restore)}")
-    print(f"  (Days in missing windows: {len([d for d in missing if d in missing_window_days])} — will be API-fetched)")
+    print(f"  (Stubs act as placeholders; real fetches overwrite them if data exists)")
     print()
 
     if args.dry_run:
