@@ -174,7 +174,7 @@ class RiskManager:
         Position $ = equity * target_vol / realized_vol
         """
         if len(symbol_returns) < 5:
-            return self.max_position_pct * equity
+            return self.max_position_pct * 0.25 * equity  # conservative: 25% of max when data insufficient
         realized_vol = symbol_returns.std()
         if realized_vol == 0:
             return 0.0
@@ -313,7 +313,7 @@ class RiskManager:
 
     @staticmethod
     def max_drawdown_duration(equity_curve: pd.Series) -> int:
-        """Longest drawdown in calendar days."""
+        """Longest drawdown in trading days."""
         peak = equity_curve.cummax()
         in_dd = equity_curve < peak
         durations = []

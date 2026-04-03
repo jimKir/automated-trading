@@ -79,6 +79,7 @@ class PaperBroker(BrokerBase):
                 if order.quantity < 0.001:
                     order.status = OrderStatus.REJECTED
                     return order
+                commission = abs(order.quantity * fill_price) * self._commission_pct
                 total_debit = order.quantity * fill_price + commission
             self.cash -= total_debit
             sym = order.symbol
@@ -91,16 +92,19 @@ class PaperBroker(BrokerBase):
             pos["quantity"] = new_qty
 
         else:  # SELL
-            sell_qty = order.quantity
             sym = order.symbol
-            if sym in self._positions:
-                sell_qty = min(sell_qty, self._positions[sym]["quantity"])
+            if sym not in self._positions or self._positions[sym]["quantity"] < 0.001:
+                order.status = OrderStatus.REJECTED
+                log.warning(f"[{sym}] No position to sell — order rejected")
+                return order
+            sell_qty = min(order.quantity, self._positions[sym]["quantity"])
+            order.quantity = sell_qty
+            commission = abs(sell_qty * fill_price) * self._commission_pct
             proceeds = sell_qty * fill_price - commission
             self.cash += proceeds
-            if sym in self._positions:
-                self._positions[sym]["quantity"] -= sell_qty
-                if abs(self._positions[sym]["quantity"]) < 0.001:
-                    del self._positions[sym]
+            self._positions[sym]["quantity"] -= sell_qty
+            if abs(self._positions[sym]["quantity"]) < 0.001:
+                del self._positions[sym]
 
         order_id = str(uuid.uuid4())[:8]
         order.order_id = order_id

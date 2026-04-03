@@ -33,7 +33,7 @@ warnings.filterwarnings("ignore")  # suppress BentoWarning: No data found
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 CACHE_DIR = Path(__file__).parent.parent / ".cache" / "databento"
-DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
+DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "")
 
 _US_HOLIDAYS = np.array([
     "2022-12-26","2023-01-02","2023-01-16","2023-02-20","2023-04-07","2023-05-29",

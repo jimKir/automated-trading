@@ -258,10 +258,12 @@ class IntradayRegimeScorer:
         """Return provided bars or fetch from yfinance."""
         if spy_bars is not None and not spy_bars.empty:
             return spy_bars
+        from datetime import timezone
+        _now = datetime.now(timezone.utc)
         return self._fetch_yfinance(
             "SPY",
-            (datetime.utcnow() - timedelta(days=_LIVE_LOOKBACK_DAYS)).strftime("%Y-%m-%d"),
-            datetime.utcnow().strftime("%Y-%m-%d"),
+            (_now - timedelta(days=_LIVE_LOOKBACK_DAYS)).strftime("%Y-%m-%d"),
+            _now.strftime("%Y-%m-%d"),
             interval="1h",
         )
 
@@ -393,30 +395,7 @@ class IntradayRegimeScorer:
     ) -> float:
         """
         Simplified Average Directional Index.
-
-        Returns 25.0 (trending) when there is insufficient history so that a
-        neutral default does not erroneously classify the market as CHOPPY.
+        Delegates to shared implementation in utils.indicators.
         """
-        n = len(highs)
-        if n < period + 2:
-            return 25.0
-
-        tr_list, dm_p, dm_m = [], [], []
-        for i in range(1, n):
-            hl  = highs[i]  - lows[i]
-            hpc = abs(highs[i]  - closes[i - 1])
-            lpc = abs(lows[i]   - closes[i - 1])
-            tr_list.append(max(hl, hpc, lpc))
-
-            up   = highs[i]  - highs[i - 1]
-            down = lows[i - 1] - lows[i]
-            dm_p.append(up   if (up   > down and up   > 0) else 0.0)
-            dm_m.append(down if (down > up   and down > 0) else 0.0)
-
-        atr = float(np.mean(tr_list[-period:]))
-        if atr == 0:
-            return 0.0
-        di_p  = float(np.mean(dm_p[-period:])) / atr
-        di_m  = float(np.mean(dm_m[-period:])) / atr
-        denom = di_p + di_m
-        return 0.0 if denom == 0 else abs(di_p - di_m) / denom * 100
+        from utils.indicators import compute_adx
+        return compute_adx(highs, lows, closes, period)

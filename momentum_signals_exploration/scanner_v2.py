@@ -43,6 +43,8 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+_closing_imbalance_signal = None  # module-level singleton to avoid per-symbol init
+
 # ---------------------------------------------------------------------------
 # Sector map — used for concentration limits and sector-relative strength
 # ---------------------------------------------------------------------------
@@ -603,10 +605,13 @@ class SignalEngine:
             try:
                 import sys
                 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                from strategy.databento_imbalance import ClosingImbalanceSignal
+                from strategy.databento_imbalance import ClosingImbalanceSignal, _prev_trading_day
                 from datetime import date
-                sig = ClosingImbalanceSignal()
-                daily_sigs = sig.compute_daily([symbol], date.today())
+                global _closing_imbalance_signal
+                if _closing_imbalance_signal is None:
+                    _closing_imbalance_signal = ClosingImbalanceSignal()
+                sig = _closing_imbalance_signal
+                daily_sigs = sig.compute_daily([symbol], _prev_trading_day(date.today()))
                 imbalance_real = float(daily_sigs.get(symbol, 0.0))
             except Exception:
                 pass  # Databento unavailable — neutral contribution (0)

@@ -18,7 +18,7 @@ sys.path.insert(0, ".")
 from datetime import date, datetime
 from pathlib import Path
 
-KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
+KEY = os.environ.get("DATABENTO_KEY", "")
 
 try:
     import databento as db

@@ -194,9 +194,10 @@ class DataFeed:
         Load data. Returns dict of {symbol: OHLCV DataFrame}.
         Uses internal cache to avoid re-downloading.
         """
-        cache_key = f"{source}:{','.join(sorted(symbols))}:{start}:{end}:{interval}"
-        if cache_key in self._cache:
-            return {s: self._cache[f"{source}:{s}:{start}:{end}:{interval}"] for s in symbols if f"{source}:{s}:{start}:{end}:{interval}" in self._cache}
+        # Check if ALL symbols are already cached (per-symbol keys)
+        per_sym_keys = {s: f"{source}:{s}:{start}:{end}:{interval}" for s in symbols}
+        if all(k in self._cache for k in per_sym_keys.values()):
+            return {s: self._cache[per_sym_keys[s]] for s in symbols}
 
         if source == "yfinance":
             data = fetch_yfinance(symbols, start=start or "2018-01-01",

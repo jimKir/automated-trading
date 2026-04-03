@@ -67,7 +67,6 @@ class AlpacaBroker(BrokerBase):
 
     def get_position(self, symbol: str) -> Optional[dict]:
         try:
-            from alpaca.trading.requests import GetPositionRequest  # type: ignore[import]
             pos = self.trading_client.get_open_position(symbol)
             return {"quantity": float(pos.qty), "avg_price": float(pos.avg_entry_price)}
         except Exception:
@@ -89,6 +88,16 @@ class AlpacaBroker(BrokerBase):
 
         side = AlpacaSide.BUY if order.side == OrderSide.BUY else AlpacaSide.SELL
         order_type = order.order_type.value
+
+        # ── Pre-trade safety limits ──────────────────────────────────────
+        max_shares = 10000  # hard cap — configurable via config if needed
+        if order.quantity > max_shares:
+            log.warning(f"[Alpaca] Clamping {order.symbol} qty {order.quantity:.1f} → {max_shares}")
+            order.quantity = max_shares
+        if order.quantity < 0.001:
+            order.status = OrderStatus.REJECTED
+            log.warning(f"[Alpaca] {order.symbol} qty too small — rejected")
+            return order
 
         try:
             if order_type == "market":

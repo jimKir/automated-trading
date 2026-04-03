@@ -78,8 +78,8 @@ class MacroStressScorer:
                 from io import StringIO
                 s = pd.read_csv(
                     StringIO(resp.text),
-                    index_col=0, parse_dates=True, squeeze=True
-                )
+                    index_col=0, parse_dates=True
+                ).squeeze("columns")
                 s = s.replace(".", float("nan")).astype(float).dropna()
                 s = s[(s.index >= start) & (s.index <= end)]
                 if not s.empty:
@@ -100,12 +100,6 @@ class MacroStressScorer:
             pass
 
         # ── Method 3: yfinance proxies for key series ─────────────────────────
-        YFINANCE_PROXIES = {
-            "VIXCLS":       "^VIX",      # VIX
-            "T10Y2Y":       None,        # computed from ETF proxies below
-            "T10Y3M":       None,        # computed from ETF proxies below
-            "BAMLH0A0HYM2": None,        # no direct proxy
-        }
         if series_id == "VIXCLS":
             try:
                 import yfinance as yf
@@ -303,7 +297,9 @@ class MacroStressScorer:
 
     def score_today(self) -> float:
         """Score for live/paper trading — uses last 90 days of data."""
-        end   = datetime.utcnow().strftime("%Y-%m-%d")
-        start = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        from datetime import timezone
+        _now = datetime.now(timezone.utc)
+        end   = _now.strftime("%Y-%m-%d")
+        start = (_now - timedelta(days=90)).strftime("%Y-%m-%d")
         series = self.compute_series(start, end)
         return float(series.iloc[-1]) if not series.empty else 0.0

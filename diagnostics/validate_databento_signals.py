@@ -6,7 +6,7 @@ Universe: 20 liquid US equities on NASDAQ
 Validation: same 4-window walk-forward + permutation test used throughout
 """
 import os, sys, warnings, json
-os.environ["DATABENTO_KEY"] = "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk"
+os.environ["DATABENTO_KEY"] = ""
 warnings.filterwarnings("ignore")
 sys.path.insert(0, "/home/user/workspace/trading_system")
 

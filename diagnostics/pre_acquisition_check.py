@@ -41,7 +41,7 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
+KEY = os.environ.get("DATABENTO_KEY", "")
 
 # Cost table (USD/GB) — update if Databento changes pricing
 COST_PER_GB = {

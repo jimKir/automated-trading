@@ -62,18 +62,29 @@ log = logging.getLogger("DatabentoImbalance")
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
-DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
+DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "")
 
 CACHE_DIR = Path(__file__).parent.parent / ".cache" / "databento"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently
 
-# 4:00 PM ET is 20:00 UTC (valid year-round; NASDAQ close is always 20:00 UTC)
-CLOSE_UTC_HOUR = 20
-# Start of imbalance window: 3:50 PM ET = 19:50 UTC
-IMBALANCE_START_UTC_HOUR = 19
-IMBALANCE_START_UTC_MINUTE = 50
+# NASDAQ closing auction times in Eastern Time.
+# UTC offset depends on DST: ET = UTC-5 (EST) or UTC-4 (EDT).
+# Conversion is done at runtime via _et_to_utc() below.
+_CLOSE_ET = (16, 0)          # 4:00 PM ET
+_IMBALANCE_START_ET = (15, 50)  # 3:50 PM ET
+
+
+def _et_to_utc(et_hour: int, et_minute: int, d: "date") -> tuple:
+    """Convert ET (hour, minute) to UTC (hour, minute) for a given date, respecting DST."""
+    from zoneinfo import ZoneInfo
+    from datetime import datetime as _dt
+    et = ZoneInfo("America/New_York")
+    utc = ZoneInfo("UTC")
+    local = _dt(d.year, d.month, d.day, et_hour, et_minute, tzinfo=et)
+    utc_dt = local.astimezone(utc)
+    return (utc_dt.hour, utc_dt.minute)
 
 # Rough list of US equity market holidays (NYSE/NASDAQ) for busday calculations.
 # We keep 5 years of known dates; the code gracefully handles missing ones.
@@ -187,9 +198,6 @@ def get_cache_path_for(*parts) -> Path:
     return _cache_path(*parts)
 
 
-def get_cache_path_for(*parts) -> Path:
-    """Public alias — lets the validation script use the exact same key."""
-    return _cache_path(*parts)
 
 
 def _cache_load(path: Path, ttl_hours: float = CACHE_TTL_HOURS) -> Optional[dict]:
@@ -293,14 +301,16 @@ class _DatabentoFetcher:
             return pd.DataFrame()
 
         # NASDAQ closing imbalance window: 3:50 PM – 4:00 PM ET = 19:50–20:01 UTC
+        imb_start_utc = _et_to_utc(*_IMBALANCE_START_ET, trading_date)
+        close_utc = _et_to_utc(*_CLOSE_ET, trading_date)
         start_dt = datetime(
             trading_date.year, trading_date.month, trading_date.day,
-            IMBALANCE_START_UTC_HOUR, IMBALANCE_START_UTC_MINUTE, 0
+            imb_start_utc[0], imb_start_utc[1], 0
         )
         # End just after market close (inclusive of 4:00 PM prints)
         end_dt = datetime(
             trading_date.year, trading_date.month, trading_date.day,
-            CLOSE_UTC_HOUR, 1, 0
+            close_utc[0], close_utc[1] + 1, 0
         )
 
         try:

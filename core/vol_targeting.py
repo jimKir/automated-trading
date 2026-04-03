@@ -245,6 +245,12 @@ class VolatilityTargeter:
         Returns
         -------
         float : scale factor in [min_leverage, max_leverage]
+
+        Note
+        ----
+        Causal correctness: the returned scale uses only information
+        available at the END of the current day (today's return), so it
+        should be applied to TOMORROW's sizing, not today's.
         """
         if not self.enabled:
             return 1.0

@@ -34,7 +34,6 @@ Config keys (under ews: section):
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 
@@ -135,7 +134,7 @@ class EarlyWarningSystem:
 
         if not self._enabled:
             idx = pd.date_range(start, end, freq="B")
-            return pd.Series(1.0, index=idx)  # no EWS = always full exposure
+            return pd.Series(0.0, index=idx)  # no EWS = always full exposure (score 0 → GREEN)
 
         self._load_modules()
         log.info("EWS: computing all layers for backtest...")
@@ -262,8 +261,10 @@ class EarlyWarningSystem:
 
         self._load_modules()
 
-        end   = datetime.utcnow().strftime("%Y-%m-%d")
-        start = (datetime.utcnow() - timedelta(days=400)).strftime("%Y-%m-%d")
+        from datetime import timezone
+        _now = datetime.now(timezone.utc)
+        end   = _now.strftime("%Y-%m-%d")
+        start = (_now - timedelta(days=400)).strftime("%Y-%m-%d")
 
         scores_by_layer = {}
 

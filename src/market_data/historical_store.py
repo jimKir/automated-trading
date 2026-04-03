@@ -298,8 +298,13 @@ def validate_symbol(sym: str, kind: str = "daily") -> dict:
     # ── Check 5: Calendar gaps ─────────────────────────────────────────────
     # Expected trading days (rough: Mon-Fri excluding obvious holidays)
     if len(df) > 10:
-        date_range = pd.bdate_range(df.index[0], df.index[-1])
-        # Allow up to 15 missing trading days (holidays + data source gaps)
+        # Use CustomBusinessDay with US holidays for accurate gap detection
+        try:
+            from pandas.tseries.holiday import USFederalHolidayCalendar
+            us_bday = pd.offsets.CustomBusinessDay(calendar=USFederalHolidayCalendar())
+            date_range = pd.date_range(df.index[0], df.index[-1], freq=us_bday)
+        except Exception:
+            date_range = pd.bdate_range(df.index[0], df.index[-1])
         expected = len(date_range)
         actual   = len(df)
         missing  = expected - actual

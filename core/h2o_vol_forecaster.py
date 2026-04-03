@@ -38,7 +38,7 @@ import pandas as pd
 
 from utils.logger import get_logger
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='h2o')
 log = get_logger('H2OVolForecaster')
 
 MODEL_DIR   = Path(__file__).parent.parent / 'models' / 'h2o_vol_model'
@@ -303,7 +303,7 @@ class H2OVolForecaster:
 # Retraining CLI
 # ─────────────────────────────────────────────────────────────────────────────
 
-def retrain(train_end: str = None):
+def retrain(train_end: str = None):  # noqa: ARG001 — reserved for future use
     """
     Retrain the H2O model on extended data.
     Call quarterly: python core/h2o_vol_forecaster.py --retrain

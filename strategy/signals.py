@@ -26,6 +26,8 @@ Volume confirmation multiplier (applied AFTER blending 1-7):
   8. OBV trend slope           — does volume confirm price direction?
   9. Volume trend ratio        — is participation growing or shrinking?
   10. Chaikin Money Flow (CMF) — is money flowing in or out?
+  11. H2O Trend Classifier   (rides strong trends longer)
+  12. Price-Volume Segments   (momentum quality score)
 
   These three combine into a single volume_multiplier in [0.5, 1.3]:
     Strong trend + rising volume  → scale UP   (up to 1.3×)
@@ -539,8 +541,8 @@ class SignalGenerator:
         pmo_sig = pd.Series(0.0, index=close.index)
         try:
             pmo_sig = self._pmo_crossover(close).fillna(0)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug(f"PMO computation failed for {sym}: {exc}")
 
         # --- Factor 14: VWAP daily proxy (low weight, full signal in microstructure) ---
         vwap_sig = pd.Series(0.0, index=close.index)
@@ -550,8 +552,8 @@ class SignalGenerator:
                 l_col = df["Low"][df.index  <= as_of_date] if as_of_date else df["Low"]
                 v_col = df["Volume"][df.index <= as_of_date] if as_of_date else df["Volume"]
                 vwap_sig = self._vwap_daily_proxy(close, h_col, l_col, v_col).fillna(0)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug(f"VWAP computation failed for {sym}: {exc}")
 
         # --- ADX gate: halve position size in choppy (non-trending) regime ----
         adx_mult = pd.Series(1.0, index=close.index)
@@ -561,8 +563,8 @@ class SignalGenerator:
                 l_col = df["Low"][df.index  <= as_of_date] if as_of_date else df["Low"]
                 adx_s = self._adx(h_col, l_col, close)
                 adx_mult = self._adx_position_multiplier(adx_s)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug(f"ADX computation failed for {sym}: {exc}")
 
         # --- Blend: evidence-based weights --------------------------------
         # Original weights reduced proportionally to make room for PMO + VWAP
@@ -578,7 +580,7 @@ class SignalGenerator:
             + 0.05 * vwap_sig
         )
         # Apply vol regime multiplier AND ADX gate
-        reactive = reactive * vol_mult * adx_mult
+        reactive = reactive * vol_mult.reindex(close.index).fillna(1.0) * adx_mult
 
         # --- Factor 7: Credit regime (predictive, cross-asset) ---
         if self.credit_regime_enabled and len(credit_signal) > 0:

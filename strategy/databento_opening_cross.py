@@ -52,10 +52,9 @@ import json
 import logging
 import os
 import time
-from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -67,21 +66,34 @@ except ImportError:
 
 log = logging.getLogger("OpeningCrossSignal")
 
+from strategy.databento_imbalance import _cache_load, _cache_save
+
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
-DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
+DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "")
 
 CACHE_DIR = Path(__file__).parent.parent / ".cache" / "databento"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently
-# NASDAQ opening cross time window: 09:00–09:35 ET = 14:00–14:35 UTC
-OPEN_CROSS_START_UTC = (14, 0)   # (hour, minute)
-OPEN_CROSS_END_UTC   = (14, 35)  # includes all pre-open auction prints
 
-# NASDAQ closing cross time window: 15:58–16:01 ET = 20:58–21:01 UTC
-CLOSE_CROSS_START_UTC = (20, 55)
-CLOSE_CROSS_END_UTC   = (21,  5)
+# NASDAQ cross time windows in Eastern Time.
+# UTC conversion done at runtime via _et_to_utc() to handle DST.
+_OPEN_CROSS_START_ET = (9, 0)
+_OPEN_CROSS_END_ET   = (9, 35)
+_CLOSE_CROSS_START_ET = (15, 55)
+_CLOSE_CROSS_END_ET   = (16, 5)
+
+
+def _et_to_utc(et_hour: int, et_minute: int, d: "date") -> tuple:
+    """Convert ET (hour, minute) to UTC (hour, minute) for a given date, respecting DST."""
+    from zoneinfo import ZoneInfo
+    from datetime import datetime as _dt
+    et = ZoneInfo("America/New_York")
+    utc = ZoneInfo("UTC")
+    local = _dt(d.year, d.month, d.day, et_hour, et_minute, tzinfo=et)
+    utc_dt = local.astimezone(utc)
+    return (utc_dt.hour, utc_dt.minute)
 
 # Rough list of US equity market holidays (NYSE/NASDAQ) for busday calculations.
 _US_HOLIDAYS: List[str] = [
@@ -308,13 +320,15 @@ class OpeningCrossSignal:
             log.debug("Databento client not available; returning neutral")
             return {s: 0.0 for s in symbols}
 
+        open_start_utc = _et_to_utc(*_OPEN_CROSS_START_ET, trading_date)
+        open_end_utc = _et_to_utc(*_OPEN_CROSS_END_ET, trading_date)
         start_dt = datetime(
             trading_date.year, trading_date.month, trading_date.day,
-            OPEN_CROSS_START_UTC[0], OPEN_CROSS_START_UTC[1], 0,
+            open_start_utc[0], open_start_utc[1], 0,
         )
         end_dt = datetime(
             trading_date.year, trading_date.month, trading_date.day,
-            OPEN_CROSS_END_UTC[0], OPEN_CROSS_END_UTC[1], 59,
+            open_end_utc[0], open_end_utc[1], 59,
         )
 
         result: Dict[str, float] = {s: 0.0 for s in symbols}

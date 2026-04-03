@@ -83,7 +83,7 @@ log = logging.getLogger("OPRAOptionsFlow")
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
-DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk")
+DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "")
 
 CACHE_DIR = Path(__file__).parent.parent / ".cache" / "databento"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)

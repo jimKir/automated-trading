@@ -18,11 +18,11 @@ echo ""
 echo "Step 1/5: Storing Databento key in Secrets Manager..."
 aws secretsmanager create-secret \
   --name trading/databento_key \
-  --secret-string "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk" \
+  --secret-string "" \
   --region $REGION 2>/dev/null \
 || aws secretsmanager update-secret \
   --secret-id trading/databento_key \
-  --secret-string "db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk" \
+  --secret-string "" \
   --region $REGION
 echo "  ✅ Secret stored at trading/databento_key"
 

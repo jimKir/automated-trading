@@ -386,7 +386,7 @@ alpaca_signals:
 # ============================================================
 # DATABENTO MICROSTRUCTURE SIGNALS
 # Three information-based signals from Databento market data.
-# Requires DATABENTO_KEY env var: db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk
+# Requires DATABENTO_KEY env var
 # ============================================================
 databento_signals:
   enabled: true

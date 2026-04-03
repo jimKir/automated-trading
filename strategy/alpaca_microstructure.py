@@ -50,7 +50,7 @@ import numpy as np
 import pandas as pd
 
 log = logging.getLogger("AlpacaMicrostructure")
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="alpaca")
 
 # ── CONFIG DEFAULTS ───────────────────────────────────────────────────────────
 ALPACA_KEY    = os.environ.get("ALPACA_API_KEY",    "")

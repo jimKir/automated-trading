@@ -19,7 +19,7 @@ from core.portfolio import Portfolio
 from risk.manager import RiskManager
 from strategy.signals import SignalGenerator
 from data.feed import DataFeed
-from execution.broker_base import BrokerBase, Order, OrderSide, OrderType
+from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from utils.logger import get_logger
 
 log = get_logger("LiveEngine")
@@ -199,7 +199,6 @@ class LiveEngine:
         log.info(f"Signals: { {k: f'{v:+.3f}' for k,v in signals.items() if abs(v) > 0.05} }")
 
         # Get current prices
-        symbols = list(all_data.keys())
         prices = {}
         for sym, df in all_data.items():
             if not df.empty:
@@ -256,6 +255,16 @@ class LiveEngine:
             side = OrderSide.BUY if qty_delta > 0 else OrderSide.SELL
             qty_abs = abs(qty_delta)
 
+            # ── Pre-trade safety guards ──────────────────────────────────
+            max_shares = self.config.get("execution", {}).get("max_order_shares", 10000)
+            min_price  = self.config.get("execution", {}).get("min_price_sanity", 0.10)
+            if prices[sym] < min_price:
+                log.warning(f"SKIP {sym}: price ${prices[sym]:.4f} below min_price_sanity ${min_price}")
+                continue
+            if qty_abs > max_shares:
+                log.warning(f"CLAMP {sym}: qty {qty_abs:.1f} → {max_shares} (max_order_shares)")
+                qty_abs = max_shares
+
             order = Order(
                 symbol=sym,
                 side=side,
@@ -265,6 +274,9 @@ class LiveEngine:
 
             log.info(f"ORDER → {side.value.upper()} {sym} qty={qty_abs:.4f} @ ~${prices[sym]:.4f}")
             filled = self.broker.place_order(order)
+            if filled.status == OrderStatus.REJECTED:
+                log.warning(f"REJECTED → {sym} (broker rejected order)")
+                continue
             log.info(f"FILLED → {sym} avg_px=${filled.avg_fill_price:.4f} status={filled.status.value}")
 
         # Set stop losses for open positions

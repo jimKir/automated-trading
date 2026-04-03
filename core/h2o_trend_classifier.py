@@ -64,7 +64,7 @@ import pandas as pd
 
 from utils.logger import get_logger
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='h2o')
 log = get_logger('H2OTrendClassifier')
 
 MODEL_DIR = Path(__file__).parent.parent / 'models' / 'h2o_trend_model'

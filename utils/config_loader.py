@@ -20,7 +20,14 @@ def load_config(path: str = "config/settings.yaml") -> Dict[str, Any]:
     import re
     def replace_env(match):
         var = match.group(1)
-        return os.environ.get(var, match.group(0))
+        value = os.environ.get(var)
+        if value is None:
+            import logging
+            logging.getLogger("ConfigLoader").warning(
+                f"Environment variable ${{{var}}} not set; keeping placeholder"
+            )
+            return match.group(0)
+        return value
 
     raw = re.sub(r"\$\{(\w+)\}", replace_env, raw)
     config = yaml.safe_load(raw)

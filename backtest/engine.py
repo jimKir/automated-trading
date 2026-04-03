@@ -229,7 +229,7 @@ class BacktestEngine:
         vt_scale_log  = []   # track vol targeting scale factor over time
         isd_scale_log = []   # track intraday shock scale factor over time
         _equity_buffer: list = []   # rolling equity values for vol estimation
-        _smooth_combined: float = 1.0  # unused, kept for compat
+
 
         # Pre-compute intraday shock scales for backtest (needs equity curve first
         # — done incrementally below using equity buffer)
@@ -662,10 +662,10 @@ class BacktestEngine:
         ann_factor = PERIODS_PER_YEAR
 
         total_return = (equity.iloc[-1] / equity.iloc[0]) - 1
-        ann_return = (1 + returns.mean()) ** ann_factor - 1
+        ann_return = (1 + returns).prod() ** (ann_factor / len(returns)) - 1
         ann_vol = returns.std() * np.sqrt(ann_factor)
 
-        risk_free = 0.04 / ann_factor
+        risk_free = 0.04 / ann_factor  # 4% annualised risk-free rate assumption
         sharpe = ((returns.mean() - risk_free) / returns.std() * np.sqrt(ann_factor)
                   if returns.std() > 0 else np.nan)
 

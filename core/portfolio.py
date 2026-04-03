@@ -97,7 +97,7 @@ class Portfolio:
 
         Otherwise uses the original signal-proportional method.
 
-        Returns dict of {symbol: weight}  (weights sum to ≤ max_portfolio_heat)
+        Returns dict of {symbol: weight}
         """
         if not signals:
             return {}
@@ -248,9 +248,13 @@ class Portfolio:
                 )
             pos.quantity = new_qty
         else:
+            # Position reversal (long→short or short→long)
             pos.quantity += quantity
             if abs(pos.quantity) < 1e-8:
                 del self.positions[symbol]
+            else:
+                # Direction flipped — reset avg_entry_price to the new fill
+                pos.avg_entry_price = fill_price
 
         trade = {
             "date": date,
