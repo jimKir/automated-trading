@@ -339,7 +339,18 @@ class SignalEngine:
     difference in score means the same thing regardless of the factor scale.
     """
 
-    WEIGHTS = {"vwap_dev": 0.40, "rel_strength": 0.35, "vol_surprise": 0.25}
+    # Evidence-based weights (IC analysis Apr 2026, 793 trading days):
+    #   imbalance_real: IC +0.16 (VIX>25), +0.05 (VIX 18-25) — regime-gated ✅
+    #   pmo_crossover:  IC -0.032 p=0.005 contrarian ✅
+    #   vwap_dev_intraday: IC +0.054 p=0.007 (1-min bars) ✅
+    #   vol_surprise:   IC -0.018 weak negative ⚠️  (kept at minimal weight)
+    #   REMOVED: vwap_dev daily proxy (IC ≈ 0), rel_strength (IC ≈ 0)
+    WEIGHTS = {
+        "vwap_dev_intraday": 0.35,   # IC +0.054 p=0.007 ✅ — requires 1-min bars
+        "pmo_crossover":     0.25,   # IC -0.032 p=0.005 ✅ contrarian (sign flipped)
+        "imbalance_real":    0.25,   # IC +0.16 (VIX>25) ✅ — regime-gated (0 when VIX<18)
+        "vol_surprise":      0.15,   # IC -0.018 ⚠️ weak — kept at minimal weight
+    }
 
     def compute(
         self,

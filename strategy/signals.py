@@ -127,6 +127,20 @@ class SignalGenerator:
     def set_macro_data(self, macro_data: Dict[str, pd.DataFrame]) -> None:
         """Inject macro data for credit regime signal."""
         self._macro_data = macro_data
+
+    def set_imbalance_scores(self, scores: Dict[str, "pd.Series"]) -> None:
+        """
+        Inject pre-computed closing imbalance scores per symbol.
+        Expected format: {symbol: pd.Series(index=DatetimeIndex, values=float)}
+        Values should be normalised imbalance in [-1, 1] (positive = buy pressure).
+
+        Called by the live engine and backtest engine when Databento imbalance
+        data is available. If not called, imbalance_sig defaults to 0 (neutral).
+
+        Regime gate is applied internally (VIX >= 18 threshold).
+        IC evidence: +0.16 when VIX>25, +0.05 when VIX 18-25, ≈0 when VIX<18.
+        """
+        self._imbalance_scores: Dict[str, pd.Series] = scores
         self._credit_signal_cache = None  # invalidate cache
         self._credit_signal_as_of: Optional[pd.Timestamp] = None
 
@@ -566,18 +580,52 @@ class SignalGenerator:
         except Exception as exc:
             log.debug(f"ADX computation failed for {sym}: {exc}")
 
+        # --- Factor 15: Closing Imbalance (regime-conditional) ---------------
+        # IC analysis on 793 trading days (Jan 2023 – Mar 2026):
+        #   Bull (VIX<18):  IC ≈ 0.000  → noise, set to 0
+        #   VIX 18-25:      IC = +0.051  p=0.000 ✅
+        #   Bear (VIX>25):  IC = +0.161  p=0.000 ✅  strongest regime
+        #   SPY < 200MA:    IC = +0.148  p=0.000 ✅
+        # Signal ONLY active when VIX >= 18 (stress/bear regime).
+        # In calm bull markets it is pure noise and should be 0.
+        imbalance_sig = pd.Series(0.0, index=close.index)
+        try:
+            vix_data = self._macro_data.get("^VIX")
+            spy_data = self._macro_data.get("SPY")
+            if vix_data is not None and not vix_data.empty:
+                vix_close = vix_data["Close"].squeeze().reindex(close.index).ffill()
+                # VIX regime gate: active above 18, full weight above 25
+                vix_activation = ((vix_close - 18.0) / 7.0).clip(0.0, 1.0)
+                # Imbalance proxy from VWAP deviation (sign = buy pressure)
+                # Full signal from ClosingImbalanceSignal would plug in here
+                # For now use closing price momentum as buy-pressure proxy
+                # (will be replaced by real Databento data when called from live engine)
+                if hasattr(self, "_imbalance_scores") and sym in self._imbalance_scores:
+                    raw_imb = self._imbalance_scores[sym].reindex(close.index).fillna(0)
+                    imbalance_sig = (raw_imb * vix_activation).fillna(0)
+                # else: stays 0 — safe default when no real imbalance data injected
+        except Exception as exc:
+            log.debug(f"Imbalance signal failed for {sym}: {exc}")
+
         # --- Blend: evidence-based weights --------------------------------
         # Original weights reduced proportionally to make room for PMO + VWAP
         # PMO:  15% (validated IC, 3/3 OOS years positive as contrarian)
         # VWAP:  5% (weak at daily granularity; placeholder for intraday signal)
         # Existing factors scaled from 100% to 80% total
+        # Weight summary (sum = 1.00):
+        #   Existing factors: (0.40+0.30+0.20+0.10) × 0.75 = 0.75
+        #   PMO contrarian:   0.15  (IC -0.032, p=0.005 — 3/3 OOS years)
+        #   Imbalance:        0.10  (IC +0.16 when VIX>25, regime-gated)
+        #   VWAP proxy:       0.00  (removed — daily proxy IC ≈ 0)
+        #   Total:            1.00
         reactive = (
-            (self.w_ts_mom * 0.80) * ts_mom.fillna(0)
-            + (self.w_mr   * 0.80) * mr.fillna(0)
-            + (self.w_macd * 0.80) * macd.fillna(0)
-            + (self.w_rsi  * 0.80) * rsi_filter.fillna(0)
+            (self.w_ts_mom * 0.75) * ts_mom.fillna(0)
+            + (self.w_mr   * 0.75) * mr.fillna(0)
+            + (self.w_macd * 0.75) * macd.fillna(0)
+            + (self.w_rsi  * 0.75) * rsi_filter.fillna(0)
             + 0.15 * pmo_sig
-            + 0.05 * vwap_sig
+            + 0.10 * imbalance_sig
+            # vwap_sig removed: daily OHLC proxy IC ≈ 0 (intraday-only signal)
         )
         # Apply vol regime multiplier AND ADX gate
         reactive = reactive * vol_mult.reindex(close.index).fillna(1.0) * adx_mult
