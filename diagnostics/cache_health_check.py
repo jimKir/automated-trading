@@ -268,31 +268,124 @@ def main():
     else:
         print(f"\n[3/4] ✅ All windows cached — next run will be instant ($0.00)")
 
-    # 4. Spot-check 5 random real files
-    print(f"\n[4/4] Spot-check (5 random real files):")
+    # 4. Full file audit — every file checked
+    print(f"\n[4/4] Full file audit ({info['total']} files):")
     print("  " + "─" * 40)
-    import random
-    real_files = [
-        f for f in CACHE_DIR.glob("*.json")
-        if not f.name.startswith(".") and f.name != "catalogue.json"
-        and f.stat().st_size >= 100
-    ]
-    sample = random.sample(real_files, min(5, len(real_files)))
-    all_ok = True
-    for f in sample:
+
+    from datetime import datetime
+
+    issues = []
+    size_buckets   = {">100KB": 0, "10-100KB": 0, "1-10KB": 0, "<1KB": 0}
+    row_counts     = []
+    age_days_list  = []
+    name_ok        = 0
+    name_bad       = 0
+    hash_ok        = 0
+    hash_bad       = 0
+
+    for f in CACHE_DIR.glob("*.json"):
+        if f.name.startswith(".") or f.name == "catalogue.json":
+            continue
+
+        sz  = f.stat().st_size
+        stem = f.stem
+
+        # ── Size bucket ──────────────────────────────────────────────
+        if sz > 100_000:
+            size_buckets[">100KB"] += 1
+        elif sz > 10_000:
+            size_buckets["10-100KB"] += 1
+        elif sz > 1_000:
+            size_buckets["1-10KB"] += 1
+        else:
+            size_buckets["<1KB"] += 1
+
+        if sz < 100:
+            issues.append((f.name, "EMPTY", f"size={sz}B"))
+            continue
+
+        # ── JSON parse ───────────────────────────────────────────────
         try:
             data = json.loads(f.read_text())
-            v    = data.get("v", {})
-            ts   = data.get("_ts", 0)
-            from datetime import datetime
-            age  = (datetime.now().timestamp() - ts) / 86400
-            rows = list(v.values())[:1]
-            sym  = rows[0].get("symbol", "?") if rows else "empty"
-            ok   = "✅" if len(v) > 0 else "⚠️ empty"
-            print(f"  {ok}  {f.name[:55]:<55}  rows={len(v):>4}  age={age:.0f}d  sym={sym}")
         except Exception as e:
-            print(f"  ❌  {f.name[:55]:<55}  parse error: {e}")
-            all_ok = False
+            issues.append((f.name, "CORRUPT", f"json parse: {e}"))
+            continue
+
+        v  = data.get("v", {})
+        ts = data.get("_ts", 0)
+
+        if not isinstance(v, dict):
+            issues.append((f.name, "BAD_STRUCTURE", f"v is {type(v).__name__}"))
+            continue
+
+        if len(v) == 0:
+            issues.append((f.name, "EMPTY_V", "v={} — no data rows"))
+            continue
+
+        row_counts.append(len(v))
+
+        if ts:
+            age = (datetime.now().timestamp() - ts) / 86400
+            age_days_list.append(age)
+
+        # ── Filename format check ────────────────────────────────────
+        is_old_format = len(stem) == 32 and all(c in "0123456789abcdef" for c in stem)
+        parts = stem.rsplit("_", 1)
+        is_new_format = (not is_old_format and len(parts) == 2 and len(parts[1]) == 8
+                         and all(c in "0123456789abcdef" for c in parts[1]))
+
+        if is_old_format or is_new_format:
+            name_ok += 1
+        else:
+            name_bad += 1
+            issues.append((f.name, "BAD_FILENAME", "not old-MD5 nor new-readable format"))
+            continue
+
+        # ── Hash-content consistency check ───────────────────────────
+        # The hash in the filename should match the MD5 of the canonical key.
+        # We can't reverse-engineer the exact key (we don't know the date),
+        # but for new-format files we can verify the hash8 is plausibly hex.
+        # For old-format we verify the stem is all-hex (already done above).
+        # Deep check: verify _ts field is a plausible Unix timestamp
+        if ts and (ts < 1_600_000_000 or ts > 2_000_000_000):
+            issues.append((f.name, "BAD_TIMESTAMP", f"ts={ts} out of range"))
+            hash_bad += 1
+        else:
+            hash_ok += 1
+
+    # ── Report ────────────────────────────────────────────────────────
+    print(f"  Filename format:   {name_ok} valid,  {name_bad} malformed")
+    print(f"  Content check:     {hash_ok} ok,     {len([i for i in issues if i[1] in ('CORRUPT','EMPTY','EMPTY_V','BAD_STRUCTURE')])} with issues")
+    print()
+    print(f"  File size distribution:")
+    for bucket, count in size_buckets.items():
+        bar = "█" * min(count // max(max(size_buckets.values())//20, 1), 40)
+        print(f"    {bucket:>10}  {count:>5}  {bar}")
+    print()
+    if row_counts:
+        print(f"  Row counts per file:")
+        print(f"    min={min(row_counts)}  median={sorted(row_counts)[len(row_counts)//2]}  max={max(row_counts)}  avg={sum(row_counts)//len(row_counts)}")
+    if age_days_list:
+        print(f"  File age (days since fetch):")
+        print(f"    newest={min(age_days_list):.1f}d  oldest={max(age_days_list):.1f}d  avg={sum(age_days_list)/len(age_days_list):.1f}d")
+    print()
+
+    if issues:
+        print(f"  ⚠️  Issues found: {len(issues)}")
+        # Show first 20, group the rest
+        shown = issues[:20]
+        for fname, kind, detail in shown:
+            icon = "❌" if kind in ("CORRUPT","BAD_STRUCTURE","BAD_FILENAME") else "⚠️ "
+            print(f"    {icon} [{kind:<14}] {fname[:55]}  {detail}")
+        if len(issues) > 20:
+            from collections import Counter
+            kinds = Counter(k for _, k, _ in issues)
+            print(f"    ... and {len(issues)-20} more: {dict(kinds)}")
+        print()
+        print(f"  To clean up issues:")
+        print(f"    PYTHONPATH=. python src/market_data/cache_guard.py --cleanup")
+    else:
+        print(f"  ✅ All {info['real']} real files passed content + format checks")
 
     # 5. Summary verdict
     print()
