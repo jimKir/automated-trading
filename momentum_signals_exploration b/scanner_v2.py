@@ -1,37 +1,17 @@
 #!/usr/bin/env python3
 """
-scanner_v2.py — Evidence-based Signal Engine
-=============================================
+Momentum Scanner V2 — Production Grade
+=======================================
 
-Factor validation status (OOS 2023-2026, IC analysis):
-
-VALIDATED SIGNALS (in production):
-  - VWAP intraday deviation (1-min bars): IC +0.054, p=0.007 ✅
-  - PMO crossover (contrarian, flip sign): IC -0.032, p=0.005 ✅
-  - Databento closing imbalance (real): pending full validation
-  - Volume surprise: IC -0.018, p=0.053 ⚠️ weak, reduced weight
-
-VALIDATED FILTERS:
-  - ADX(14) > 20: Sharpe +0.71 OOS, 4/4 positive walk-forward years ✅
-
-REMOVED (zero IC):
-  - Relative strength: IC +0.001, p=0.963 ❌
-  - Daily VWAP proxy: IC -0.020, p=0.081 ❌
-  - Imbalance price proxy: IC +0.011, p=0.255 ❌
-  - RSI, MACD, Stochastic, TS Momentum, CS Momentum: all insignificant ❌
-  - XGBoost ML: IC -0.009 ❌
-  - LSTM: IC -0.000 ❌
-
-Architecture:
+Key improvements over V1:
   1. Batch data fetch   — 1 API call for all symbols (not 50 sequential calls)
-  2. Z-score normalise  — cross-sectional, so scores are comparable
-  3. Regime detection   — ADX + SPY trend; skip scan on choppy days
-  4. ADX position gate  — ADX < 20 halves position size (walk-forward validated)
-  5. Sector limits      — max 3 signals per sector to avoid concentration
-  6. Composite score    — one number per symbol, directly actionable
-
-SDK: uses alpaca-py (alpaca.trading / alpaca.data) — NOT the deprecated
-alpaca_trade_api package.
+  2. VWAP deviation     — price vs volume-weighted fair value (40% weight)
+  3. Relative strength  — stock alpha vs SPY, strips market noise (35% weight)
+  4. Volume surprise    — log-normalised volume vs rolling average (25% weight)
+  5. Z-score normalise  — cross-sectional, so scores are comparable
+  6. Regime detection   — ADX + SPY trend; skip scan on choppy days
+  7. Sector limits      — max 3 signals per sector to avoid concentration
+  8. Composite score    — one number per symbol, directly actionable
 """
 
 import os
@@ -39,11 +19,9 @@ import logging
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
-
-_closing_imbalance_signal = None  # module-level singleton to avoid per-symbol init
 
 # ---------------------------------------------------------------------------
 # Sector map — used for concentration limits and sector-relative strength
@@ -91,16 +69,12 @@ class MarketData:
     All data fetching in one place.
 
     Priority order:
-      0. Databento DBEQ.BASIC (1-min bars — fastest, most accurate, already paid)
-      1. Alpaca batch          (1 API call — free IEX feed)
-      2. yfinance bulk         (yf.download — parallel, free)
-
-    Accepts alpaca-py clients:
-      data_client   — StockHistoricalDataClient  (market data)
+      1. Alpaca batch  (1 API call — fastest, free IEX feed)
+      2. yfinance bulk (yf.download — parallel, free)
     """
 
-    def __init__(self, data_client):
-        self.data_client = data_client
+    def __init__(self, api):
+        self.api = api
 
     # ------------------------------------------------------------------
     def fetch_bars_batch(
@@ -116,14 +90,6 @@ class MarketData:
         end   = datetime.now()
         start = end - timedelta(days=lookback_days)
 
-        # Try Databento first (most accurate, already paid)
-        df = self._databento_batch(symbols, start, end)
-        if df is not None and not df.empty:
-            n = df.index.get_level_values(0).nunique()
-            logger.info(f"  Databento: {n}/{len(symbols)} symbols")
-            return df
-
-        # Then Alpaca...
         df = self._alpaca_batch(symbols, start, end)
         if df is not None and not df.empty:
             n = df.index.get_level_values(0).nunique()
@@ -145,28 +111,19 @@ class MarketData:
         end   = datetime.now()
         start = end - timedelta(days=lookback_days)
 
-        def _unwrap(df: pd.DataFrame, sym: str) -> pd.DataFrame:
-            """Unwrap single-symbol MultiIndex → plain DatetimeIndex."""
-            if hasattr(df.index, "levels"):
-                syms = df.index.get_level_values(0).unique()
-                if sym in syms:
-                    return df.xs(sym, level=0)
-                return df.droplevel(0)
-            return df
-
-        # Databento (Priority 0)
-        try:
-            df = self._databento_batch([symbol], start, end)
-            if df is not None and not df.empty:
-                return _unwrap(df, symbol)
-        except Exception as e:
-            logger.debug(f"  Databento single {symbol}: {e}")
-
         # Alpaca
         try:
-            df = self._alpaca_batch([symbol], start, end)
-            if df is not None and not df.empty:
-                return _unwrap(df, symbol)
+            from alpaca_trade_api.rest import TimeFrame
+            raw = self.api.get_bars(
+                symbol, TimeFrame.Hour,
+                start.strftime("%Y-%m-%d"),
+                end.strftime("%Y-%m-%d"),
+                adjustment="raw", feed="iex",
+            ).df
+            if raw is not None and not raw.empty:
+                if hasattr(raw.index, "levels"):
+                    raw = raw.xs(symbol, level=0) if symbol in raw.index.get_level_values(0) else raw.droplevel(0)
+                return raw
         except Exception as e:
             logger.debug(f"  Alpaca single {symbol}: {e}")
 
@@ -190,108 +147,24 @@ class MarketData:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _databento_batch(
-        self, symbols: List[str], start: datetime, end: datetime
-    ) -> Optional[pd.DataFrame]:
-        """
-        Fetch 1-min OHLCV from Databento DBEQ.BASIC (Priority 0).
-        Returns MultiIndex (symbol, timestamp) DataFrame or None.
-        """
-        try:
-            import databento as db
-            import os
-            key = os.environ.get("DATABENTO_KEY", "")
-            if not key:
-                return None
-            client = db.Historical(key=key)
-            store = client.timeseries.get_range(
-                dataset="DBEQ.BASIC",
-                symbols=symbols,
-                schema="ohlcv-1m",
-                start=start,
-                end=end,
-            )
-            df = store.to_df()
-            if df.empty:
-                return None
-            # Rename columns to lowercase
-            df.columns = [c.lower() for c in df.columns]
-            col_map = {"open_price": "open", "high_price": "high",
-                       "low_price": "low", "close_price": "close"}
-            df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
-            needed = ["open", "high", "low", "close", "volume"]
-            available = [c for c in needed if c in df.columns]
-            df = df[available]
-            # Ensure MultiIndex (symbol, timestamp)
-            if "symbol" in df.columns:
-                df = df.set_index(["symbol", df.index])
-            elif not isinstance(df.index, pd.MultiIndex):
-                return None
-            df.index.names = ["symbol", "timestamp"]
-            # Strip timezone
-            if (hasattr(df.index.get_level_values(1), "tz")
-                    and df.index.get_level_values(1).tz is not None):
-                df.index = df.index.set_levels(
-                    df.index.get_level_values(1).tz_localize(None), level=1
-                )
-            n = df.index.get_level_values(0).nunique()
-            logger.info(f"  Databento DBEQ.BASIC: {n}/{len(symbols)} symbols")
-            return df
-        except Exception as e:
-            logger.debug(f"  Databento batch error: {e}")
-            return None
-
     def _alpaca_batch(
         self, symbols: List[str], start: datetime, end: datetime
     ) -> Optional[pd.DataFrame]:
-        """
-        Fetch hourly bars for *symbols* via alpaca-py StockHistoricalDataClient.
-
-        Returns a MultiIndex DataFrame (symbol, timestamp) or None on failure.
-        """
         try:
-            from alpaca.data.requests import StockBarsRequest
-            from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-
-            req = StockBarsRequest(
-                symbol_or_symbols=symbols,
-                timeframe=TimeFrame(1, TimeFrameUnit.Hour),
-                start=start,
-                end=end,
-                adjustment="all",
-            )
-            resp = self.data_client.get_stock_bars(req)
-
-            # resp.data is Dict[str, List[Bar]]
-            if not resp or not resp.data:
+            from alpaca_trade_api.rest import TimeFrame
+            raw = self.api.get_bars(
+                symbols, TimeFrame.Hour,
+                start.strftime("%Y-%m-%d"),
+                end.strftime("%Y-%m-%d"),
+                adjustment="raw", feed="iex",
+            ).df
+            if raw is None or raw.empty:
                 return None
-
-            frames = []
-            for sym, bars in resp.data.items():
-                if not bars:
-                    continue
-                rows = [
-                    {
-                        "open":      bar.open,
-                        "high":      bar.high,
-                        "low":       bar.low,
-                        "close":     bar.close,
-                        "volume":    bar.volume,
-                        "timestamp": bar.timestamp,
-                        "_sym":      sym,
-                    }
-                    for bar in bars
-                ]
-                df = pd.DataFrame(rows).set_index(["_sym", "timestamp"])
-                frames.append(df)
-
-            if not frames:
+            # Ensure two-level index (symbol, timestamp)
+            if not hasattr(raw.index, "levels"):
                 return None
-
-            out = pd.concat(frames)
-            out.index.names = ["symbol", "timestamp"]
-            return out
-
+            raw.index.names = ["symbol", "timestamp"]
+            return raw
         except Exception as e:
             logger.debug(f"  Alpaca batch error: {e}")
             return None
@@ -360,11 +233,6 @@ class RegimeDetector:
       • ADX (simplified directional movement index)
       • 5-bar net return direction
       • VIX level if available
-
-    ADX threshold validated via walk-forward analysis 2023-2026:
-      4/4 positive OOS years, combined Sharpe +0.71.
-      ADX > 20 confirmed as regime filter — strategy performance collapses
-      when ADX < 20 (no trend). See also: adx_position_multiplier().
     """
 
     def detect(
@@ -455,26 +323,6 @@ class RegimeDetector:
 
 
 # ===========================================================================
-# 2b. ADX POSITION GATE
-# ===========================================================================
-
-ADX_THRESHOLD: float = 20.0  # walk-forward validated: Sharpe +0.71 OOS 2023-2026
-
-
-def adx_position_multiplier(adx_value: float) -> float:
-    """
-    Returns position size multiplier based on ADX regime.
-
-    ADX >= 20: full size (1.0) — trending regime, signals are reliable
-    ADX <  20: half size (0.5) — weak trend, strategy performance collapses
-
-    Validated via walk-forward 2023-2026: 4/4 positive OOS years,
-    combined Sharpe +0.71 when ADX > 20 filter is applied.
-    """
-    return 1.0 if adx_value >= ADX_THRESHOLD else 0.5
-
-
-# ===========================================================================
 # 3. SIGNAL ENGINE
 # ===========================================================================
 
@@ -482,30 +330,16 @@ class SignalEngine:
     """
     Multi-factor signal computation + cross-sectional Z-score normalisation.
 
-    Evidence-based factor weights (IC analysis, OOS 2023-2026):
-      vwap_dev_intraday  35%  — 1-min VWAP distance, IC +0.054 p=0.007 ✅
-      pmo_crossover      20%  — contrarian (sign flipped), IC -0.032 p=0.005 ✅
-      vol_surprise       15%  — log volume vs avg, IC -0.018 p=0.053 ⚠️ weak
-      imbalance_real     30%  — Databento closing imbalance, pending full validation
-
-    REMOVED (zero IC, pure noise):
-      rel_strength  — IC +0.001 p=0.963
-      vwap_dev (daily OHLC proxy) — IC -0.020 p=0.081
-      imbalance (price-based proxy) — IC +0.011 p=0.255
+    Factor weights (chosen to be ~orthogonal):
+      VWAP deviation    40%  — is price dislocated from fair value?
+      Relative strength 35%  — is this stock moving vs the market?
+      Volume surprise   25%  — is there real participation behind the move?
 
     Each factor is Z-scored cross-sectionally before weighting so a 1-point
     difference in score means the same thing regardless of the factor scale.
     """
 
-    WEIGHTS = {
-        "vwap_dev_intraday": 0.35,  # IC +0.054 p=0.007 ✅ — requires 1-min bars from Alpaca
-        "pmo_crossover": 0.20,      # IC -0.032 p=0.005 ✅ contrarian — FLIP SIGN in scoring
-        "vol_surprise": 0.15,       # IC -0.018 p=0.053 ⚠️ weak but kept at reduced weight
-        "imbalance_real": 0.30,     # Databento real closing imbalance — pending full validation
-    }
-    # REMOVED: rel_strength (IC +0.001, pure noise)
-    # REMOVED: vwap_dev (daily OHLC proxy, IC -0.020, noise)
-    # REMOVED: imbalance proxy (price-only, IC +0.011, noise)
+    WEIGHTS = {"vwap_dev": 0.40, "rel_strength": 0.35, "vol_surprise": 0.25}
 
     def compute(
         self,
@@ -542,15 +376,12 @@ class SignalEngine:
 
         df["direction"] = np.where(df["score"] > 0, "LONG", "SHORT")
 
-        # ADX position multiplier — halve size when trend is weak
-        df["adx_multiplier"] = df["adx"].apply(adx_position_multiplier)
-
         # Readable pct columns
-        df["vwap_dev_intraday_pct"] = (df["vwap_dev_intraday"] * 100).round(3)
-        df["raw_return_pct"]        = (df["raw_return"]         * 100).round(3)
-        df["imbalance_real_pct"]    = (df["imbalance_real"]     * 100).round(3)
-        df["score"]                 = df["score"].round(4)
-        df["sector"]                = df["symbol"].map(lambda s: SECTOR_MAP.get(s, "Other"))
+        df["vwap_dev_pct"]      = (df["vwap_dev"]      * 100).round(3)
+        df["rel_strength_pct"]  = (df["rel_strength"]   * 100).round(3)
+        df["raw_return_pct"]    = (df["raw_return"]     * 100).round(3)
+        df["score"]             = df["score"].round(4)
+        df["sector"]            = df["symbol"].map(lambda s: SECTOR_MAP.get(s, "Other"))
 
         return df.sort_values("score", ascending=False).reset_index(drop=True)
 
@@ -568,28 +399,15 @@ class SignalEngine:
             low    = bars["low"].astype(float)
             volume = bars["volume"].astype(float)
 
-            price       = float(close.iloc[-1])
-            raw_return  = self._latest_return(bars)
+            # Factor 1 — VWAP deviation
+            typical = (high + low + close) / 3
+            vwap    = float((typical * volume).sum() / (volume.sum() + 1e-9))
+            price   = float(close.iloc[-1])
+            vwap_dev = (price - vwap) / (vwap + 1e-9)
 
-            # Factor 1 — VWAP deviation (intraday 1-min bars only)
-            # Daily OHLC proxy has IC -0.020 (noise). Only 1-min intraday
-            # VWAP is valid (IC +0.054, p=0.007, validated in
-            # alpaca_microstructure.py). If the data source provides 1-min
-            # bars (e.g. Databento DBEQ.BASIC), compute real intraday VWAP.
-            # Otherwise return 0 (neutral) — do NOT fall back to daily proxy.
-            vwap_dev_intraday = 0.0
-            bar_count = len(bars)
-            if bar_count >= 60:
-                # Likely intraday 1-min bars — compute real VWAP
-                typical = (high + low + close) / 3
-                vwap    = float((typical * volume).sum() / (volume.sum() + 1e-9))
-                vwap_dev_intraday = (price - vwap) / (vwap + 1e-9)
-            # else: hourly or daily data — return 0 (neutral, don't use daily proxy)
-
-            # Factor 2 — PMO crossover (contrarian, sign flipped)
-            # IC -0.032, p=0.005 — only statistically significant technical indicator.
-            # Negative IC means contrarian: flip sign when scoring.
-            pmo_crossover = self.compute_pmo(close)
+            # Factor 2 — Relative strength vs SPY
+            raw_return   = self._latest_return(bars)
+            rel_strength = raw_return - spy_return
 
             # Factor 3 — Volume surprise (log ratio vs rolling avg)
             vol_vals    = volume.values
@@ -597,75 +415,19 @@ class SignalEngine:
             vol_current = float(vol_vals[-1])
             vol_surprise = float(np.log(max(vol_current, 1) / max(vol_avg, 1)))
 
-            # Factor 4 — Real closing imbalance (Databento)
-            # Replaces old price-based imbalance proxy (IC +0.011, noise).
-            # Real Databento imbalance validation is pending; slot reserved.
-            # Returns 0 (neutral) if unavailable.
-            imbalance_real = 0.0
-            try:
-                import sys
-                sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                from strategy.databento_imbalance import ClosingImbalanceSignal, _prev_trading_day
-                from datetime import date
-                global _closing_imbalance_signal
-                if _closing_imbalance_signal is None:
-                    _closing_imbalance_signal = ClosingImbalanceSignal()
-                sig = _closing_imbalance_signal
-                daily_sigs = sig.compute_daily([symbol], _prev_trading_day(date.today()))
-                imbalance_real = float(daily_sigs.get(symbol, 0.0))
-            except Exception:
-                pass  # Databento unavailable — neutral contribution (0)
-
-            # ADX for position sizing gate (not a scoring signal)
-            adx = RegimeDetector._adx(
-                high.values, low.values, close.values, 14
-            )
-
             return {
-                "symbol":           symbol,
-                "price":            round(price, 2),
-                "volume":           int(vol_current),
-                "vwap_dev_intraday":vwap_dev_intraday,
-                "pmo_crossover":    pmo_crossover,
-                "vol_surprise":     vol_surprise,
-                "raw_return":       raw_return,
-                "imbalance_real":   imbalance_real,
-                "adx":              round(float(adx), 1),
+                "symbol":      symbol,
+                "price":       round(price, 2),
+                "volume":      int(vol_current),
+                "vwap":        round(vwap, 2),
+                "vwap_dev":    vwap_dev,
+                "rel_strength":rel_strength,
+                "vol_surprise":vol_surprise,
+                "raw_return":  raw_return,
             }
         except Exception as e:
             logger.debug(f"  Signal error {symbol}: {e}")
             return None
-
-    @staticmethod
-    def compute_pmo(close: pd.Series) -> float:
-        """
-        Price Momentum Oscillator (PMO) crossover value.
-
-        PMO is a double-smoothed rate of change:
-            ROC_1      = (close / close.shift(1) - 1) * 100
-            EMA1       = ROC_1.ewm(span=35).mean() * 20
-            PMO        = EMA1.ewm(span=20).mean()
-            PMO_signal = PMO.ewm(span=10).mean()
-            crossover  = PMO - PMO_signal
-
-        IC = -0.032 (p=0.005) — statistically significant but CONTRARIAN.
-        The sign is flipped when used in scoring (negative crossover = buy).
-
-        Returns the raw crossover value (caller flips sign for scoring).
-        Returns 0.0 if insufficient data.
-        """
-        if close is None or len(close) < 40:
-            return 0.0
-        try:
-            roc_1      = (close / close.shift(1) - 1) * 100
-            ema1       = roc_1.ewm(span=35, min_periods=10).mean() * 20
-            pmo        = ema1.ewm(span=20, min_periods=5).mean()
-            pmo_signal = pmo.ewm(span=10, min_periods=3).mean()
-            crossover  = float(pmo.iloc[-1] - pmo_signal.iloc[-1])
-            # Flip sign: contrarian indicator (negative IC)
-            return -crossover
-        except Exception:
-            return 0.0
 
     @staticmethod
     def _latest_return(bars: pd.DataFrame) -> float:
@@ -694,11 +456,6 @@ class MomentumScannerV2:
         top_short    — list[dict] top short candidates (sector-limited)
         consensus    — symbols where all 3 factors agree (highest confidence)
         elapsed      — seconds taken
-
-    SDK: alpaca-py (alpaca.trading / alpaca.data) — NOT alpaca_trade_api.
-    Environment variables (checked in priority order):
-        ALPACA_API_KEY     / APCA_API_KEY_ID
-        ALPACA_API_SECRET  / APCA_API_SECRET_KEY
     """
 
     def __init__(
@@ -706,22 +463,19 @@ class MomentumScannerV2:
         api_key:    Optional[str] = None,
         api_secret: Optional[str] = None,
     ):
-        from alpaca.trading.client import TradingClient
-        from alpaca.data.historical import StockHistoricalDataClient
+        from alpaca_trade_api import REST
+        key    = api_key    or os.getenv("APCA_API_KEY_ID",     "")
+        secret = api_secret or os.getenv("APCA_API_SECRET_KEY", "")
+        base   = "https://paper-api.alpaca.markets"
 
-        key    = api_key    or os.getenv("ALPACA_API_KEY",    "") or os.getenv("APCA_API_KEY_ID",     "")
-        secret = api_secret or os.getenv("ALPACA_API_SECRET", "") or os.getenv("APCA_API_SECRET_KEY", "")
-
-        self.trading_client = TradingClient(api_key=key, secret_key=secret, paper=True)
-        self.data_client    = StockHistoricalDataClient(api_key=key, secret_key=secret)
-
-        self.data    = MarketData(self.data_client)
+        self.api     = REST(key, secret, base_url=base)
+        self.data    = MarketData(self.api)
         self.regime  = RegimeDetector()
         self.signals = SignalEngine()
 
         # Test connection
         try:
-            acct = self.trading_client.get_account()
+            acct = self.api.get_account()
             logger.info(f"✓ Alpaca connected — status:{acct.status}  cash:${float(acct.cash):,.0f}")
         except Exception as e:
             logger.warning(f"Alpaca connection warning: {e}")
@@ -780,14 +534,13 @@ class MomentumScannerV2:
         top_long  = self._select(sig_df, "LONG",  limit, max_per_sector)
         top_short = self._select(sig_df, "SHORT", limit, max_per_sector)
 
-        # ── 6. Consensus — all 4 factor z-scores agree ────────────────
+        # ── 6. Consensus — all 3 factor z-scores agree ────────────────
         # A consensus signal requires:
         #   • |score| > 0.5  (meaningfully above average)
-        #   • all 4 z-scores positive (LONG) or all negative (SHORT)
+        #   • all 3 z-scores positive (LONG) or all negative (SHORT)
         mask_agree = (
-            (sig_df["vwap_dev_intraday_z"] * sig_df["pmo_crossover_z"] > 0) &
-            (sig_df["pmo_crossover_z"]     * sig_df["vol_surprise_z"]  > 0) &
-            (sig_df["vol_surprise_z"]      * sig_df["imbalance_real_z"] > 0) &
+            (sig_df["vwap_dev_z"]     * sig_df["rel_strength_z"] > 0) &
+            (sig_df["rel_strength_z"] * sig_df["vol_surprise_z"] > 0) &
             (sig_df["score"].abs() > 0.5)
         )
         consensus = sig_df.loc[mask_agree, "symbol"].tolist()

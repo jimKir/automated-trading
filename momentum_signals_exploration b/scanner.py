@@ -4,9 +4,6 @@ Hourly Momentum Scanner - Identify top gainers/losers across US equities.
 
 Efficiently scans 500-5000 symbols for momentum every hour.
 Cost: $0 (Alpaca free tier)
-
-SDK: uses alpaca-py (alpaca.trading / alpaca.data) — NOT the deprecated
-alpaca_trade_api package.
 """
 
 import pandas as pd
@@ -33,21 +30,8 @@ class MomentumScanner:
         self.results = {}
 
         if data_source == 'alpaca':
-            import os
-            from alpaca.trading.client import TradingClient
-            from alpaca.data.historical import StockHistoricalDataClient
-
-            key    = (os.getenv("ALPACA_API_KEY",    "")
-                      or os.getenv("APCA_API_KEY_ID",     ""))
-            secret = (os.getenv("ALPACA_API_SECRET", "")
-                      or os.getenv("APCA_API_SECRET_KEY", ""))
-
-            self.trading_client = TradingClient(
-                api_key=key, secret_key=secret, paper=True
-            )
-            self.data_client = StockHistoricalDataClient(
-                api_key=key, secret_key=secret
-            )
+            from alpaca_trade_api import REST
+            self.api = REST()
         elif data_source == 'databento':
             import databento as db
             self.api = db.Historical()
@@ -69,53 +53,56 @@ class MomentumScanner:
             return self._fetch_databento(symbols, limit)
 
     def _fetch_alpaca(self, symbols: List[str], limit: int) -> Dict:
-        """
-        Fetch from Alpaca using alpaca-py StockHistoricalDataClient.
-
-        Uses a single batch request (StockBarsRequest) rather than one call
-        per symbol.
-        """
+        """Fetch from Alpaca API using current API (get_bars instead of deprecated get_barset)."""
         logger.info(f"Fetching {len(symbols)} symbols from Alpaca...")
 
         try:
-            from alpaca.data.requests import StockBarsRequest
-            from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-
-            end_time   = datetime.now()
+            end_time = datetime.now()
             start_time = end_time - timedelta(hours=limit)
 
-            req = StockBarsRequest(
-                symbol_or_symbols=symbols,
-                timeframe=TimeFrame(1, TimeFrameUnit.Hour),
-                start=start_time,
-                end=end_time,
-                adjustment="all",
-            )
-            resp = self.data_client.get_stock_bars(req)
-
             bars_dict = {}
-            if resp and resp.data:
-                for sym, bars in resp.data.items():
-                    if not bars:
+            for symbol in symbols:
+                try:
+                    bars = self.api.get_bars(
+                        symbol,
+                        timeframe='1h',
+                        start=start_time,
+                        end=end_time
+                    )
+
+                    if bars is None or len(bars) == 0:
+                        logger.debug(f"No data for {symbol}")
                         continue
-                    bars_list = [
-                        {
-                            "open":      float(bar.open),
-                            "high":      float(bar.high),
-                            "low":       float(bar.low),
-                            "close":     float(bar.close),
-                            "volume":    int(bar.volume),
-                            "timestamp": bar.timestamp,
-                        }
-                        for bar in bars
-                    ]
-                    if bars_list:
-                        bars_dict[sym] = bars_list
-                        logger.debug(f"  {sym}: {len(bars_list)} bars")
+
+                    # Convert bars to list of dicts
+                    bars_list = []
+                    for bar in bars:
+                        # Handle Bar object from alpaca-trade-api
+                        if hasattr(bar, '__dict__'):
+                            bar_dict = {
+                                'open': float(bar.open),
+                                'high': float(bar.high),
+                                'low': float(bar.low),
+                                'close': float(bar.close),
+                                'volume': int(bar.volume),
+                                'timestamp': bar.timestamp
+                            }
+                        elif isinstance(bar, dict):
+                            bar_dict = bar
+                        else:
+                            continue
+                        bars_list.append(bar_dict)
+
+                    if len(bars_list) > 0:
+                        bars_dict[symbol] = bars_list
+                        logger.debug(f"  {symbol}: {len(bars_list)} bars")
+
+                except Exception as e:
+                    logger.debug(f"Could not fetch {symbol}: {str(e)[:100]}")
+                    continue
 
             logger.info(f"✓ Fetched {len(bars_dict)} symbols")
             return bars_dict
-
         except Exception as e:
             logger.error(f"✗ Fetch failed: {e}")
             raise

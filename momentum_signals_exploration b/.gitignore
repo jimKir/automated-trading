@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Credentials (NEVER commit these)
+.env
+.env.local
+.env.*.local
+credentials.json
+api_keys.json
+
+# Data files
+*.csv
+*.parquet
+data/
+cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Generated outputs (re-created on every run)
+scan_results.json
+ranking_report.json
+momentum_v2_report.json
+momentum_analysis_dashboard.html
+momentum_v2_dashboard.html
+production_checklist.json
+consolidated_analysis_report.json
+*_report.json
+*_dashboard.html
+
+# Redundant working files (superseded by v2)
+scanner_fixed.py
+scanner_working.py
+main_working.py
+run_complete_analysis.py
+SETUP_LOCAL.sh
+WORKING_PACKAGE_SUMMARY.md
+RUN_LOCALLY_NOW.md
+QUICKSTART_WORKING.md
