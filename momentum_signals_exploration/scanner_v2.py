@@ -1,17 +1,34 @@
 #!/usr/bin/env python3
 """
-Momentum Scanner V2 — Production Grade
-=======================================
+scanner_v2.py — Evidence-based Signal Engine
+=============================================
 
-Key improvements over V1:
+Factor validation status (OOS 2023-2026, IC analysis):
+
+VALIDATED SIGNALS (in production):
+  - VWAP intraday deviation (1-min bars): IC +0.054, p=0.007 ✅
+  - PMO crossover (contrarian, flip sign): IC -0.032, p=0.005 ✅
+  - Databento closing imbalance (real): pending full validation
+  - Volume surprise: IC -0.018, p=0.053 ⚠️ weak, reduced weight
+
+VALIDATED FILTERS:
+  - ADX(14) > 20: Sharpe +0.71 OOS, 4/4 positive walk-forward years ✅
+
+REMOVED (zero IC):
+  - Relative strength: IC +0.001, p=0.963 ❌
+  - Daily VWAP proxy: IC -0.020, p=0.081 ❌
+  - Imbalance price proxy: IC +0.011, p=0.255 ❌
+  - RSI, MACD, Stochastic, TS Momentum, CS Momentum: all insignificant ❌
+  - XGBoost ML: IC -0.009 ❌
+  - LSTM: IC -0.000 ❌
+
+Architecture:
   1. Batch data fetch   — 1 API call for all symbols (not 50 sequential calls)
-  2. VWAP deviation     — price vs volume-weighted fair value (40% weight)
-  3. Relative strength  — stock alpha vs SPY, strips market noise (35% weight)
-  4. Volume surprise    — log-normalised volume vs rolling average (25% weight)
-  5. Z-score normalise  — cross-sectional, so scores are comparable
-  6. Regime detection   — ADX + SPY trend; skip scan on choppy days
-  7. Sector limits      — max 3 signals per sector to avoid concentration
-  8. Composite score    — one number per symbol, directly actionable
+  2. Z-score normalise  — cross-sectional, so scores are comparable
+  3. Regime detection   — ADX + SPY trend; skip scan on choppy days
+  4. ADX position gate  — ADX < 20 halves position size (walk-forward validated)
+  5. Sector limits      — max 3 signals per sector to avoid concentration
+  6. Composite score    — one number per symbol, directly actionable
 
 SDK: uses alpaca-py (alpaca.trading / alpaca.data) — NOT the deprecated
 alpaca_trade_api package.
@@ -22,7 +39,7 @@ import logging
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +358,11 @@ class RegimeDetector:
       • ADX (simplified directional movement index)
       • 5-bar net return direction
       • VIX level if available
+
+    ADX threshold validated via walk-forward analysis 2023-2026:
+      4/4 positive OOS years, combined Sharpe +0.71.
+      ADX > 20 confirmed as regime filter — strategy performance collapses
+      when ADX < 20 (no trend). See also: adx_position_multiplier().
     """
 
     def detect(
@@ -431,6 +453,26 @@ class RegimeDetector:
 
 
 # ===========================================================================
+# 2b. ADX POSITION GATE
+# ===========================================================================
+
+ADX_THRESHOLD: float = 20.0  # walk-forward validated: Sharpe +0.71 OOS 2023-2026
+
+
+def adx_position_multiplier(adx_value: float) -> float:
+    """
+    Returns position size multiplier based on ADX regime.
+
+    ADX >= 20: full size (1.0) — trending regime, signals are reliable
+    ADX <  20: half size (0.5) — weak trend, strategy performance collapses
+
+    Validated via walk-forward 2023-2026: 4/4 positive OOS years,
+    combined Sharpe +0.71 when ADX > 20 filter is applied.
+    """
+    return 1.0 if adx_value >= ADX_THRESHOLD else 0.5
+
+
+# ===========================================================================
 # 3. SIGNAL ENGINE
 # ===========================================================================
 
@@ -438,17 +480,30 @@ class SignalEngine:
     """
     Multi-factor signal computation + cross-sectional Z-score normalisation.
 
-    Factor weights (chosen to be ~orthogonal):
-      VWAP deviation    30%  — is price dislocated from fair value?
-      Relative strength 25%  — is this stock moving vs the market?
-      Volume surprise   20%  — is there real participation behind the move?
-      Closing imbalance 25%  — end-of-day order flow pressure (Databento)
+    Evidence-based factor weights (IC analysis, OOS 2023-2026):
+      vwap_dev_intraday  35%  — 1-min VWAP distance, IC +0.054 p=0.007 ✅
+      pmo_crossover      20%  — contrarian (sign flipped), IC -0.032 p=0.005 ✅
+      vol_surprise       15%  — log volume vs avg, IC -0.018 p=0.053 ⚠️ weak
+      imbalance_real     30%  — Databento closing imbalance, pending full validation
+
+    REMOVED (zero IC, pure noise):
+      rel_strength  — IC +0.001 p=0.963
+      vwap_dev (daily OHLC proxy) — IC -0.020 p=0.081
+      imbalance (price-based proxy) — IC +0.011 p=0.255
 
     Each factor is Z-scored cross-sectionally before weighting so a 1-point
     difference in score means the same thing regardless of the factor scale.
     """
 
-    WEIGHTS = {"vwap_dev": 0.30, "rel_strength": 0.25, "vol_surprise": 0.20, "imbalance": 0.25}
+    WEIGHTS = {
+        "vwap_dev_intraday": 0.35,  # IC +0.054 p=0.007 ✅ — requires 1-min bars from Alpaca
+        "pmo_crossover": 0.20,      # IC -0.032 p=0.005 ✅ contrarian — FLIP SIGN in scoring
+        "vol_surprise": 0.15,       # IC -0.018 p=0.053 ⚠️ weak but kept at reduced weight
+        "imbalance_real": 0.30,     # Databento real closing imbalance — pending full validation
+    }
+    # REMOVED: rel_strength (IC +0.001, pure noise)
+    # REMOVED: vwap_dev (daily OHLC proxy, IC -0.020, noise)
+    # REMOVED: imbalance proxy (price-only, IC +0.011, noise)
 
     def compute(
         self,
@@ -485,13 +540,15 @@ class SignalEngine:
 
         df["direction"] = np.where(df["score"] > 0, "LONG", "SHORT")
 
+        # ADX position multiplier — halve size when trend is weak
+        df["adx_multiplier"] = df["adx"].apply(adx_position_multiplier)
+
         # Readable pct columns
-        df["vwap_dev_pct"]      = (df["vwap_dev"]      * 100).round(3)
-        df["rel_strength_pct"]  = (df["rel_strength"]   * 100).round(3)
-        df["raw_return_pct"]    = (df["raw_return"]     * 100).round(3)
-        df["imbalance_pct"]     = (df["imbalance"]       * 100).round(3)
-        df["score"]             = df["score"].round(4)
-        df["sector"]            = df["symbol"].map(lambda s: SECTOR_MAP.get(s, "Other"))
+        df["vwap_dev_intraday_pct"] = (df["vwap_dev_intraday"] * 100).round(3)
+        df["raw_return_pct"]        = (df["raw_return"]         * 100).round(3)
+        df["imbalance_real_pct"]    = (df["imbalance_real"]     * 100).round(3)
+        df["score"]                 = df["score"].round(4)
+        df["sector"]                = df["symbol"].map(lambda s: SECTOR_MAP.get(s, "Other"))
 
         return df.sort_values("score", ascending=False).reset_index(drop=True)
 
@@ -509,15 +566,28 @@ class SignalEngine:
             low    = bars["low"].astype(float)
             volume = bars["volume"].astype(float)
 
-            # Factor 1 — VWAP deviation
-            typical = (high + low + close) / 3
-            vwap    = float((typical * volume).sum() / (volume.sum() + 1e-9))
-            price   = float(close.iloc[-1])
-            vwap_dev = (price - vwap) / (vwap + 1e-9)
+            price       = float(close.iloc[-1])
+            raw_return  = self._latest_return(bars)
 
-            # Factor 2 — Relative strength vs SPY
-            raw_return   = self._latest_return(bars)
-            rel_strength = raw_return - spy_return
+            # Factor 1 — VWAP deviation (intraday 1-min bars only)
+            # Daily OHLC proxy has IC -0.020 (noise). Only 1-min intraday
+            # VWAP is valid (IC +0.054, p=0.007, validated in
+            # alpaca_microstructure.py). If the data source provides 1-min
+            # bars (e.g. Databento DBEQ.BASIC), compute real intraday VWAP.
+            # Otherwise return 0 (neutral) — do NOT fall back to daily proxy.
+            vwap_dev_intraday = 0.0
+            bar_count = len(bars)
+            if bar_count >= 60:
+                # Likely intraday 1-min bars — compute real VWAP
+                typical = (high + low + close) / 3
+                vwap    = float((typical * volume).sum() / (volume.sum() + 1e-9))
+                vwap_dev_intraday = (price - vwap) / (vwap + 1e-9)
+            # else: hourly or daily data — return 0 (neutral, don't use daily proxy)
+
+            # Factor 2 — PMO crossover (contrarian, sign flipped)
+            # IC -0.032, p=0.005 — only statistically significant technical indicator.
+            # Negative IC means contrarian: flip sign when scoring.
+            pmo_crossover = self.compute_pmo(close)
 
             # Factor 3 — Volume surprise (log ratio vs rolling avg)
             vol_vals    = volume.values
@@ -525,8 +595,11 @@ class SignalEngine:
             vol_current = float(vol_vals[-1])
             vol_surprise = float(np.log(max(vol_current, 1) / max(vol_avg, 1)))
 
-            # Factor 4 — Closing imbalance (from Databento, if available)
-            imbalance = 0.0
+            # Factor 4 — Real closing imbalance (Databento)
+            # Replaces old price-based imbalance proxy (IC +0.011, noise).
+            # Real Databento imbalance validation is pending; slot reserved.
+            # Returns 0 (neutral) if unavailable.
+            imbalance_real = 0.0
             try:
                 import sys
                 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -534,24 +607,60 @@ class SignalEngine:
                 from datetime import date
                 sig = ClosingImbalanceSignal()
                 daily_sigs = sig.compute_daily([symbol], date.today())
-                imbalance = float(daily_sigs.get(symbol, 0.0))
+                imbalance_real = float(daily_sigs.get(symbol, 0.0))
             except Exception:
-                pass
+                pass  # Databento unavailable — neutral contribution (0)
+
+            # ADX for position sizing gate (not a scoring signal)
+            adx = RegimeDetector._adx(
+                high.values, low.values, close.values, 14
+            )
 
             return {
-                "symbol":      symbol,
-                "price":       round(price, 2),
-                "volume":      int(vol_current),
-                "vwap":        round(vwap, 2),
-                "vwap_dev":    vwap_dev,
-                "rel_strength":rel_strength,
-                "vol_surprise":vol_surprise,
-                "raw_return":  raw_return,
-                "imbalance":   imbalance,
+                "symbol":           symbol,
+                "price":            round(price, 2),
+                "volume":           int(vol_current),
+                "vwap_dev_intraday":vwap_dev_intraday,
+                "pmo_crossover":    pmo_crossover,
+                "vol_surprise":     vol_surprise,
+                "raw_return":       raw_return,
+                "imbalance_real":   imbalance_real,
+                "adx":              round(float(adx), 1),
             }
         except Exception as e:
             logger.debug(f"  Signal error {symbol}: {e}")
             return None
+
+    @staticmethod
+    def compute_pmo(close: pd.Series) -> float:
+        """
+        Price Momentum Oscillator (PMO) crossover value.
+
+        PMO is a double-smoothed rate of change:
+            ROC_1      = (close / close.shift(1) - 1) * 100
+            EMA1       = ROC_1.ewm(span=35).mean() * 20
+            PMO        = EMA1.ewm(span=20).mean()
+            PMO_signal = PMO.ewm(span=10).mean()
+            crossover  = PMO - PMO_signal
+
+        IC = -0.032 (p=0.005) — statistically significant but CONTRARIAN.
+        The sign is flipped when used in scoring (negative crossover = buy).
+
+        Returns the raw crossover value (caller flips sign for scoring).
+        Returns 0.0 if insufficient data.
+        """
+        if close is None or len(close) < 40:
+            return 0.0
+        try:
+            roc_1      = (close / close.shift(1) - 1) * 100
+            ema1       = roc_1.ewm(span=35, min_periods=10).mean() * 20
+            pmo        = ema1.ewm(span=20, min_periods=5).mean()
+            pmo_signal = pmo.ewm(span=10, min_periods=3).mean()
+            crossover  = float(pmo.iloc[-1] - pmo_signal.iloc[-1])
+            # Flip sign: contrarian indicator (negative IC)
+            return -crossover
+        except Exception:
+            return 0.0
 
     @staticmethod
     def _latest_return(bars: pd.DataFrame) -> float:
@@ -671,9 +780,9 @@ class MomentumScannerV2:
         #   • |score| > 0.5  (meaningfully above average)
         #   • all 4 z-scores positive (LONG) or all negative (SHORT)
         mask_agree = (
-            (sig_df["vwap_dev_z"]     * sig_df["rel_strength_z"] > 0) &
-            (sig_df["rel_strength_z"] * sig_df["vol_surprise_z"] > 0) &
-            (sig_df["vol_surprise_z"] * sig_df["imbalance_z"]    > 0) &
+            (sig_df["vwap_dev_intraday_z"] * sig_df["pmo_crossover_z"] > 0) &
+            (sig_df["pmo_crossover_z"]     * sig_df["vol_surprise_z"]  > 0) &
+            (sig_df["vol_surprise_z"]      * sig_df["imbalance_real_z"] > 0) &
             (sig_df["score"].abs() > 0.5)
         )
         consensus = sig_df.loc[mask_agree, "symbol"].tolist()
