@@ -416,3 +416,17 @@ databento_signals:
     decay_halflife: 2
     otm_weight_mult: 1.5
     min_daily_volume: 100
+
+
+# Regime switching (added Apr 2026)
+strategy:
+  regime_switching:
+    enabled: true
+    bull_vix_threshold: 20.0
+    bull_spy_ma_period: 200
+    bull_w_ts_mom: 0.60
+    bull_w_mr: 0.10
+    bull_w_macd: 0.25
+    bull_w_rsi: 0.05
+    bull_use_pmo: false
+    bull_use_adx: false
