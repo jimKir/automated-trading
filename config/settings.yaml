@@ -326,6 +326,19 @@ ews:
   use_intraday: true       # Layer E: intraday regime (ADX + SPY EMA + VIX)
   use_choppy:   true       # Layer F: 2025-fingerprint choppy regime detector (new)
 
+# Per-position anomaly scoring (asymmetric drawdown protection)
+# Cuts crypto aggressively (floor 10%), equity lightly (floor 40%),
+# never cuts ETF hedges (TLT, GLD). Applied to signals before weight sizing.
+position_anomaly:
+  enabled: true
+  # Asset-class floors (minimum scale — set higher to reduce aggressiveness)
+  crypto_floor:     0.10   # up to 90% cut on BTC/ETH during vol spikes
+  equity_floor:     0.40   # up to 60% cut on individual equities
+  etf_equity_floor: 0.55   # up to 45% cut on broad-market ETFs (SPY, QQQ)
+  # Feature windows
+  vol_window:       20     # rolling window for realised vol spike (days)
+  baseline_window:  60     # rolling window for vol baseline (days)
+
   # Scale factors applied to max_position_pct and max_portfolio_heat
   # when EWS detects stress. These are NOT optimised — set by risk logic.
   # GREEN  (<0.25):  1.00x  full exposure
