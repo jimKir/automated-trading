@@ -122,11 +122,17 @@ _CLASS_CONFIG: Dict[AssetClass, dict] = {
         "sensitivity":     1.40,          # aggressive — crypto drawdowns are severe
         "floor":           0.10,          # allow up to 90% cut
         "vol_baseline":    0.035,         # ~35-40% ann vol / √252 ≈ 0.022-0.025 daily
+        # score_baseline: subtracted before sensitivity is applied so the scorer
+        # is silent during crypto's "normal" level of churn/DD. Calibrated from
+        # BTC/ETH 2024 bull-year score_mean≈0.16. Only cuts when score EXCEEDS
+        # this baseline, making it insensitive to crypto's inherent high-vol noise.
+        # WF-validated: 0.16 (BTC 2024 score_mean) — safe, confirmed OOS.
+        "score_baseline":  0.16,
         "feature_weights": {
-            "vol_spike":       0.35,      # primary: crypto vol spikes are predictive
-            "momentum_churn":  0.25,      # churning without direction = distribution
-            "dd_from_peak":    0.25,      # already in drawdown from recent peak
-            "portfolio_stress":0.15,      # lighter weight — crypto independent
+            "vol_spike":       0.40,      # primary: WF showed G1 most discriminating
+            "momentum_churn":  0.15,      # reduced (regime-relative z-score, less chronic)
+            "dd_from_peak":    0.30,      # increased (g3 ceiling now 0.25 — WF-validated)
+            "portfolio_stress":0.15,      # kept — macro context still useful
         },
     },
     AssetClass.EQUITY: {
@@ -193,20 +199,39 @@ _CLASS_CONFIG: Dict[AssetClass, dict] = {
     },
 }
 
-# Calibration: thresholds at which each feature reaches score=1.0
-#   vol_spike:      ratio of 20d realised vol / 60d baseline
-#                   1.0 = no spike, 3.0 = 3× usual vol (full score)
-#   momentum_churn: |20d net return| / 20d realised vol  (low = choppy)
-#                   1.2 = normal, 0.2 = churning (full score at low value)
-#   dd_from_peak:   drawdown from 20d high
-#                   0% = at peak, 15% = drawdown (full score)
-_VOL_SPIKE_CEILING       = 3.0    # ratio: 20d vol / 60d baseline
-_VOL_SPIKE_BASELINE      = 1.0    # ratio at which score = 0
-_CHURN_BASELINE          = 1.2    # TNR: above this = trending (score = 0)
-_CHURN_CEILING           = 0.2    # TNR: below this = maximum churn (score = 1)
-_DD_BASELINE             = 0.00   # 0% drawdown from 20d peak = score 0
-_DD_CEILING_CRYPTO       = 0.15   # 15% drop from 20d peak = score 1 (crypto)
-_DD_CEILING_EQUITY       = 0.10   # 10% drop from 20d peak = score 1 (equity)
+# ── Calibration constants (WF-validated, April 2026) ──────────────────────
+# These thresholds were derived by walk-forward grid search across 4 folds:
+#   IS=2020-22 → OOS=2023 | IS=2020-23 → OOS=2024
+#   IS=2020-24 → OOS=2025 | IS=2020-25 → OOS=Q1-2026
+# Objective: maximise choppy-year DD reduction while minimising bull-year
+# Sharpe loss. Median of OOS-validated params across all folds.
+# Source: diagnostics/wf_pos_anomaly_calibration.json
+#
+# Key finding: G2 (momentum churn) scores chronically high for crypto even
+# in bull years (BTC 2024 G2_mean=0.47 vs 2025 G2_mean=0.54 — barely different).
+# Crypto TNR is naturally low due to high realised vol. Fix: use a REGIME-RELATIVE
+# churn score anchored to each asset's own 252d churn baseline, not an absolute
+# threshold. This eliminates the structural over-cutting in 2024.
+
+# G1: Vol spike (20d vol / 60d baseline ratio)
+# WF-validated: baseline=1.00, ceiling=1.55 (BTC p95=1.38, ETH p95=1.39)
+_VOL_SPIKE_BASELINE = 1.00   # ratio at which score = 0  (WF: 1.00 median)
+_VOL_SPIKE_CEILING  = 1.55   # ratio at which score = 1  (WF: 1.55 median)
+
+# G2: Momentum churn — REGIME-RELATIVE (replaces absolute TNR threshold)
+# Each asset's TNR is z-scored against its own 252d rolling mean.
+# Z-score > 0 = currently churning more than usual = higher score.
+# Ceiling: z_churn = 2.0 (2 std devs above own baseline) → score = 1.
+# This makes G2 asset-agnostic and eliminates chronic crypto over-firing.
+_CHURN_ZSCORE_CEILING  = 2.0   # z-score above own baseline → score = 1
+_CHURN_ZSCORE_BASELINE = 0.0   # at own baseline → score = 0
+
+# G3: Drawdown from 20d peak
+# WF-validated: 0.25 for crypto (own max typically 35-66%),
+#               0.10 for equity (SPY 2022 max DD 25%)
+_DD_BASELINE          = 0.00   # 0% drawdown from peak = score 0
+_DD_CEILING_CRYPTO    = 0.25   # WF: 0.25 median (was 0.15 — too tight for crypto)
+_DD_CEILING_EQUITY    = 0.10   # equity unchanged (10% DD = full score)
 
 # Smoothing
 _EMA_SPAN = 3    # 3-day EMA — faster than portfolio-level (5d) for individual positions
@@ -275,15 +300,23 @@ class PositionAnomalyScorer:
         feat["vol_spike"] = ((vol_ratio - _VOL_SPIKE_BASELINE) /
                              (_VOL_SPIKE_CEILING - _VOL_SPIKE_BASELINE)).clip(0, 1)
 
-        # G2: Momentum churn — |20d net return| / 20d realised vol
-        # Low value = price is volatile but going nowhere = distribution/chop
+        # G2: Momentum churn — REGIME-RELATIVE z-score (WF-validated fix)
+        # Problem with absolute TNR: crypto TNR is naturally low due to high vol,
+        # so G2 scored 0.47 in 2024 bull and 0.54 in 2025 choppy — nearly identical,
+        # providing no discrimination. WF analysis confirmed this was the main source
+        # of chronic over-cutting.
+        # Fix: z-score TNR against its own 252d rolling mean/std, so score measures
+        # "how much MORE churning than this asset normally shows" — asset-class-agnostic.
         net_ret   = close.pct_change(self._vw).abs()
         path_vol  = rv20 * np.sqrt(self._vw)
         tnr       = (net_ret / path_vol.replace(0, np.nan)).fillna(1.0).clip(0, 3)
-        # Invert: low TNR = high score
+        tnr_mean  = tnr.rolling(252, min_periods=60).mean()
+        tnr_std   = tnr.rolling(252, min_periods=60).std().replace(0, np.nan)
+        # Invert: low TNR relative to own baseline = high churn relative to normal
+        tnr_zscore = ((tnr_mean - tnr) / tnr_std).fillna(0)  # positive = churning MORE
+        feat["momentum_churn"] = (tnr_zscore / _CHURN_ZSCORE_CEILING).clip(0, 1)
+
         dd_ceil = _DD_CEILING_CRYPTO if asset_class == AssetClass.CRYPTO else _DD_CEILING_EQUITY
-        feat["momentum_churn"] = ((_CHURN_BASELINE - tnr) /
-                                  (_CHURN_BASELINE - _CHURN_CEILING)).clip(0, 1)
 
         # G3: Drawdown from 20d rolling high
         high_20d  = close.rolling(self._vw).max()
@@ -328,11 +361,18 @@ class PositionAnomalyScorer:
         """
         Convert instrument anomaly score → position scale factor.
 
-        scale = 1 - sensitivity × score
+        scale = 1 - sensitivity × max(0, score - score_baseline)
         clipped to [floor, 1.0]
+
+        score_baseline: the asset's own "normal" score level in calm regimes.
+        Subtracting it means the scorer is silent at its own baseline and only
+        cuts when conditions genuinely deteriorate ABOVE the asset's own norm.
+        WF-calibrated: crypto baseline=0.16 (BTC 2024 bull-year score_mean).
         """
-        cfg    = _CLASS_CONFIG[asset_class]
-        raw    = 1.0 - cfg["sensitivity"] * score
+        cfg      = _CLASS_CONFIG[asset_class]
+        baseline = cfg.get("score_baseline", 0.0)
+        excess   = max(0.0, score - baseline)
+        raw      = 1.0 - cfg["sensitivity"] * excess
         return float(np.clip(raw, cfg["floor"], 1.0))
 
     # ── Public API ────────────────────────────────────────────────────────────
