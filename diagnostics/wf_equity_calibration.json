@@ -1,0 +1,20 @@
+{
+  "equity": {
+    "g1_ceiling": 1.55,
+    "g1_baseline": 1.0,
+    "g3_dd_ceil": 0.15,
+    "sensitivity": 0.5
+  },
+  "etf_equity": {
+    "g1_ceiling": 1.55,
+    "g1_baseline": 1.0,
+    "g3_dd_ceil": 0.15,
+    "sensitivity": 0.5
+  },
+  "commodity": {
+    "g1_ceiling": 1.55,
+    "g1_baseline": 1.0,
+    "g3_dd_ceil": 0.15,
+    "sensitivity": 0.5
+  }
+}
