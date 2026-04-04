@@ -1,0 +1,9 @@
+{
+  "g1_ceiling": 1.55,
+  "g1_baseline": 1.0,
+  "g3_dd_ceil": 0.25,
+  "sensitivity": 1.0,
+  "g2_baseline": 1.2,
+  "g2_ceiling": 0.15,
+  "floor_crypto": 0.1
+}

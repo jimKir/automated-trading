@@ -1,0 +1,210 @@
+{
+  "folds": [
+    {
+      "fold": "F1: IS=2020-22 \u2192 OOS=2023",
+      "is_window": "2020-01-01 \u2192 2022-12-31",
+      "oos_window": "2023-01-01 \u2192 2023-12-31",
+      "params": {
+        "g1_ceiling": 1.15,
+        "g1_baseline": 1.0,
+        "g3_dd_ceil": 0.25,
+        "sensitivity": 1.0
+      },
+      "is_btc": {
+        "sharpe": 1.267,
+        "max_dd": -55.54,
+        "cagr": 57.21,
+        "n": 1095
+      },
+      "is_eth": {
+        "sharpe": 2.862,
+        "max_dd": -60.05,
+        "cagr": 171.13,
+        "n": 1095
+      },
+      "oos_btc": {
+        "sharpe": 2.98,
+        "max_dd": -16.15,
+        "cagr": 91.2,
+        "n": 364
+      },
+      "oos_eth": {
+        "sharpe": 2.044,
+        "max_dd": -23.5,
+        "cagr": 68.8,
+        "n": 364
+      },
+      "base_btc_oos": {
+        "sharpe": 3.534,
+        "max_dd": -20.06,
+        "cagr": 154.88,
+        "n": 364
+      },
+      "base_eth_oos": {
+        "sharpe": 1.931,
+        "max_dd": -27.38,
+        "cagr": 90.31,
+        "n": 364
+      }
+    },
+    {
+      "fold": "F2: IS=2020-23 \u2192 OOS=2024",
+      "is_window": "2020-01-01 \u2192 2023-12-31",
+      "oos_window": "2024-01-01 \u2192 2024-12-31",
+      "params": {
+        "g1_ceiling": 1.55,
+        "g1_baseline": 1.0,
+        "g3_dd_ceil": 0.25,
+        "sensitivity": 1.0
+      },
+      "is_btc": {
+        "sharpe": 1.539,
+        "max_dd": -60.36,
+        "cagr": 71.69,
+        "n": 1460
+      },
+      "is_eth": {
+        "sharpe": 2.455,
+        "max_dd": -64.82,
+        "cagr": 148.46,
+        "n": 1460
+      },
+      "oos_btc": {
+        "sharpe": 2.405,
+        "max_dd": -21.64,
+        "cagr": 95.35,
+        "n": 365
+      },
+      "oos_eth": {
+        "sharpe": 1.19,
+        "max_dd": -32.88,
+        "cagr": 54.55,
+        "n": 365
+      },
+      "base_btc_oos": {
+        "sharpe": 2.087,
+        "max_dd": -26.18,
+        "cagr": 111.53,
+        "n": 365
+      },
+      "base_eth_oos": {
+        "sharpe": 0.64,
+        "max_dd": -45.31,
+        "cagr": 41.67,
+        "n": 365
+      }
+    },
+    {
+      "fold": "F3: IS=2020-24 \u2192 OOS=2025",
+      "is_window": "2020-01-01 \u2192 2024-12-31",
+      "oos_window": "2025-01-01 \u2192 2025-12-31",
+      "params": {
+        "g1_ceiling": 1.55,
+        "g1_baseline": 1.0,
+        "g3_dd_ceil": 0.25,
+        "sensitivity": 1.0
+      },
+      "is_btc": {
+        "sharpe": 1.708,
+        "max_dd": -60.36,
+        "cagr": 77.36,
+        "n": 1826
+      },
+      "is_eth": {
+        "sharpe": 2.194,
+        "max_dd": -64.82,
+        "cagr": 126.91,
+        "n": 1826
+      },
+      "oos_btc": {
+        "sharpe": 0.08,
+        "max_dd": -23.94,
+        "cagr": 2.44,
+        "n": 364
+      },
+      "oos_eth": {
+        "sharpe": 0.391,
+        "max_dd": -43.71,
+        "cagr": 21.27,
+        "n": 364
+      },
+      "base_btc_oos": {
+        "sharpe": -0.175,
+        "max_dd": -32.15,
+        "cagr": -7.34,
+        "n": 364
+      },
+      "base_eth_oos": {
+        "sharpe": -0.153,
+        "max_dd": -60.08,
+        "cagr": -11.55,
+        "n": 364
+      }
+    },
+    {
+      "fold": "F4: IS=2020-25 \u2192 OOS=Q1'26",
+      "is_window": "2020-01-01 \u2192 2025-12-31",
+      "oos_window": "2026-01-01 \u2192 2026-04-02",
+      "params": {
+        "g1_ceiling": 1.55,
+        "g1_baseline": 1.0,
+        "g3_dd_ceil": 0.25,
+        "sensitivity": 1.0
+      },
+      "is_btc": {
+        "sharpe": 1.438,
+        "max_dd": -60.36,
+        "cagr": 62.07,
+        "n": 2191
+      },
+      "is_eth": {
+        "sharpe": 1.825,
+        "max_dd": -64.82,
+        "cagr": 104.56,
+        "n": 2191
+      },
+      "oos_btc": {
+        "sharpe": -1.222,
+        "max_dd": -23.94,
+        "cagr": -44.76,
+        "n": 91
+      },
+      "oos_eth": {
+        "sharpe": -1.017,
+        "max_dd": -31.09,
+        "cagr": -51.43,
+        "n": 91
+      },
+      "base_btc_oos": {
+        "sharpe": -1.146,
+        "max_dd": -35.31,
+        "cagr": -67.81,
+        "n": 91
+      },
+      "base_eth_oos": {
+        "sharpe": -1.001,
+        "max_dd": -45.7,
+        "cagr": -78.01,
+        "n": 91
+      }
+    }
+  ],
+  "locked_params": {
+    "g1_ceiling": 1.55,
+    "g1_baseline": 1.0,
+    "g3_dd_ceil": 0.25,
+    "sensitivity": 1.0,
+    "g2_baseline": 1.2,
+    "g2_ceiling": 0.15,
+    "diagnostics": {
+      "folds_run": 4,
+      "btc_mean_dd_reduction_pp": -7.01,
+      "eth_mean_dd_reduction_pp": -11.82,
+      "btc_is_sharpe_mean": 1.488,
+      "btc_oos_sharpe_mean": 1.061,
+      "eth_is_sharpe_mean": 2.334,
+      "eth_oos_sharpe_mean": 0.652,
+      "btc_is_oos_sharpe_gap": 0.427
+    }
+  }
+}
