@@ -136,9 +136,11 @@ _CLASS_CONFIG: Dict[AssetClass, dict] = {
         },
     },
     AssetClass.EQUITY: {
-        "sensitivity":     0.65,          # moderate
-        "floor":           0.40,          # never below 40%
-        "vol_baseline":    0.015,         # ~15-20% ann vol / √252 ≈ 0.010-0.013
+        "sensitivity":     0.50,          # WF-validated (was 0.65 — overcutting in calm markets)
+        "floor":           0.40,
+        "vol_baseline":    0.015,
+        # WF bull_scale_mean=0.91 across all 4 folds → 9% avg trim in bull markets
+        "score_baseline":  0.0,           # equities don't need baseline offset (no chronic noise)
         "feature_weights": {
             "vol_spike":       0.25,
             "momentum_churn":  0.30,      # choppy price action most important
@@ -147,9 +149,10 @@ _CLASS_CONFIG: Dict[AssetClass, dict] = {
         },
     },
     AssetClass.ETF_EQUITY: {
-        "sensitivity":     0.40,          # light — broad market ETFs are diversified
+        "sensitivity":     0.50,          # WF-validated (same as equity; diversification already in floor)
         "floor":           0.55,
         "vol_baseline":    0.011,
+        # WF bull_scale_mean=0.90 — appropriately light trimming of index ETFs
         "feature_weights": {
             "vol_spike":       0.20,
             "momentum_churn":  0.35,
@@ -167,9 +170,10 @@ _CLASS_CONFIG: Dict[AssetClass, dict] = {
         },
     },
     AssetClass.COMMODITY: {
-        "sensitivity":     0.75,
+        "sensitivity":     0.50,          # WF-validated (was 0.75 — overcutting; floor already low at 0.35)
         "floor":           0.35,
         "vol_baseline":    0.020,
+        # WF bull_scale_mean=0.90 — protective but not chronically trimming
         "feature_weights": {
             "vol_spike":       0.40,      # commodity vol spikes primary
             "momentum_churn":  0.20,
@@ -214,9 +218,15 @@ _CLASS_CONFIG: Dict[AssetClass, dict] = {
 # threshold. This eliminates the structural over-cutting in 2024.
 
 # G1: Vol spike (20d vol / 60d baseline ratio)
-# WF-validated: baseline=1.00, ceiling=1.55 (BTC p95=1.38, ETH p95=1.39)
-_VOL_SPIKE_BASELINE = 1.00   # ratio at which score = 0  (WF: 1.00 median)
-_VOL_SPIKE_CEILING  = 1.55   # ratio at which score = 1  (WF: 1.55 median)
+# WF-validated across ALL asset classes (equity, ETF equity, commodity, crypto):
+#   baseline = 1.00 (all classes)  ceiling = 1.55 (all classes)
+# Why ceiling=1.55 and not 3.0:
+#   Actual observed p95 across all assets: 1.37–1.41
+#   Max ever observed: 1.71 (equity) / 1.72 (commodity) / 1.70 (ETF)
+#   Under old ceiling=3.0: p95 scored only 0.19-0.20 → G1 was functionally deaf
+#   Under WF ceiling=1.55: p95 scores 0.71-0.74 → properly sensitive
+_VOL_SPIKE_BASELINE = 1.00
+_VOL_SPIKE_CEILING  = 1.55
 
 # G2: Momentum churn — REGIME-RELATIVE (replaces absolute TNR threshold)
 # Each asset's TNR is z-scored against its own 252d rolling mean.
@@ -230,8 +240,9 @@ _CHURN_ZSCORE_BASELINE = 0.0   # at own baseline → score = 0
 # WF-validated: 0.25 for crypto (own max typically 35-66%),
 #               0.10 for equity (SPY 2022 max DD 25%)
 _DD_BASELINE          = 0.00   # 0% drawdown from peak = score 0
-_DD_CEILING_CRYPTO    = 0.25   # WF: 0.25 median (was 0.15 — too tight for crypto)
-_DD_CEILING_EQUITY    = 0.10   # equity unchanged (10% DD = full score)
+_DD_CEILING_CRYPTO    = 0.25   # WF-validated (crypto p90 = 16-21%, ceiling above that)
+_DD_CEILING_EQUITY    = 0.15   # WF-validated (equity/ETF/commodity p90 = 10-13%, ceiling above)
+                                # was 0.10 — too tight, G3 over-fired in normal trading
 
 # Smoothing
 _EMA_SPAN = 3    # 3-day EMA — faster than portfolio-level (5d) for individual positions
