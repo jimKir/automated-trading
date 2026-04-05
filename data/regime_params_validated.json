@@ -1,0 +1,14 @@
+{
+  "bull_w_ts_mom": 0.5,
+  "bull_w_mr": 0.15,
+  "bull_w_macd": 0.3,
+  "bull_w_rsi": 0.05,
+  "is_sharpe": 0.7802689182407884,
+  "oos_sharpe": 0.15379633806475085,
+  "overfit_sharpe": -0.007040847963098883,
+  "baseline_sharpe": -0.20089806554624795,
+  "fit_period": "2018-2022",
+  "oos_period": "2023-2025",
+  "pit_universe": true,
+  "exec_delay": true
+}

@@ -1,0 +1,16 @@
+storage:
+  provider: azure
+  raw_lake_path: abfs://raw@${AZURE_STORAGE_ACCOUNT}.dfs.core.windows.net
+  analytics_lake_path: abfs://analytics@${AZURE_STORAGE_ACCOUNT}.dfs.core.windows.net
+  feature_store_path: abfs://features@${AZURE_STORAGE_ACCOUNT}.dfs.core.windows.net
+
+ingestion:
+  backfill:
+    chunk_size_days: 30
+    checkpoint_every_mb: 100
+  incremental:
+    symbols_per_batch: 500
+
+monitoring:
+  prometheus_port: 9090
+  health_check_port: 8080

@@ -1,0 +1,30 @@
+{
+  "data_source": "alpaca",
+  "update_frequency": "hourly",
+  "filters": {
+    "min_volume": 100000,
+    "min_price": 5.0,
+    "max_price": 1000.0,
+    "min_magnitude": 0.005,
+    "direction": "both",
+    "min_liquidity_score": 500000
+  },
+  "alerts": {
+    "console": true,
+    "slack": false,
+    "email": false,
+    "webhook": false
+  },
+  "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+  "email_to": "your-email@example.com",
+  "smtp_config": {
+    "host": "smtp.gmail.com",
+    "port": 465,
+    "username": "your-email@gmail.com",
+    "password": "your-app-password",
+    "from_email": "your-email@gmail.com"
+  },
+  "webhook_url": "https://your-webhook.example.com/momentum",
+  "universe": "sp500",
+  "top_n": 20
+}

@@ -1,0 +1,87 @@
+vendors:
+  databento:
+    api_key: ${DATABENTO_API_KEY}
+    dataset: GLBX.MDP3
+    rate_limit_per_min: 1000
+    batch_threshold_gb: 5
+  alpaca:
+    api_key: ${ALPACA_API_KEY}
+    api_secret: ${ALPACA_API_SECRET}
+    base_url: https://data.alpaca.markets
+    rate_limit_per_min: 10000
+
+storage:
+  provider: ${STORAGE_PROVIDER:-local}
+  raw_lake_path: ${RAW_LAKE_PATH:-/data/raw}
+  analytics_lake_path: ${ANALYTICS_LAKE_PATH:-/data/analytics}
+  feature_store_path: ${FEATURE_STORE_PATH:-/data/features}
+  format: parquet
+  compression: snappy
+  row_group_size_mb: 128
+
+ingestion:
+  backfill:
+    start_date: "2019-01-01"
+    end_date: "2026-03-24"
+    symbols: [AAPL, MSFT, GOOGL, TSLA, NVDA]
+    schemas: [trades, quotes, ohlcv-1m, ohlcv-1d]
+    chunk_size_days: 30
+    max_retries: 5
+    checkpoint_every_records: 1000
+    checkpoint_every_mb: 100
+  incremental:
+    schedule: "0 17 * * 1-5"
+    lookback_hours: 24
+    symbols_per_batch: 100
+
+features:
+  technical_indicators:
+    - name: sma_20
+      window: 20
+      type: simple_moving_average
+    - name: ema_50
+      window: 50
+      type: exponential_moving_average
+    - name: rsi_14
+      window: 14
+      type: relative_strength_index
+    - name: macd
+      fast: 12
+      slow: 26
+      signal: 9
+      type: macd
+    - name: bollinger_20
+      window: 20
+      std: 2
+      type: bollinger_bands
+  volume_indicators:
+    - name: vwap
+      type: vwap
+    - name: obv
+      type: on_balance_volume
+    - name: volume_ratio_20
+      window: 20
+      type: volume_ratio
+  volatility_indicators:
+    - name: garman_klass_20
+      window: 20
+      type: garman_klass
+    - name: parkinson_20
+      window: 20
+      type: parkinson
+    - name: atr_14
+      window: 14
+      type: atr
+  version: "1.0.0"
+
+quality:
+  completeness_threshold: 0.995
+  outlier_std_threshold: 10
+  cross_validation_sample_size: 10
+  alert_channels: [slack, email]
+
+monitoring:
+  prometheus_port: 9090
+  health_check_port: 8080
+  slack_webhook_url: ${SLACK_WEBHOOK_URL:-}
+  alert_email: ${ALERT_EMAIL:-}
