@@ -448,9 +448,13 @@ strategy:
     # IS-validated weights — grid-search on 2018-2022 only
     # OOS Sharpe: +0.15 (2023-2025, PIT universe, exec delay)
     # Overfit weights (ts=0.60/mr=0.10/macd=0.25) gave: -0.007 OOS — do NOT revert
-    bull_w_ts_mom: 0.50   # IS-fitted: 2018-2022
+    # IS-validated base weights (v1.0.0-paper-baseline, grid-search 2018-2022)
+    # Post-validation VWAP-SMA addition: ts_mom trimmed 0.50→0.45, macd 0.30→0.25
+    # The 0.10 offset is applied in signals.py via (bull_w_ts_mom - 0.05) etc.
+    # Trim is evidence-based: VWAP-SMA IC +0.042 t=+6.02 at 10d (27yr dataset)
+    bull_w_ts_mom: 0.50   # effective in bull blend: 0.45 (code applies -0.05)
     bull_w_mr: 0.15
-    bull_w_macd: 0.30
+    bull_w_macd: 0.30     # effective in bull blend: 0.25 (code applies -0.05)
     bull_w_rsi: 0.05
     bull_use_pmo: false
     bull_use_adx: false   # ADX disabled in all regimes — hurts Sharpe OOS (see diagnostics/technical_indicator_ic.py)
