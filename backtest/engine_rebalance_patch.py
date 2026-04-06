@@ -58,6 +58,13 @@ def build_rebalance_schedule(
     signal_change_threshold: float = 0.15,
     vix_spike_threshold: float = 0.20,
     biweekly_n_trading_days: int = 10,
+    # ── Adaptive scheduler ────────────────────────────────────────────
+    # rebalance_freq="adaptive" uses choppy_score_series to switch:
+    #   score < adaptive_weekly_threshold  → biweekly (GREEN regime)
+    #   score >= adaptive_weekly_threshold → weekly   (YELLOW/ORANGE/RED)
+    choppy_score_series: Optional[pd.Series] = None,
+    adaptive_weekly_threshold: float = 0.17,  # YELLOW onset in ChoppyDetector
+    adaptive_smoothing: int = 3,              # days of score EMA before switching
 ) -> set:
     """Build the set of dates on which the portfolio should rebalance.
 
@@ -106,7 +113,16 @@ def build_rebalance_schedule(
     # ------------------------------------------------------------------
     # 1. Base schedule from frequency
     # ------------------------------------------------------------------
-    base_schedule = _base_schedule(s, rebalance_freq, biweekly_n_trading_days)
+    if rebalance_freq == "adaptive" and choppy_score_series is not None:
+        base_schedule = _adaptive_schedule(
+            dates,
+            choppy_score_series,
+            adaptive_weekly_threshold,
+            adaptive_smoothing,
+            biweekly_n_trading_days,
+        )
+    else:
+        base_schedule = _base_schedule(s, rebalance_freq, biweekly_n_trading_days)
 
     logger.info(
         "Base schedule: freq='%s', %d rebalance dates from %s to %s",
@@ -285,6 +301,91 @@ def _apply_signal_filter(
             )
 
     return filtered
+
+
+def _adaptive_schedule(
+    dates: list,
+    choppy_score: pd.Series,
+    weekly_threshold: float,
+    smoothing: int,
+    biweekly_n: int,
+) -> set:
+    """Adaptive rebalance schedule driven by ChoppyRegimeDetector score.
+
+    Logic (per trading day):
+      - Smooth choppy_score with ``smoothing``-day EMA (prevents single-day
+        whipsawing between regimes).
+      - If smoothed score >= weekly_threshold (YELLOW/ORANGE/RED):
+          schedule every Friday  (weekly — react fast in choppy/crisis regime)
+      - If smoothed score < weekly_threshold (GREEN):
+          schedule every ``biweekly_n`` trading days (biweekly — save turnover
+          cost in calm trending regime)
+
+    This directly targets the three failure folds:
+      COVID 2020   — score spiked to ORANGE in Feb, switched to weekly.
+      GFC 2007-08  — score elevated through bear cascade, stayed weekly.
+      Bull 2013-19 — score mostly GREEN, biweekly throughout (no regression).
+
+    Parameters
+    ----------
+    dates           : trading dates in the period
+    choppy_score    : ChoppyRegimeDetector score series (full history, causal)
+    weekly_threshold: score above which we switch to weekly (default: 0.17,
+                      matching the YELLOW onset in CHOPPY_SCALE_THRESHOLDS)
+    smoothing       : EMA span to avoid single-day regime flips
+    biweekly_n      : trading days between biweekly rebalances
+
+    Returns
+    -------
+    set of pd.Timestamp — rebalance dates for the period
+    """
+    sorted_dates = sorted(dates)
+    if not sorted_dates:
+        return set()
+
+    # Smooth the score to avoid whipsawing (3-day EMA default)
+    score_aligned = (
+        choppy_score
+        .reindex(sorted_dates, method="ffill")
+        .fillna(0.0)
+    )
+    score_smooth = score_aligned.ewm(span=smoothing, adjust=False).mean()
+
+    schedule: set = set()
+    last_biweekly_idx = 0   # tracks position in biweekly cadence
+    in_weekly_mode = score_smooth.iloc[0] >= weekly_threshold
+
+    for i, date in enumerate(sorted_dates):
+        score_today = float(score_smooth.iloc[i])
+        was_weekly  = in_weekly_mode
+        in_weekly_mode = score_today >= weekly_threshold
+
+        if in_weekly_mode:
+            # Weekly mode: rebalance on Fridays (same as _base_schedule)
+            if date.weekday() == 4:   # 4 = Friday
+                schedule.add(date)
+                last_biweekly_idx = i  # reset biweekly counter on switch-back
+        else:
+            # Biweekly mode: rebalance every biweekly_n trading days
+            # On first switch back to GREEN, start fresh biweekly counter
+            if was_weekly and not in_weekly_mode:
+                last_biweekly_idx = i  # reset counter at GREEN re-entry
+            if (i - last_biweekly_idx) % biweekly_n == 0:
+                schedule.add(date)
+
+    # Always include the first date as initialisation rebalance
+    if sorted_dates:
+        schedule.add(sorted_dates[0])
+
+    logger.debug(
+        "Adaptive schedule: %d rebalance dates | weekly_days=%d, biweekly_days=%d",
+        len(schedule),
+        sum(1 for d in schedule
+            if float(score_smooth.reindex([d], method="ffill").iloc[0]) >= weekly_threshold),
+        sum(1 for d in schedule
+            if float(score_smooth.reindex([d], method="ffill").iloc[0]) < weekly_threshold),
+    )
+    return schedule
 
 
 def _vix_forced_dates(
