@@ -47,6 +47,9 @@ assets:
       - EWJ     # Japan equities — geographic diversification
       - EMXC    # Emerging markets ex-China — geographic diversification without China risk
       - XLV     # Healthcare — defensive sector
+      - XLU     # Utilities — defensive, low-beta, decorrelates in tariff/inflation shocks
+      - XLP     # Consumer Staples — defensive, low-beta, crisis decorrelation confirmed
+      - SHY     # 1-3yr Treasury — duration hedge; holds when TLT fails in rate-hike cycles
     data_source: yfinance
 
   crypto:
