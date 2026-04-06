@@ -1,0 +1,76 @@
+{
+  "periods": [
+    {
+      "label": "GFC 2008",
+      "base_sh": -0.929,
+      "chop_sh": -1.331,
+      "delta_sh": -0.402,
+      "base_mdd": -9.75,
+      "chop_mdd": -16.08,
+      "spy_sh": -0.876
+    },
+    {
+      "label": "COVID 2020",
+      "base_sh": 1.91,
+      "chop_sh": 2.412,
+      "delta_sh": 0.502,
+      "base_mdd": -9.14,
+      "chop_mdd": -8.47,
+      "spy_sh": 0.515
+    },
+    {
+      "label": "Rate hike 2022",
+      "base_sh": -1.437,
+      "chop_sh": -1.398,
+      "delta_sh": 0.039,
+      "base_mdd": -16.87,
+      "chop_mdd": -16.35,
+      "spy_sh": -0.773
+    },
+    {
+      "label": "2023",
+      "base_sh": 1.452,
+      "chop_sh": 1.905,
+      "delta_sh": 0.453,
+      "base_mdd": -5.67,
+      "chop_mdd": -5.66,
+      "spy_sh": 2.068
+    },
+    {
+      "label": "2024",
+      "base_sh": 1.99,
+      "chop_sh": 2.018,
+      "delta_sh": 0.028,
+      "base_mdd": -5.41,
+      "chop_mdd": -5.41,
+      "spy_sh": 2.044
+    },
+    {
+      "label": "2025",
+      "base_sh": -0.077,
+      "chop_sh": -0.04,
+      "delta_sh": 0.037,
+      "base_mdd": -11.2,
+      "chop_mdd": -11.19,
+      "spy_sh": 0.935
+    },
+    {
+      "label": "Q1-2026",
+      "base_sh": 0.704,
+      "chop_sh": 0.682,
+      "delta_sh": -0.022,
+      "base_mdd": -2.76,
+      "chop_mdd": -2.63,
+      "spy_sh": -1.006
+    },
+    {
+      "label": "Full OOS 23-26",
+      "base_sh": 1.055,
+      "chop_sh": 1.206,
+      "delta_sh": 0.151,
+      "base_mdd": -11.21,
+      "chop_mdd": -11.2,
+      "spy_sh": 1.303
+    }
+  ]
+}
