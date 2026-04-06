@@ -1,0 +1,218 @@
+{
+  "variants": [
+    "2-tier (baseline)",
+    "T3 ungated",
+    "T3 gate@15%",
+    "T3 gate@10%"
+  ],
+  "periods": {
+    "GFC 2008": {
+      "2-tier (baseline)": {
+        "sh": -0.929,
+        "mdd": -9.75,
+        "pct_t3": 66.4,
+        "pct_t3_gated": 25.3
+      },
+      "T3 ungated": {
+        "sh": -0.929,
+        "mdd": -9.75,
+        "pct_t3": 66.4,
+        "pct_t3_gated": 25.3
+      },
+      "T3 gate@15%": {
+        "sh": -0.873,
+        "mdd": -9.9,
+        "pct_t3": 66.4,
+        "pct_t3_gated": 25.3
+      },
+      "T3 gate@10%": {
+        "sh": -1.124,
+        "mdd": -11.44,
+        "pct_t3": 66.4,
+        "pct_t3_gated": 25.3
+      }
+    },
+    "COVID 2020": {
+      "2-tier (baseline)": {
+        "sh": 1.91,
+        "mdd": -9.14,
+        "pct_t3": 55.3,
+        "pct_t3_gated": 5.1
+      },
+      "T3 ungated": {
+        "sh": 1.91,
+        "mdd": -9.14,
+        "pct_t3": 55.3,
+        "pct_t3_gated": 5.1
+      },
+      "T3 gate@15%": {
+        "sh": 2.412,
+        "mdd": -8.47,
+        "pct_t3": 55.3,
+        "pct_t3_gated": 5.1
+      },
+      "T3 gate@10%": {
+        "sh": 2.412,
+        "mdd": -8.47,
+        "pct_t3": 55.3,
+        "pct_t3_gated": 5.1
+      }
+    },
+    "Rate hike 2022": {
+      "2-tier (baseline)": {
+        "sh": -1.437,
+        "mdd": -16.87,
+        "pct_t3": 82.1,
+        "pct_t3_gated": 1.2
+      },
+      "T3 ungated": {
+        "sh": -1.437,
+        "mdd": -16.87,
+        "pct_t3": 82.1,
+        "pct_t3_gated": 1.2
+      },
+      "T3 gate@15%": {
+        "sh": -1.352,
+        "mdd": -15.94,
+        "pct_t3": 82.1,
+        "pct_t3_gated": 1.2
+      },
+      "T3 gate@10%": {
+        "sh": -1.328,
+        "mdd": -15.87,
+        "pct_t3": 82.1,
+        "pct_t3_gated": 1.2
+      }
+    },
+    "2023": {
+      "2-tier (baseline)": {
+        "sh": 1.452,
+        "mdd": -5.67,
+        "pct_t3": 10.0,
+        "pct_t3_gated": 0.0
+      },
+      "T3 ungated": {
+        "sh": 1.452,
+        "mdd": -5.67,
+        "pct_t3": 10.0,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@15%": {
+        "sh": 1.905,
+        "mdd": -5.66,
+        "pct_t3": 10.0,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@10%": {
+        "sh": 1.905,
+        "mdd": -5.66,
+        "pct_t3": 10.0,
+        "pct_t3_gated": 0.0
+      }
+    },
+    "2024": {
+      "2-tier (baseline)": {
+        "sh": 1.99,
+        "mdd": -5.41,
+        "pct_t3": 5.6,
+        "pct_t3_gated": 0.0
+      },
+      "T3 ungated": {
+        "sh": 1.99,
+        "mdd": -5.41,
+        "pct_t3": 5.6,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@15%": {
+        "sh": 2.018,
+        "mdd": -5.41,
+        "pct_t3": 5.6,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@10%": {
+        "sh": 2.018,
+        "mdd": -5.41,
+        "pct_t3": 5.6,
+        "pct_t3_gated": 0.0
+      }
+    },
+    "2025": {
+      "2-tier (baseline)": {
+        "sh": -0.077,
+        "mdd": -11.2,
+        "pct_t3": 23.2,
+        "pct_t3_gated": 0.0
+      },
+      "T3 ungated": {
+        "sh": -0.077,
+        "mdd": -11.2,
+        "pct_t3": 23.2,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@15%": {
+        "sh": -0.04,
+        "mdd": -11.19,
+        "pct_t3": 23.2,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@10%": {
+        "sh": -0.04,
+        "mdd": -11.19,
+        "pct_t3": 23.2,
+        "pct_t3_gated": 0.0
+      }
+    },
+    "Q1-2026": {
+      "2-tier (baseline)": {
+        "sh": 0.704,
+        "mdd": -2.76,
+        "pct_t3": 42.9,
+        "pct_t3_gated": 0.0
+      },
+      "T3 ungated": {
+        "sh": 0.704,
+        "mdd": -2.76,
+        "pct_t3": 42.9,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@15%": {
+        "sh": 0.682,
+        "mdd": -2.63,
+        "pct_t3": 42.9,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@10%": {
+        "sh": 0.682,
+        "mdd": -2.63,
+        "pct_t3": 42.9,
+        "pct_t3_gated": 0.0
+      }
+    },
+    "Full OOS 23-26": {
+      "2-tier (baseline)": {
+        "sh": 1.055,
+        "mdd": -11.21,
+        "pct_t3": 15.2,
+        "pct_t3_gated": 0.0
+      },
+      "T3 ungated": {
+        "sh": 1.055,
+        "mdd": -11.21,
+        "pct_t3": 15.2,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@15%": {
+        "sh": 1.206,
+        "mdd": -11.2,
+        "pct_t3": 15.2,
+        "pct_t3_gated": 0.0
+      },
+      "T3 gate@10%": {
+        "sh": 1.206,
+        "mdd": -11.2,
+        "pct_t3": 15.2,
+        "pct_t3_gated": 0.0
+      }
+    }
+  }
+}
