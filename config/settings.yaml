@@ -446,4 +446,5 @@ strategy:
     bull_w_macd: 0.30
     bull_w_rsi: 0.05
     bull_use_pmo: false
-    bull_use_adx: false
+    bull_use_adx: false   # ADX disabled in all regimes — hurts Sharpe OOS (see diagnostics/technical_indicator_ic.py)
+    bear_use_adx: false   # IC: 16.92 Sharpe with ADX vs 17.82 without — net negative

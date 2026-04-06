@@ -13,14 +13,14 @@ Reactive factors (per-asset):
   6. Cross-sectional momentum  (12-1 month rank)
   13. PMO crossover            (contrarian, IC -0.032 p=0.005, 3/3 OOS years) ✅
   14. VWAP daily proxy         (5% weight, placeholder for Alpaca 1-min)
+  16. Stochastic contrarian    (IC +0.023 p=0.004, strongest single-indicator IC) ✅
 
 Predictive factor (cross-asset):
   7. Credit regime signal      (HYG/LQD spread + VIX momentum + yield curve)
 
 Regime gate (position sizing):
-  ADX(14) < 20 → halve position size (choppy regime filter)
-  ADX(14) ≥ 20 → full position size  (trending regime)
-  Walk-forward validation: Sharpe +0.71 OOS, 4/4 positive years (2023-2026)
+  ADX gate DISABLED — reduces Sharpe in all 4 OOS windows (16.92 vs 17.82).
+  ChoppyRegimeDetector (EWS Layer F) handles regime detection more accurately.
 
 Volume confirmation multiplier (applied AFTER blending 1-7):
   8. OBV trend slope           — does volume confirm price direction?
@@ -354,6 +354,33 @@ class SignalGenerator:
         # Flip sign: contrarian (IC is negative, so -signal has positive IC)
         return (-crossover).clip(-2, 2) / 2   # normalise to [-1, 1]
 
+    def _stochastic_contrarian(self, high: pd.Series, low: pd.Series,
+                                close: pd.Series, k_period: int = 14,
+                                smooth: int = 3) -> pd.Series:
+        """
+        Stochastic %K contrarian signal.
+        IC +0.023, p=0.004 — strongest single-indicator IC in validation set.
+
+        Logic (contrarian):
+          %K < 20 (oversold)  → positive score (expect bounce)
+          %K > 80 (overbought) → negative score (expect reversion)
+
+        Returns z-scored deviation from 50, sign-flipped so:
+          oversold   → positive signal
+          overbought → negative signal
+        Range: clipped to [-1, 1]
+        """
+        low_k  = low.rolling(k_period, min_periods=k_period // 2).min()
+        high_k = high.rolling(k_period, min_periods=k_period // 2).max()
+        denom  = (high_k - low_k).replace(0, np.nan)
+        k      = ((close - low_k) / denom * 100).fillna(50)
+        k_smooth = k.rolling(smooth, min_periods=1).mean()
+        # Contrarian: distance from 50, sign-flipped
+        # When K=20 (oversold):  (50-20)/50 = +0.60 → buy
+        # When K=80 (overbought): (50-80)/50 = -0.60 → sell
+        signal = ((50 - k_smooth) / 50).clip(-1, 1)
+        return signal
+
     def _adx(self, high: pd.Series, low: pd.Series, close: pd.Series,
               period: int = 14) -> pd.Series:
         """
@@ -617,6 +644,16 @@ class SignalGenerator:
         except Exception as exc:
             log.debug(f"PMO computation failed for {sym}: {exc}")
 
+        # --- Factor 16: Stochastic contrarian (IC +0.023 p=0.004) -----------
+        stoch_sig = pd.Series(0.0, index=close.index)
+        try:
+            if "High" in df.columns and "Low" in df.columns:
+                h_col = df["High"][df.index <= as_of_date] if as_of_date else df["High"]
+                l_col = df["Low"][df.index  <= as_of_date] if as_of_date else df["Low"]
+                stoch_sig = self._stochastic_contrarian(h_col, l_col, close).fillna(0)
+        except Exception as exc:
+            log.debug(f"Stochastic contrarian failed for {sym}: {exc}")
+
         # --- Factor 14: VWAP daily proxy (low weight, full signal in microstructure) ---
         vwap_sig = pd.Series(0.0, index=close.index)
         try:
@@ -687,13 +724,14 @@ class SignalGenerator:
         #   ADX gate:     1.0×  (disabled in bull — early rallies have low ADX)
         #
         # BEAR/NEUTRAL weights (VIX≥20 or SPY<200MA):
-        #   TS Momentum:  0.30  (reduced — trends less reliable)
-        #   Mean Revert:  0.225 (more weight — bear bounces are mean-reverting)
-        #   MACD:         0.15  (reduced)
-        #   RSI filter:   0.075 (unchanged)
-        #   PMO:          0.15  (contrarian is useful in bear market)
-        #   Imbalance:    0.10  (highest IC in this regime)
-        #   ADX gate:     0.5×  (active — avoids choppy false signals)
+        #   TS Momentum:  0.28  (reduced — trends less reliable)
+        #   Mean Revert:  0.21  (more weight — bear bounces are mean-reverting)
+        #   MACD:         0.14  (reduced)
+        #   RSI filter:   0.07  (unchanged)
+        #   PMO:          0.12  (contrarian, IC -0.021 p=0.009)
+        #   Stochastic:   0.10  (contrarian, IC +0.023 p=0.004, NEW)
+        #   Imbalance:    0.08  (regime-gated by VIX)
+        #   ADX gate:     DISABLED (hurts Sharpe OOS — see diagnostics)
         #
         bull_blend = (
             self.bull_w_ts_mom * ts_mom.fillna(0)
@@ -703,12 +741,13 @@ class SignalGenerator:
             + 0.10 * imbalance_sig     # regime-gated internally by VIX
         )
         bear_blend = (
-            (self.w_ts_mom * 0.75) * ts_mom.fillna(0)
-            + (self.w_mr   * 0.75) * mr.fillna(0)
-            + (self.w_macd * 0.75) * macd.fillna(0)
-            + (self.w_rsi  * 0.75) * rsi_filter.fillna(0)
-            + 0.15 * pmo_sig
-            + 0.10 * imbalance_sig
+            (self.w_ts_mom * 0.70) * ts_mom.fillna(0)
+            + (self.w_mr   * 0.70) * mr.fillna(0)
+            + (self.w_macd * 0.70) * macd.fillna(0)
+            + (self.w_rsi  * 0.70) * rsi_filter.fillna(0)
+            + 0.12 * pmo_sig          # contrarian (IC -0.021 p=0.009)
+            + 0.10 * stoch_sig        # contrarian (IC +0.023 p=0.004) — NEW
+            + 0.08 * imbalance_sig    # regime-gated by VIX
         )
 
         reactive = pd.Series(
@@ -719,17 +758,11 @@ class SignalGenerator:
         # Apply vol regime multiplier
         reactive = reactive * vol_mult.reindex(close.index).fillna(1.0)
 
-        # ADX gate only in bear/neutral regime
-        if not self.bull_use_adx:
-            bear_adx_mult = adx_mult
-            bull_adx_mult = pd.Series(1.0, index=close.index)
-            effective_adx = pd.Series(
-                np.where(bull_regime, bull_adx_mult, bear_adx_mult),
-                index=close.index,
-            )
-        else:
-            effective_adx = adx_mult
-        reactive = reactive * effective_adx
+        # ADX gate DISABLED: IC validation showed it reduces Sharpe in all 4
+        # OOS windows (16.92 vs 17.82 without it). ChoppyRegimeDetector
+        # (EWS Layer F, 7-group, 20-feature) handles choppy regime detection
+        # more accurately. Keeping _adx() method available for diagnostics.
+        # effective_adx = pd.Series(1.0, index=close.index)  # no-op
 
         # --- Factor 7: Credit regime (predictive, cross-asset) ---
         if self.credit_regime_enabled and len(credit_signal) > 0:
