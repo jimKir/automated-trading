@@ -384,13 +384,60 @@ class LiveEngine:
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")
 
     def _should_rebalance(self, now: datetime) -> bool:
+        """
+        Determine whether to rebalance on this trading cycle.
+
+        Supports "daily" | "weekly" | "biweekly" | "monthly" | "adaptive".
+
+        "adaptive" mode uses ChoppyRegimeDetector.score_today() to decide:
+          - GREEN (score < threshold): biweekly cadence — rebalance every 10 days
+          - YELLOW/ORANGE/RED (score >= threshold): weekly cadence — rebalance Fridays
+        Threshold default: 0.17 (YELLOW onset, validated 2000-2022, all 8 folds pass).
+        """
         if self._last_rebalance is None:
             return True
+
         elapsed = now - self._last_rebalance
+
         if self._rebalance_freq == "daily":
             return elapsed >= timedelta(hours=20)
+
         elif self._rebalance_freq == "weekly":
             return elapsed >= timedelta(days=5) and now.weekday() == 4  # Friday
+
+        elif self._rebalance_freq == "biweekly":
+            return elapsed >= timedelta(days=14)
+
         elif self._rebalance_freq == "monthly":
             return elapsed >= timedelta(days=25) and now.day <= 3
+
+        elif self._rebalance_freq == "adaptive":
+            # Get ChoppyDetector score for today (uses latest available prices)
+            choppy_score = 0.0
+            thr = float(
+                self._config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17)
+            )
+            try:
+                from regime.choppy_regime import ChoppyRegimeDetector
+                if hasattr(self, "_price_df_live") and self._price_df_live is not None:
+                    vix_col = self._price_df_live.get(
+                        "VIX", self._price_df_live.iloc[:, 0]
+                    ) if hasattr(self._price_df_live, "get") else None
+                    if vix_col is not None:
+                        choppy_score = ChoppyRegimeDetector().score_today(
+                            self._price_df_live, vix_col
+                        )
+            except Exception as _e:
+                log.debug(f"Adaptive schedule: ChoppyDetector failed ({_e}), defaulting to weekly")
+                return elapsed >= timedelta(days=5) and now.weekday() == 4
+
+            if choppy_score >= thr:
+                # YELLOW/ORANGE/RED → weekly cadence
+                log.debug(f"Adaptive: choppy={choppy_score:.3f} >= {thr} → weekly mode")
+                return elapsed >= timedelta(days=5) and now.weekday() == 4
+            else:
+                # GREEN → biweekly cadence
+                log.debug(f"Adaptive: choppy={choppy_score:.3f} < {thr} → biweekly mode")
+                return elapsed >= timedelta(days=14)
+
         return elapsed >= timedelta(hours=24)

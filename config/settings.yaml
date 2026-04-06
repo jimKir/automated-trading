@@ -75,7 +75,6 @@ strategy:
   zscore_exit: 0.5          # mean-reversion exit z-score
   momentum_threshold: 0.02  # min momentum signal strength
   regime_window: 126        # market regime detection window (6 months)
-  rebalance_frequency: weekly  # daily | weekly | monthly
 
 # ============================================================
 # DYNAMIC UNIVERSE SELECTOR
@@ -434,6 +433,11 @@ databento_signals:
 
 # Regime switching (added Apr 2026)
 strategy:
+  # Rebalance schedule (validated 2000-2022, all 8 OOS folds)
+  # adaptive: biweekly in GREEN (ChoppyScore<0.17), weekly in YELLOW+
+  rebalance_frequency: adaptive       # daily | weekly | biweekly | monthly | adaptive
+  adaptive_weekly_threshold: 0.17     # YELLOW onset threshold (see adaptive_scheduler_report.pdf)
+
   regime_switching:
     enabled: true
     bull_vix_threshold: 20.0

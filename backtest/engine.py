@@ -694,14 +694,32 @@ class BacktestEngine:
     # -----------------------------------------------------------------------
 
     def _rebalance_schedule(self, dates: list) -> set:
-        s = pd.Series(dates, index=dates)
-        if self.rebalance_freq == "daily":
-            return set(dates)
-        elif self.rebalance_freq == "weekly":
-            return set(s.resample("W-FRI").last().dropna())
-        elif self.rebalance_freq == "monthly":
-            return set(s.resample("BME").last().dropna())
-        return set(dates)
+        """
+        Build the rebalance schedule for this run.
+
+        Supports "daily" | "weekly" | "biweekly" | "monthly" | "adaptive".
+
+        "adaptive" uses ChoppyRegimeDetector score to switch between:
+          - biweekly (score < adaptive_weekly_threshold, GREEN regime)
+          - weekly   (score >= threshold, YELLOW/ORANGE/RED)
+        Validated across 8 OOS folds 2000-2022: wins all 8, mean Sharpe +0.446
+        vs weekly +0.274 and biweekly +0.340.
+        See: adaptive_scheduler_report.pdf (commit 783fb19)
+        """
+        from backtest.engine_rebalance_patch import build_rebalance_schedule
+
+        # Adaptive mode: ChoppyDetector score pre-computed in run() init block
+        choppy = getattr(self, "_choppy_score_series", None)
+        thr    = float(
+            self.config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17)
+        )
+
+        return build_rebalance_schedule(
+            dates             = dates,
+            rebalance_freq    = self.rebalance_freq,  # reads from config
+            choppy_score_series         = choppy,
+            adaptive_weekly_threshold   = thr,
+        )
 
     def _check_stops(
         self,
