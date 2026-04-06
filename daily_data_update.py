@@ -50,11 +50,12 @@ MAX_STALE_DAYS = 3  # Trading days — alert if data is older than this
 def run_daily_update(dry_run=False, key_only=False):
     import pandas as pd
     from fetch_all import (
-        AlpacaFetcher, load_cached, get_cached_end_date,
+        load_cached, get_cached_end_date,
         _canonical_path, _atomic_write, _get_catalogue,
         _register, validate_dataframe, OHLCV_DIR, CRYPTO_DIR,
         CACHE_DIR, REFRESH_TAIL,
     )
+    from fetch_with_retry import FetchWithRetry
 
     today = datetime.now().strftime("%Y-%m-%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -83,6 +84,10 @@ def run_daily_update(dry_run=False, key_only=False):
                 (d.name.replace("-", "/", 1) if "/" not in d.name else d.name, True)
                 for d in CRYPTO_DIR.iterdir() if d.is_dir()
             ]
+        # Always include key crypto symbols even if they don't exist yet (ensures fresh daily fetch)
+        for sym in KEY_CRYPTO:
+            if (sym, True) not in all_symbols:
+                all_symbols.append((sym, True))
 
     logger.info(f"Daily update: {len(all_symbols)} symbols to check ({today})")
 
@@ -97,8 +102,8 @@ def run_daily_update(dry_run=False, key_only=False):
         report["needs_update"] = needs_update
         return report
 
-    # Initialize API
-    api = AlpacaFetcher()
+    # Initialize API with retry wrapper (max 3 retries per symbol)
+    fetcher = FetchWithRetry(max_retries=3)
     cat = _get_catalogue()
 
     updated = 0
@@ -119,7 +124,8 @@ def run_daily_update(dry_run=False, key_only=False):
                 datetime.strptime(cached_end, "%Y-%m-%d") - timedelta(days=REFRESH_TAIL)
             ).strftime("%Y-%m-%d")
 
-        df_new = api.fetch_bars(sym, fetch_start, today, is_crypto)
+        # Use retry-aware fetch (max 3 retries with exponential backoff)
+        df_new = fetcher.fetch_bars_with_retry(sym, fetch_start, today, is_crypto)
 
         if df_new is not None and not df_new.empty:
             # Merge with existing
@@ -159,6 +165,41 @@ def run_daily_update(dry_run=False, key_only=False):
         # Progress
         if (i + 1) % 100 == 0:
             logger.info(f"Progress: {i+1}/{len(all_symbols)} | updated:{updated} failed:{failed}")
+
+    # ── Retry previously failed symbols ──
+    if report["failed"]:
+        logger.info(f"Retrying {len(report['failed'])} failed symbols...")
+        retry_count = 0
+        for sym in report["failed"][:50]:  # Retry up to 50 failed symbols
+            is_crypto = (sym, True) in [(s, c) for s, c in all_symbols if c]
+            cached_end = get_cached_end_date(sym, is_crypto)
+            fetch_start = cached_end or (datetime.now() - timedelta(days=5*365)).strftime("%Y-%m-%d")
+            if cached_end:
+                fetch_start = (
+                    datetime.strptime(cached_end, "%Y-%m-%d") - timedelta(days=REFRESH_TAIL)
+                ).strftime("%Y-%m-%d")
+
+            df_retry = fetcher.fetch_bars_with_retry(sym, fetch_start, today, is_crypto)
+            if df_retry is not None and not df_retry.empty:
+                df_old = load_cached(sym, is_crypto)
+                if df_old is not None:
+                    cutoff = pd.Timestamp(fetch_start, tz="UTC")
+                    if df_old.index.tz is None:
+                        cutoff = pd.Timestamp(fetch_start)
+                    else:
+                        cutoff = pd.Timestamp(fetch_start, tz="UTC").tz_convert(df_old.index.tz)
+                    df_old = df_old[df_old.index < cutoff]
+                    df_merged = pd.concat([df_old, df_retry]).sort_index()
+                    df_merged = df_merged[~df_merged.index.duplicated(keep="last")]
+                else:
+                    df_merged = df_retry
+
+                if _atomic_write(_canonical_path(sym, is_crypto), df_merged):
+                    report["failed"].remove(sym)
+                    retry_count += 1
+                    logger.info(f"{sym}: ✓ Recovered on retry")
+
+        logger.info(f"Retry result: {retry_count} symbols recovered")
 
     # ── Staleness check on key symbols ──
     logger.info("Checking staleness of key symbols...")
