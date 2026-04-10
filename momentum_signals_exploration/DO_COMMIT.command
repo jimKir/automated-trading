@@ -51,7 +51,7 @@ git diff --cached --name-only
 echo ""
 
 # Security check
-if git diff --cached | grep -qi "PKYLHTDCWWAPTXZ6JUSF66JGCS\|8eEbShK7MTfzLn1fLifrcfpunnfMSt5rvpq5uBNS21UY"; then
+if git diff --cached | grep -qiE "(APCA_API_KEY|api_key\s*=\s*['\"][A-Z0-9]{20})" ; then
     echo "⚠️  ABORT — hardcoded credentials detected! Fix before committing."
     exit 1
 fi

@@ -49,7 +49,7 @@ DATA_DIR     = REPO_ROOT / "data" / "historical"
 DAILY_DIR    = DATA_DIR / "daily"
 MACRO_DIR    = DATA_DIR / "macro"
 META_FILE    = DATA_DIR / "metadata.json"
-ALERT_EMAIL  = "kiritsis.di@gmail.com"
+ALERT_EMAIL  = os.environ.get("ALERT_EMAIL", "")
 
 # ── Universe ───────────────────────────────────────────────────────────────────
 EQUITY_SYMS = [

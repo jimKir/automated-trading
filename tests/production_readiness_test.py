@@ -402,9 +402,11 @@ print("\n=== PHASE 2e: DynamicUniverseScanner Dry-Run ===")
 try:
     from data.dynamic_universe_scanner import DynamicUniverseScanner
 
+    _api_key = os.environ.get('ALPACA_API_KEY') or os.environ.get('APCA_API_KEY_ID', '')
+    _secret_key = os.environ.get('ALPACA_SECRET_KEY') or os.environ.get('APCA_API_SECRET_KEY', '')
     scanner = DynamicUniverseScanner(
-        api_key="PKYLHTDCWWAPTXZ6JUSF",
-        secret_key="8eEbShK7MTfzLn1fLifrcfpunnfMSt5rvpq5uBNS21UY",
+        api_key=_api_key,
+        secret_key=_secret_key,
     )
 
     # Test 1: GREEN regime scan
@@ -464,8 +466,8 @@ try:
     test_config["system"] = {"mode": "paper"}
     test_config.setdefault("brokers", {})
     test_config["brokers"]["alpaca"] = {
-        "api_key": "PKYLHTDCWWAPTXZ6JUSF",
-        "api_secret": "8eEbShK7MTfzLn1fLifrcfpunnfMSt5rvpq5uBNS21UY",
+        "api_key": os.environ.get('ALPACA_API_KEY') or os.environ.get('APCA_API_KEY_ID', ''),
+        "api_secret": os.environ.get('ALPACA_SECRET_KEY') or os.environ.get('APCA_API_SECRET_KEY', ''),
         "paper": True,
         "base_url": "https://paper-api.alpaca.markets",
     }

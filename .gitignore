@@ -4,6 +4,9 @@
 
 # Secrets — CRITICAL
 .env
+*.env
+.env.*
+!.env.example
 *.pem
 *.key
 secrets/
