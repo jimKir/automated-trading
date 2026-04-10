@@ -1,0 +1,740 @@
+[
+  {
+    "phase": "1c",
+    "test": "universe_contains_SPY",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_QQQ",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_IWM",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_GLD",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_TLT",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_SHY",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_XLU",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_XLP",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_BTC",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "universe_contains_ETH",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "rebalance_frequency",
+    "status": "PASS",
+    "detail": "got 'adaptive'"
+  },
+  {
+    "phase": "1c",
+    "test": "regime_switching_present",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "bull_weights_sum",
+    "status": "PASS",
+    "detail": "sum=1.000"
+  },
+  {
+    "phase": "1c",
+    "test": "position_anomaly_present",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1c",
+    "test": "alpaca_paper_url",
+    "status": "PASS",
+    "detail": "https://paper-api.alpaca.markets"
+  },
+  {
+    "phase": "1c",
+    "test": "choppy_thresholds_v4",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_AAPL",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_AGG",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_AMZN",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_AVGO",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_BAC",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_BTC",
+    "status": "PASS",
+    "detail": "3380 rows, 2017-01-01 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_CL",
+    "status": "PASS",
+    "detail": "2327 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_COPPER",
+    "status": "PASS",
+    "detail": "2327 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_CVX",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_DXY",
+    "status": "PASS",
+    "detail": "2328 rows, 2017-01-03 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EEM",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EMXC",
+    "status": "PASS",
+    "detail": "2184 rows, 2017-07-26 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_ES",
+    "status": "PASS",
+    "detail": "2329 rows, 2017-01-03 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_ETH",
+    "status": "PASS",
+    "detail": "3068 rows, 2017-11-09 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EURUSD",
+    "status": "PASS",
+    "detail": "2407 rows, 2017-01-02 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EWJ",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_GC",
+    "status": "PASS",
+    "detail": "2326 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_GLD",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_GOOGL",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_GS",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_HD",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_HYG",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_IWM",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_JNJ",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_JPM",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_JPY",
+    "status": "PASS",
+    "detail": "2407 rows, 2017-01-02 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_KO",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_LQD",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_MA",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_META",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_MMM",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_MSFT",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_NFLX",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_NQ",
+    "status": "PASS",
+    "detail": "2329 rows, 2017-01-03 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_NVDA",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_OIL",
+    "status": "PASS",
+    "detail": "2327 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_PG",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_QQQ",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_SHY",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_SOL",
+    "status": "PASS",
+    "detail": "2185 rows, 2020-04-10 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_SPY",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "SPY_data_to_2026",
+    "status": "PASS",
+    "detail": "max date: 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_TLT",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_TSLA",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_UNH",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_V",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_VGK",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_VIX",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_VNQ",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLE",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLF",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLK",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLV",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XOM",
+    "status": "PASS",
+    "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "required_SPY_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_QQQ_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_IWM_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_GLD_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_TLT_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_SHY_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_HYG_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_LQD_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_XLE_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_VIX_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_BTC_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "required_ETH_exists",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "1d",
+    "test": "extended_XLU_exists",
+    "status": "FAIL",
+    "detail": "XLU.parquet missing \u2014 non-critical"
+  },
+  {
+    "phase": "1d",
+    "test": "extended_XLP_exists",
+    "status": "FAIL",
+    "detail": "XLP.parquet missing \u2014 non-critical"
+  },
+  {
+    "phase": "1d",
+    "test": "extended_USO_exists",
+    "status": "FAIL",
+    "detail": "USO.parquet missing \u2014 non-critical"
+  },
+  {
+    "phase": "2a",
+    "test": "score_range_0_1",
+    "status": "PASS",
+    "detail": "min=0.093 max=0.597"
+  },
+  {
+    "phase": "2a",
+    "test": "group_vol_spike",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "group_price_vol",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "group_macro_credit",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "group_event_shock",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "group_commodity_fx",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "group_breadth",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "group_sentiment",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "choppy_detector_overall",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2a",
+    "test": "score_today",
+    "status": "PASS",
+    "detail": "score=0.246"
+  },
+  {
+    "phase": "2a",
+    "test": "graceful_no_hyg",
+    "status": "PASS",
+    "detail": "score=0.247"
+  },
+  {
+    "phase": "2b",
+    "test": "no_nan_signals",
+    "status": "PASS",
+    "detail": "0 NaN"
+  },
+  {
+    "phase": "2b",
+    "test": "signal_engine_overall",
+    "status": "PASS",
+    "detail": "53 signals"
+  },
+  {
+    "phase": "2c",
+    "test": "asset_classification",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2c",
+    "test": "floor_enforcement",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2c",
+    "test": "position_anomaly_overall",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2d",
+    "test": "case1_12ET_evaluates",
+    "status": "PASS",
+    "detail": "got False (VWAP/momentum evaluated)"
+  },
+  {
+    "phase": "2d",
+    "test": "case2_10ET_wait",
+    "status": "PASS",
+    "detail": "got False"
+  },
+  {
+    "phase": "2d",
+    "test": "case3_1305ET_fallback",
+    "status": "PASS",
+    "detail": "got True"
+  },
+  {
+    "phase": "2d",
+    "test": "case4_GLD_bypass",
+    "status": "PASS",
+    "detail": "got True"
+  },
+  {
+    "phase": "2d",
+    "test": "case5_BTC_outside_window",
+    "status": "PASS",
+    "detail": "got False"
+  },
+  {
+    "phase": "2d",
+    "test": "case6_BTC_inside_rsi",
+    "status": "PASS",
+    "detail": "got True (RSI evaluated)"
+  },
+  {
+    "phase": "2d",
+    "test": "hourly_timer_overall",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2e",
+    "test": "green_scan",
+    "status": "PASS",
+    "detail": "graceful degradation: {\"message\": \"unauthorized.\"}\n"
+  },
+  {
+    "phase": "2e",
+    "test": "orange_gate",
+    "status": "PASS",
+    "detail": "0 candidates (conservative)"
+  },
+  {
+    "phase": "2e",
+    "test": "red_gate",
+    "status": "PASS",
+    "detail": "0 candidates"
+  },
+  {
+    "phase": "2e",
+    "test": "api_failure_graceful",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2e",
+    "test": "scanner_overall",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "live_engine_init",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "dry_run_flag",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "broker_init",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "signal_gen_init",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "risk_mgr_init",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "pos_anomaly_scorer",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "hourly_timer",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "universe_scanner",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "phase": "2f",
+    "test": "rebalance_adaptive",
+    "status": "PASS",
+    "detail": "got 'adaptive'"
+  },
+  {
+    "phase": "2f",
+    "test": "live_engine_overall",
+    "status": "PASS",
+    "detail": ""
+  }
+]

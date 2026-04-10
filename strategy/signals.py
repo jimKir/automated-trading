@@ -765,21 +765,23 @@ class SignalGenerator:
         #   Imbalance:    0.08  (regime-gated by VIX)
         #   ADX gate:     DISABLED (hurts Sharpe OOS — see diagnostics)
         #
-        # BULL weights (post v1.0.0-paper-baseline, IC-validated additions):
-        #   ts_mom:    0.45  (was 0.50 — trimmed to make room for VWAP-SMA)
+        # BULL weights (v1.0.0-paper-baseline, IS-validated grid-search 2018-2022):
+        #   ts_mom:    0.50  (restored — VWAP-SMA rejected OOS, NOISE verdict)
         #   mr:        0.15  (unchanged)
-        #   macd:      0.25  (was 0.30 — trimmed to make room for VWAP-SMA)
+        #   macd:      0.30  (restored — VWAP-SMA rejected OOS, NOISE verdict)
         #   rsi:       0.05  (unchanged)
-        #   vwap_sma:  0.10  (NEW — IC +0.042 10d bull t=6.02, 27yr dataset)
         #   imbalance: 0.10  (unchanged, VIX-gated)
         #   ──────────────────────────────────────────────────────────────
         #   sum:       1.10  (imbalance is additive bonus, not part of base)
+        #
+        # NOTE: VWAP-SMA (F15) REMOVED from bull blend — NOISE verdict from
+        # walk-forward OOS validation. IC was significant IS but did not
+        # replicate OOS. Keeping _vwap_sma_proxy() method for future research.
         bull_blend = (
-            (self.bull_w_ts_mom - 0.05) * ts_mom.fillna(0)   # 0.50→0.45
-            + self.bull_w_mr            * mr.fillna(0)         # 0.15 unchanged
-            + (self.bull_w_macd - 0.05) * macd.fillna(0)      # 0.30→0.25
-            + self.bull_w_rsi           * rsi_filter.fillna(0) # 0.05 unchanged
-            + 0.10 * vwap_sma_sig    # momentum (IC +0.042 t=+6.02 10d bull)
+            self.bull_w_ts_mom * ts_mom.fillna(0)             # 0.50
+            + self.bull_w_mr   * mr.fillna(0)                 # 0.15 unchanged
+            + self.bull_w_macd * macd.fillna(0)               # 0.30
+            + self.bull_w_rsi  * rsi_filter.fillna(0)         # 0.05 unchanged
             + 0.10 * imbalance_sig   # VIX-gated
         )
         bear_blend = (

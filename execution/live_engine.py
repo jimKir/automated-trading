@@ -75,8 +75,9 @@ def get_broker(config: dict) -> BrokerBase:
 
 
 class LiveEngine:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, dry_run: bool = False):
         self.config = config
+        self.dry_run = dry_run
         self.mode = config.get("system", {}).get("mode", "paper")
         self.broker = get_broker(config)
         self.feed = DataFeed(config)
@@ -124,6 +125,36 @@ class LiveEngine:
                 log.info("PositionAnomalyScorer enabled — asymmetric per-symbol scaling")
             except Exception as e:
                 log.warning(f"PositionAnomalyScorer failed to load: {e}")
+
+        # Hourly Entry Timer (OOS: NO_EDGE, wired but non-critical)
+        self._hourly_timer = None
+        if config.get("execution", {}).get("hourly_timing_enabled", False):
+            try:
+                from execution.hourly_entry_timer import HourlyEntryTimer
+                self._hourly_timer = HourlyEntryTimer(enabled=True)
+                log.info("HourlyEntryTimer enabled")
+            except Exception as e:
+                log.warning(f"HourlyEntryTimer failed to load: {e}")
+
+        # Dynamic Universe Scanner
+        self._universe_scanner = None
+        if config.get("execution", {}).get("dynamic_universe_enabled", False):
+            try:
+                import os
+                from data.dynamic_universe_scanner import DynamicUniverseScanner
+                alpaca_cfg = config.get("brokers", {}).get("alpaca", {})
+                ak = alpaca_cfg.get("api_key") or os.environ.get("ALPACA_API_KEY", "")
+                sk = alpaca_cfg.get("api_secret") or os.environ.get("ALPACA_API_SECRET", "")
+                if ak and sk:
+                    self._universe_scanner = DynamicUniverseScanner(
+                        api_key=ak, secret_key=sk
+                    )
+                    log.info("DynamicUniverseScanner enabled")
+            except Exception as e:
+                log.warning(f"DynamicUniverseScanner failed to load: {e}")
+
+        # Price data cache for live mode
+        self._price_df_live: Optional[pd.DataFrame] = None
 
     def start(self, loop_interval_seconds: int = 60) -> None:
         """Main trading loop."""
@@ -365,6 +396,9 @@ class LiveEngine:
             )
 
             log.info(f"ORDER → {side.value.upper()} {sym} qty={qty_abs:.4f} @ ~${prices[sym]:.4f}")
+            if self.dry_run:
+                log.info(f"DRY_RUN → skipping order submission for {sym}")
+                continue
             filled = self.broker.place_order(order)
             if filled.status == OrderStatus.REJECTED:
                 log.warning(f"REJECTED → {sym} (broker rejected order)")
@@ -415,7 +449,7 @@ class LiveEngine:
             # Get ChoppyDetector score for today (uses latest available prices)
             choppy_score = 0.0
             thr = float(
-                self._config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17)
+                self.config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17)
             )
             try:
                 from regime.choppy_regime import ChoppyRegimeDetector

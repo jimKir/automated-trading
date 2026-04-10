@@ -10,5 +10,25 @@
   "fit_period": "2018-2022",
   "oos_period": "2023-2025",
   "pit_universe": true,
-  "exec_delay": true
+  "exec_delay": true,
+  "choppy_thresholds_v4": {
+    "green_ceiling": 0.17,
+    "yellow_ceiling": 0.27,
+    "orange_ceiling": 0.40,
+    "red_floor": 0.40,
+    "score_ema_span": 5,
+    "group_weights": {
+      "vol_spike": 0.15,
+      "price_vol": 0.15,
+      "macro_credit": 0.14,
+      "event_shock": 0.14,
+      "commodity_fx": 0.10,
+      "breadth": 0.10,
+      "sentiment": 0.07,
+      "credit": 0.08,
+      "order_flow": 0.07
+    },
+    "calibration_date": "2026-04-10",
+    "calibration_periods": ["2020_covid", "2022_bear", "2024_calm", "2025_choppy", "2026_q1_tariff"]
+  }
 }
