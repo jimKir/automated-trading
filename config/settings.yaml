@@ -467,4 +467,18 @@ databento_signals:
     min_daily_volume: 100
 
 
+# ============================================================
+# MULTI-SOURCE ANOMALY DETECTION LAYER
+# Combines 4 independent anomaly sources (macro, sentiment, FX,
+# isolation forest) into a composite score. Position scale:
+#   NORMAL (<0.20): 1.00×  |  ELEVATED (0.20-0.35): 0.85×
+#   STRESSED (0.35-0.50): 0.65×  |  CRISIS (≥0.50): 0.40×
+# ============================================================
+anomaly_layer:
+  enabled: true
+  macro_weight: 0.30
+  sentiment_weight: 0.30
+  fx_weight: 0.25
+  isolation_weight: 0.15
+
 # Regime switching configuration moved into strategy: block above (Apr 2026)

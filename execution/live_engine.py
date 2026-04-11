@@ -124,6 +124,16 @@ class LiveEngine:
             except Exception as e:
                 log.warning(f"EWS failed to load: {e} — running without EWS")
 
+        # Multi-source anomaly detection layer
+        self._anomaly_layer = None
+        if config.get("anomaly_layer", {}).get("enabled", True):
+            try:
+                from regime.anomaly_layer import AnomalyRegimeLayer
+                self._anomaly_layer = AnomalyRegimeLayer(config)
+                log.info("AnomalyRegimeLayer enabled — 4-source composite anomaly detection")
+            except Exception as e:
+                log.warning(f"AnomalyRegimeLayer failed to load: {e}")
+
         # Per-position anomaly scorer (asymmetric: crypto cut aggressively)
         self._pos_anomaly_scorer = None
         if config.get("position_anomaly", {}).get("enabled", True):
@@ -277,6 +287,25 @@ class LiveEngine:
         except Exception as _chop_e:
             log.debug(f"Choppy score computation failed: {_chop_e}")
 
+        # Compute anomaly layer (multi-source: macro, sentiment, FX, isolation forest)
+        anomaly_scale = 1.0
+        anomaly_label = "NORMAL"
+        if self._anomaly_layer is not None:
+            try:
+                from regime.anomaly_layer import AnomalyScore as _AS
+                anomaly_result = self._anomaly_layer.compute(price_data)
+                anomaly_scale = anomaly_result.position_scale
+                anomaly_label = anomaly_result.label
+                choppy_scale_val, choppy_colour = ChoppyRegimeDetector.score_to_scale(choppy_score) if choppy_score > 0 else (1.0, "GREEN")
+                combined_regime_scale = choppy_scale_val * anomaly_scale
+                log.info(
+                    f"[REGIME] Choppy={choppy_colour}({choppy_scale_val:.2f}) "
+                    f"Anomaly={anomaly_label}({anomaly_scale:.2f}) "
+                    f"Combined={combined_regime_scale:.2f}"
+                )
+            except Exception as _anom_e:
+                log.debug(f"AnomalyRegimeLayer computation failed: {_anom_e}")
+
         # Get SPY price series for regime detection
         spy_prices = None
         if "SPY" in all_data:
@@ -331,10 +360,12 @@ class LiveEngine:
 
         # v15b: Combined scale = min of independent layers (not multiplicative!)
         # Matches backtest engine logic. Floor at 50% to prevent going fully flat.
-        combined_scale = max(min(ews_scale, isd_scale), 0.50)
+        # anomaly_scale from the multi-source anomaly layer is included alongside EWS + ISD
+        combined_scale = max(min(ews_scale, isd_scale, anomaly_scale), 0.50)
         if combined_scale < 1.0:
             log.info(
-                f"Combined scale: min(EWS={ews_scale:.0%}, ISD={isd_scale:.0%}) = {combined_scale:.0%}"
+                f"Combined scale: min(EWS={ews_scale:.0%}, ISD={isd_scale:.0%}, "
+                f"Anomaly={anomaly_scale:.0%}) = {combined_scale:.0%}"
             )
 
         # Apply per-symbol vol-engine scaling to signals

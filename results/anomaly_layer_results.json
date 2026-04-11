@@ -1,0 +1,33 @@
+{
+  "oos_period": "2025-09-01 to 2026-04-02",
+  "SPY_buy_hold": {
+    "strategy": "SPY_buy_hold",
+    "total_return": 3.3,
+    "ann_return": 5.66,
+    "ann_vol": 12.69,
+    "sharpe": 0.446,
+    "max_drawdown": -8.88
+  },
+  "V_choppy_only": {
+    "strategy": "V_choppy_only",
+    "total_return": 4.22,
+    "ann_return": 7.24,
+    "ann_vol": 10.1,
+    "sharpe": 0.717,
+    "max_drawdown": -5.82
+  },
+  "V_combined": {
+    "strategy": "V_combined",
+    "total_return": 6.85,
+    "ann_return": 11.75,
+    "ann_vol": 8.14,
+    "sharpe": 1.444,
+    "max_drawdown": -4.22
+  },
+  "anomaly_layer_sources": [
+    "sentiment",
+    "fx",
+    "isolation",
+    "macro"
+  ]
+}
