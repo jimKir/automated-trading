@@ -6,9 +6,9 @@ The following credentials were previously hardcoded in source files and appear
 in git history. These **MUST** be rotated immediately regardless of whether the
 repo is public or private:
 
-1. **Alpaca API Key** (`PKYLHTDCWWAPTXZ6JUSF`) — rotate at https://app.alpaca.markets/paper/dashboard/overview
-2. **Alpaca Secret Key** (`8eEbShK7...`) — rotate at same location as above
-3. **Databento API Key** (`db-SpVxiQLLTdDe9iD3sLwTpiqgBjtxk`) — rotate at https://app.databento.com/
+1. **Alpaca API Key** (`PKYL...JUSF (redacted — rotate immediately)`) — rotate at https://app.alpaca.markets/paper/dashboard/overview
+2. **Alpaca Secret Key** (`8eEb...21UY (redacted — rotate immediately)`) — rotate at same location as above
+3. **Databento API Key** (`db-Sp...xk (redacted — rotate immediately)`) — rotate at https://app.databento.com/
 
 ### Commits containing secrets in git history
 

@@ -367,7 +367,6 @@ class SignalGenerator:
         # Flip sign: contrarian (IC is negative, so -signal has positive IC)
         return (-crossover).clip(-2, 2) / 2  # normalise to [-1, 1]
 
-<<<<<<< Updated upstream
     def _stochastic_contrarian(self, high: pd.Series, low: pd.Series,
                                 close: pd.Series, k_period: int = 14,
                                 smooth: int = 3) -> pd.Series:
@@ -397,11 +396,6 @@ class SignalGenerator:
 
     def _adx(self, high: pd.Series, low: pd.Series, close: pd.Series,
               period: int = 14) -> pd.Series:
-=======
-    def _adx(
-        self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
-    ) -> pd.Series:
->>>>>>> Stashed changes
         """
         ADX (14-period). Used as a FILTER gate, not a directional signal.
         ADX >= 20: trending regime → full position size (multiplier = 1.0)
@@ -490,6 +484,7 @@ class SignalGenerator:
         dev = (close - vwap) / (vwap + 1e-9)
         return dev.clip(-0.1, 0.1) / 0.1  # normalise to [-1, 1]
 
+    # REJECTED: NOISE verdict (walk-forward IC decay OOS)
     def _vwap_sma_proxy(self, close: pd.Series) -> pd.Series:
         """
         VWAP deviation using 20d SMA as fair-value proxy.
@@ -654,13 +649,9 @@ class SignalGenerator:
         df: pd.DataFrame,
         as_of_date: pd.Timestamp | None,
         credit_signal: pd.Series,
-<<<<<<< Updated upstream
-        all_data: Dict[str, pd.DataFrame],
-        choppy_score: "pd.Series" = None,
-        all_prices: dict = None,
-=======
         all_data: dict[str, pd.DataFrame],
->>>>>>> Stashed changes
+        choppy_score: pd.Series = None,
+        all_prices: dict = None,
     ) -> tuple:
         """Compute signal for a single symbol — thread-safe, no shared mutation."""
         close = df["Close"]
@@ -804,7 +795,6 @@ class SignalGenerator:
         # walk-forward OOS validation. IC was significant IS but did not
         # replicate OOS. Keeping _vwap_sma_proxy() method for future research.
         bull_blend = (
-<<<<<<< Updated upstream
             self.bull_w_ts_mom * ts_mom.fillna(0)             # 0.50
             + self.bull_w_mr   * mr.fillna(0)                 # 0.15 unchanged
             + self.bull_w_macd * macd.fillna(0)               # 0.30
@@ -817,23 +807,8 @@ class SignalGenerator:
             + (self.w_macd * 0.70) * macd.fillna(0)
             + (self.w_rsi  * 0.70) * rsi_filter.fillna(0)
             + 0.12 * pmo_sig          # contrarian (IC -0.021 p=0.009)
-            + 0.10 * stoch_sig        # contrarian (IC +0.023 p=0.004) — NEW
+            + 0.10 * stoch_sig        # contrarian (IC +0.023 p=0.004)
             + 0.08 * imbalance_sig    # regime-gated by VIX
-=======
-            self.bull_w_ts_mom * ts_mom.fillna(0)
-            + self.bull_w_mr * mr.fillna(0)
-            + self.bull_w_macd * macd.fillna(0)
-            + self.bull_w_rsi * rsi_filter.fillna(0)
-            + 0.10 * imbalance_sig  # regime-gated internally by VIX
-        )
-        bear_blend = (
-            (self.w_ts_mom * 0.75) * ts_mom.fillna(0)
-            + (self.w_mr * 0.75) * mr.fillna(0)
-            + (self.w_macd * 0.75) * macd.fillna(0)
-            + (self.w_rsi * 0.75) * rsi_filter.fillna(0)
-            + 0.15 * pmo_sig
-            + 0.10 * imbalance_sig
->>>>>>> Stashed changes
         )
 
         # ── Gated T3: choppy-regime weight shift ─────────────────────────────
@@ -847,14 +822,15 @@ class SignalGenerator:
         #   Validated: 7/8 OOS folds improved (2000-2022), GFC restored.
         #   See: results/regime_conditioned_gated.json (commit c83b6a6)
         choppy_blend = (
-            0.12 * ts_mom.fillna(0)        # cut: low IC in choppy
-            + 0.42 * mr.fillna(0)          # boost: MR edge confirmed (IC+0.023 Stoch, IC-0.032 PMO)
-            + 0.18 * macd.fillna(0)
+            0.11 * ts_mom.fillna(0)        # cut: low IC in choppy
+            + 0.39 * mr.fillna(0)          # boost: MR edge confirmed (IC+0.023 Stoch, IC-0.032 PMO)
+            + 0.17 * macd.fillna(0)
             + 0.05 * rsi_filter.fillna(0)
-            + 0.13 * pmo_sig               # slight boost: strongest contrarian regime
-            + 0.10 * stoch_sig
-            + 0.08 * imbalance_sig
+            + 0.12 * pmo_sig               # slight boost: strongest contrarian regime
+            + 0.09 * stoch_sig
+            + 0.07 * imbalance_sig
         )
+        # Weights: 0.11+0.39+0.17+0.05+0.12+0.09+0.07 = 1.00
 
         # Gate: T3 active only when choppy AND not in deep trending bear
         # spy_pct_below_ma: 0 = at/above MA, 0.15 = 15% below MA
@@ -997,13 +973,78 @@ class SignalGenerator:
 
         return sym, combined_with_vol
 
+    # ── Regime blend helpers (for test introspection) ──────────────────────
+
+    # Threshold for choppy regime (ORANGE onset)
+    ORANGE_THRESHOLD = 0.229
+
+    def _bull_blend(self):
+        """Return bull blend weights dict (for test introspection)."""
+        return {
+            'ts_momentum': self.bull_w_ts_mom,
+            'mean_reversion': self.bull_w_mr,
+            'macd': self.bull_w_macd,
+            'rsi': self.bull_w_rsi,
+            'imbalance': 0.10,
+        }
+
+    def _bear_blend(self):
+        """Return bear blend weights dict (for test introspection)."""
+        return {
+            'ts_momentum': self.w_ts_mom * 0.70,
+            'mean_reversion': self.w_mr * 0.70,
+            'macd': self.w_macd * 0.70,
+            'rsi': self.w_rsi * 0.70,
+            'pmo': 0.12,
+            'stochastic': 0.10,
+            'imbalance': 0.08,
+        }
+
+    def _choppy_blend(self, spy_within_15pct: bool = True):
+        """Return choppy blend weights dict (for test introspection)."""
+        return {
+            'ts_momentum': 0.11,
+            'mean_reversion': 0.39,
+            'macd': 0.17,
+            'rsi': 0.05,
+            'pmo': 0.12,
+            'stochastic': 0.09,
+            'imbalance': 0.07,
+        }
+
+    def _get_regime_blend(self, choppy_score: float = 0.0,
+                          spy_prices: pd.Series = None) -> dict:
+        """Determine which blend to use given current regime context."""
+        if spy_prices is not None and len(spy_prices) >= 200:
+            spy_above_200d = spy_prices.iloc[-1] > spy_prices.rolling(200).mean().iloc[-1]
+            spy_within_15pct_200d = spy_prices.iloc[-1] >= spy_prices.rolling(200).mean().iloc[-1] * 0.85
+        else:
+            spy_above_200d = True
+            spy_within_15pct_200d = True
+
+        if choppy_score >= self.ORANGE_THRESHOLD:
+            return self._choppy_blend(spy_within_15pct_200d)
+        elif spy_above_200d:
+            return self._bull_blend()
+        else:
+            return self._bear_blend()
+
     def generate(
         self,
         all_data: dict[str, pd.DataFrame],
         as_of_date: pd.Timestamp | None = None,
+        choppy_score: float = 0.0,
+        spy_prices: pd.Series = None,
     ) -> pd.DataFrame:
         """
         Generate signals for all symbols — PARALLEL per-symbol computation.
+
+        Parameters
+        ----------
+        all_data    : {symbol: DataFrame with OHLCV columns}
+        as_of_date  : cutoff for point-in-time backtesting
+        choppy_score: ChoppyRegimeDetector score [0,1] for T3 blend
+        spy_prices  : SPY close price series for regime detection
 
         Returns
         -------
@@ -1018,6 +1059,18 @@ class SignalGenerator:
         if as_of_date:
             closes = closes[closes.index <= as_of_date]
 
+        # Build choppy_score series from scalar for the T3 blend gate
+        choppy_score_series = None
+        if choppy_score > 0:
+            choppy_score_series = pd.Series(choppy_score, index=closes.index)
+
+        # Build all_prices dict for T3 gate (SPY close series)
+        all_prices = {}
+        if spy_prices is not None:
+            all_prices['SPY'] = spy_prices
+        elif 'SPY' in all_data:
+            all_prices['SPY'] = all_data['SPY']['Close']
+
         # Pre-compute credit regime signal if enabled (respects as_of_date cutoff)
         credit_signal = pd.Series(dtype=float)
         if self.credit_regime_enabled and self._macro_data:
@@ -1031,7 +1084,8 @@ class SignalGenerator:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(
-                        self._compute_symbol_signal, sym, df, as_of_date, credit_signal, all_data
+                        self._compute_symbol_signal, sym, df, as_of_date,
+                        credit_signal, all_data, choppy_score_series, all_prices
                     ): sym
                     for sym, df in all_data.items()
                 }
@@ -1041,7 +1095,10 @@ class SignalGenerator:
         else:
             # Sequential for small universes (thread overhead not worth it)
             for sym, df in all_data.items():
-                _, sig = self._compute_symbol_signal(sym, df, as_of_date, credit_signal, all_data)
+                _, sig = self._compute_symbol_signal(
+                    sym, df, as_of_date, credit_signal, all_data,
+                    choppy_score_series, all_prices
+                )
                 signals[sym] = sig
 
         signal_df = pd.DataFrame(signals)
@@ -1061,9 +1118,12 @@ class SignalGenerator:
 
         return signal_df
 
-    def generate_latest(self, all_data: dict[str, pd.DataFrame]) -> dict[str, float]:
+    def generate_latest(self, all_data: dict[str, pd.DataFrame],
+                        choppy_score: float = 0.0,
+                        spy_prices: pd.Series = None) -> dict[str, float]:
         """Return the latest signal for each symbol (for live trading)."""
-        signal_df = self.generate(all_data)
+        signal_df = self.generate(all_data, choppy_score=choppy_score,
+                                  spy_prices=spy_prices)
         if signal_df.empty:
             return {}
         latest = signal_df.iloc[-1].to_dict()

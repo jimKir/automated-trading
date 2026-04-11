@@ -20,7 +20,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -42,7 +42,7 @@ def load_paper_state() -> dict:
         "equity_history": [],
         "positions": {},
         "cash": None,
-        "start_date": datetime.utcnow().strftime("%Y-%m-%d"),
+        "start_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "initial_equity": None,
     }
 
@@ -67,7 +67,7 @@ def snapshot_portfolio(config: dict, state: dict) -> dict:
     account = broker.get_account()
     initial = state.get("initial_equity") or config.get("capital", {}).get("initial_equity", 25000)
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     equity_history = state.get("equity_history", [])
     equity_history.append({"date": today, "equity": account.equity})
 

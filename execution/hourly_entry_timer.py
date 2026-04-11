@@ -24,7 +24,7 @@ Usage:
 """
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from typing import Optional
 
 import numpy as np
@@ -35,7 +35,7 @@ from utils.logger import get_logger
 log = get_logger("HourlyEntryTimer")
 
 # Symbols that bypass timing entirely (always enter immediately)
-_BYPASS_SYMBOLS = {"GLD", "TLT", "SHY", "AGG", "IEF", "BND"}
+_BYPASS_SYMBOLS = {"GLD", "TLT", "SHY", "XLU", "XLP"}
 
 # Crypto session window (UTC): only enter BTC/ETH during 14:00-17:00 UTC
 # This corresponds to US market open overlap with European close
@@ -59,12 +59,22 @@ class HourlyEntryTimer:
     and a session window + RSI check for crypto.
     """
 
+    # Class-level constants for test introspection
+    BYPASS_SYMBOLS = _BYPASS_SYMBOLS
+    EQUITY_FALLBACK_HOUR = _EQUITY_FALLBACK_HOUR
+    CRYPTO_WINDOWS = {
+        'BTC/USD': (14, 17), 'BTCUSD': (14, 17), 'BTC-USD': (14, 17),
+        'ETH/USD': (17, 20), 'ETHUSD': (17, 20), 'ETH-USD': (17, 20),
+    }
+    CRYPTO_HARD_STOP_UTC = 20
+
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
 
     def should_enter_now(
         self,
         symbol: str,
+        signal: object = None,
         hourly_bars: Optional[pd.DataFrame] = None,
         current_time: Optional[datetime] = None,
     ) -> bool:
@@ -85,7 +95,7 @@ class HourlyEntryTimer:
             return True
 
         if current_time is None:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
 
         sym_upper = symbol.upper().replace("-", "").replace("/", "")
 
@@ -113,9 +123,11 @@ class HourlyEntryTimer:
           - At 13:05 ET: enter regardless (fallback)
           - Before 12:00 ET: wait
         """
-        # Convert UTC to ET (approximate: UTC-4 for EDT, UTC-5 for EST)
-        # For simplicity, use UTC-4 (EDT, valid Apr-Nov)
-        et_hour = (current_time.hour - 4) % 24
+        # Convert to proper Eastern Time (handles EDT/EST automatically)
+        from zoneinfo import ZoneInfo
+        et_tz = ZoneInfo('America/New_York')
+        current_et = current_time.astimezone(et_tz) if current_time.tzinfo else current_time.replace(tzinfo=timezone.utc).astimezone(et_tz)
+        et_hour = current_et.hour
 
         # Hard fallback: 13:05 ET or later → enter now regardless
         if et_hour > _EQUITY_FALLBACK_HOUR or (
@@ -215,3 +227,16 @@ class HourlyEntryTimer:
         except Exception as e:
             log.debug(f"{symbol}: crypto timing failed ({e}) — enter now")
             return True
+
+    @staticmethod
+    def compute_vwap(hourly_bars: pd.DataFrame) -> float:
+        """Compute VWAP from hourly bars."""
+        bars = hourly_bars.copy()
+        if isinstance(bars.columns, pd.MultiIndex):
+            bars.columns = [c[0] for c in bars.columns]
+        bars.columns = [c.capitalize() for c in bars.columns]
+        typical_price = (bars["High"] + bars["Low"] + bars["Close"]) / 3
+        volume = bars["Volume"]
+        if volume.sum() == 0:
+            return float(bars["Close"].mean())
+        return float((typical_price * volume).sum() / volume.sum())

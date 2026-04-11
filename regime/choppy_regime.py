@@ -53,6 +53,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from regime.order_flow_anomaly import OrderFlowAnomalyDetector
 from utils.logger import get_logger
 
 log = get_logger("ChoppyRegimeDetector")
@@ -75,15 +76,17 @@ CHOPPY_SCALE_THRESHOLDS = [
 ]
 
 # ── Feature group weights (must sum to 1.0) ───────────────────────────────────
-# Chosen so no single group dominates and all regime types are covered.
+# v4: 9 groups (added credit_stress + order_flow). Weights from regime_params_validated.json.
 GROUP_WEIGHTS = {
-    "vol_spike":    0.18,   # A: volume anomalies (SPY/QQQ vol spikes)
-    "price_vol":    0.18,   # B: cross-asset price vol (v1 core: vov, MA crossings)
-    "macro_credit": 0.16,   # C: HYG/LQD spreads, TLT stress
-    "event_shock":  0.16,   # D: VIX velocity, VIX level, VIX above-20 rate
-    "commodity_fx": 0.12,   # E: gold/SPY, oil velocity, DXY
-    "breadth":      0.12,   # F: market breadth, SPY/TLT correlation
-    "sentiment":    0.08,   # G: VIX/RVol ratio, VIX vs 60d mean
+    "vol_spike":      0.15,   # A: volume anomalies (SPY/QQQ vol spikes)
+    "price_vol":      0.15,   # B: cross-asset price vol (v1 core: vov, MA crossings)
+    "macro_credit":   0.14,   # C: HYG/LQD spreads, TLT stress
+    "event_shock":    0.14,   # D: VIX velocity, VIX level, VIX above-20 rate
+    "commodity_fx":   0.10,   # E: gold/SPY, oil velocity, DXY
+    "breadth":        0.10,   # F: market breadth, SPY/TLT correlation
+    "sentiment":      0.07,   # G: VIX/RVol ratio, VIX vs 60d mean
+    "credit_stress":  0.08,   # H: dedicated credit stress (HYG drawdown, spread velocity)
+    "order_flow":     0.07,   # I: order flow anomaly (volume imbalance, clustering)
 }
 assert abs(sum(GROUP_WEIGHTS.values()) - 1.0) < 1e-9, "Weights must sum to 1.0"
 
@@ -165,9 +168,31 @@ class ChoppyRegimeDetector:
         scale, colour = ChoppyRegimeDetector.score_to_scale(score)
     """
 
-    def __init__(self, data_dir: Optional[Path] = None):
+    def __init__(self, data_dir: Optional[Path] = None, mode: str = 'backtest'):
         self._data_dir = Path(data_dir) if data_dir else _DATA_DIR
         self._cache: Dict[str, pd.Series] = {}
+        self.order_flow_detector = OrderFlowAnomalyDetector()
+        self.feature_groups = [
+            'volatility', 'vix_dynamics', 'macro_credit', 'commodity_fx',
+            'breadth', 'sentiment', 'ews', 'credit_stress', 'order_flow'
+        ]
+        self._load_thresholds()
+
+    def _load_thresholds(self):
+        import json, os
+        params_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'regime_params_validated.json')
+        try:
+            with open(params_path) as f:
+                params = json.load(f)
+            thresholds = params.get('choppy_thresholds_v4', params.get('choppy_thresholds_v3', {}))
+            self.GREEN_MAX = thresholds.get('green_ceiling', 0.192)
+            self.YELLOW_MAX = thresholds.get('yellow_ceiling', 0.229)
+            self.ORANGE_MAX = thresholds.get('orange_ceiling', 0.296)
+        except Exception:
+            # Fallback to v4 hardcoded values
+            self.GREEN_MAX = 0.192
+            self.YELLOW_MAX = 0.229
+            self.ORANGE_MAX = 0.296
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
@@ -496,6 +521,90 @@ class ChoppyRegimeDetector:
         result = pd.concat(components, axis=1).mean(axis=1)
         return result.reindex(idx, method="ffill").fillna(0).clip(0, 1)
 
+    # ── Group H: Credit stress (dedicated) ────────────────────────────────────
+
+    def _group_credit_stress(self, idx: pd.DatetimeIndex) -> pd.Series:
+        """
+        Group H: Dedicated credit stress signals — HYG drawdown velocity,
+        HYG/LQD spread acceleration. Distinct from macro_credit (Group C)
+        which measures level; this measures rate-of-change (momentum of stress).
+        """
+        components = []
+        hyg = self._load("HYG")
+        lqd = self._load("LQD")
+
+        if hyg is not None:
+            # HYG 10d drawdown from rolling 20d high (rapid credit deterioration)
+            hyg_high = hyg.rolling(20).max()
+            hyg_dd = ((hyg_high - hyg) / hyg_high.replace(0, np.nan)).fillna(0)
+            # Normalise: calm=0% DD, stress=5%+ DD
+            components.append((hyg_dd / 0.05).clip(0, 1))
+
+        if hyg is not None and lqd is not None:
+            # HYG/LQD spread velocity (10d change in ratio)
+            ratio = (hyg / lqd.reindex(hyg.index, method="ffill")).dropna()
+            spread_vel = ratio.pct_change(10).fillna(0)
+            # Inverted: falling ratio = widening spreads = stress
+            components.append((-spread_vel / 0.03).clip(0, 1))
+
+        if not components:
+            return pd.Series(0.0, index=idx)
+
+        result = pd.concat(components, axis=1).mean(axis=1)
+        return result.reindex(idx, method="ffill").fillna(0).clip(0, 1)
+
+    # ── Group I: Order flow anomaly ─────────────────────────────────────────
+
+    def _compute_order_flow_score(self, data: dict) -> float:
+        """Group 9: Order flow anomaly (volume spike + bid-ask spread widening).
+        Returns score in [0,1]. Degrades gracefully to 0.0 if data unavailable."""
+        try:
+            minute_bars = data.get('minute_bars')
+            quote_snapshots = data.get('quote_snapshots')
+            daily_bars = data.get('daily_bars_spy', data.get('spy_daily'))
+            if daily_bars is None:
+                return 0.0
+            features = self.order_flow_detector.compute_features(
+                minute_bars=minute_bars,
+                quote_snapshots=quote_snapshots,
+                daily_bars=daily_bars
+            )
+            return self.order_flow_detector.compute_score(features)
+        except Exception:
+            return 0.0  # always degrade gracefully
+
+    def _group_order_flow(self, prices: pd.DataFrame,
+                          idx: pd.DatetimeIndex) -> pd.Series:
+        """
+        Group I: Order flow anomaly score from daily OHLCV data.
+        Uses OrderFlowAnomalyDetector to detect abnormal repositioning patterns.
+        """
+        try:
+            # Build all_prices dict for the detector
+            all_prices = {}
+            for col in prices.columns:
+                # The detector expects DataFrames with High/Low/Close/Volume columns
+                # We only have Close prices in the main prices DF; use parquet store for full OHLCV
+                p = self._data_dir / f"{col}.parquet"
+                if not p.exists():
+                    continue
+                try:
+                    df = pd.read_parquet(p)
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df.columns = [c[0] for c in df.columns]
+                    df.columns = [c.capitalize() for c in df.columns]
+                    df.index = pd.to_datetime(df.index).tz_localize(None)
+                    all_prices[col] = df
+                except Exception:
+                    continue
+
+            if not all_prices:
+                return pd.Series(0.0, index=idx)
+
+            return self.order_flow_detector.compute(all_prices, idx)
+        except Exception:
+            return pd.Series(0.0, index=idx)
+
     # ── Main scoring ──────────────────────────────────────────────────────────
 
     def _compute_all_groups(
@@ -522,6 +631,8 @@ class ChoppyRegimeDetector:
         groups["commodity_fx"] = self._group_commodity_fx(spy_close, idx)
         groups["breadth"]      = self._group_breadth(prices, spy_close, idx)
         groups["sentiment"]    = self._group_sentiment(vix, spy_close, idx)
+        groups["credit_stress"] = self._group_credit_stress(idx)
+        groups["order_flow"]   = self._group_order_flow(prices, idx)
         return groups.fillna(0).clip(0, 1)
 
     def score_series(
@@ -591,8 +702,24 @@ class ChoppyRegimeDetector:
         """
         score = self.score_series(prices, vix, smooth=True)
         val   = float(score.iloc[-1]) if len(score) > 0 else 0.0
-        log.info(f"ChoppyRegimeDetector v2 live score: {val:.3f}")
+        self._last_score = val
+        log.info(f"ChoppyRegimeDetector v4 live score: {val:.3f}")
         return float(np.clip(val, 0, 1))
+
+    def get_regime(self, score: float) -> str:
+        """Return regime label for a given score using v4 thresholds."""
+        if score < self.GREEN_MAX:
+            return 'GREEN'
+        elif score < self.YELLOW_MAX:
+            return 'YELLOW'
+        elif score < self.ORANGE_MAX:
+            return 'ORANGE'
+        else:
+            return 'RED'
+
+    def current_score(self) -> float:
+        """Return the most recently computed score (for live engine integration)."""
+        return getattr(self, '_last_score', 0.0)
 
     @staticmethod
     def score_to_scale(score: float) -> Tuple[float, str]:

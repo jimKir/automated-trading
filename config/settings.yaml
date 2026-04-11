@@ -79,6 +79,30 @@ strategy:
   momentum_threshold: 0.02  # min momentum signal strength
   regime_window: 126        # market regime detection window (6 months)
 
+  # Rebalance schedule (validated 2000-2022, all 8 OOS folds)
+  # adaptive: biweekly in GREEN (ChoppyScore<0.17), weekly in YELLOW+
+  rebalance_frequency: adaptive       # daily | weekly | biweekly | monthly | adaptive
+  adaptive_weekly_threshold: 0.17     # YELLOW onset threshold (see adaptive_scheduler_report.pdf)
+
+  regime_switching:
+    enabled: true
+    bull_vix_threshold: 20.0
+    bull_spy_ma_period: 200
+    # IS-validated weights — grid-search on 2018-2022 only
+    # OOS Sharpe: +0.15 (2023-2025, PIT universe, exec delay)
+    # Overfit weights (ts=0.60/mr=0.10/macd=0.25) gave: -0.007 OOS — do NOT revert
+    # IS-validated base weights (v1.0.0-paper-baseline, grid-search 2018-2022)
+    # Post-validation VWAP-SMA addition: ts_mom trimmed 0.50→0.45, macd 0.30→0.25
+    # The 0.10 offset is applied in signals.py via (bull_w_ts_mom - 0.05) etc.
+    # Trim is evidence-based: VWAP-SMA IC +0.042 t=+6.02 at 10d (27yr dataset)
+    bull_w_ts_mom: 0.50   # effective in bull blend: 0.45 (code applies -0.05)
+    bull_w_mr: 0.15
+    bull_w_macd: 0.30     # effective in bull blend: 0.25 (code applies -0.05)
+    bull_w_rsi: 0.05
+    bull_use_pmo: false
+    bull_use_adx: false   # ADX disabled in all regimes — hurts Sharpe OOS (see diagnostics/technical_indicator_ic.py)
+    bear_use_adx: false   # IC: 16.92 Sharpe with ADX vs 17.82 without — net negative
+
 # ============================================================
 # DYNAMIC UNIVERSE SELECTOR
 # Each rebalance, ranks ALL candidate instruments by momentum
@@ -349,6 +373,15 @@ position_anomaly:
   # RED    (0.55-0.70): 0.20x  defensive
   # CRITICAL (>0.70):  0.05x  near-flat
 
+# ============================================================
+# EXECUTION CONFIG
+# ============================================================
+execution:
+  hourly_timing_enabled: true
+  dynamic_universe_enabled: true
+  max_order_shares: 10000
+  min_price_sanity: 0.10
+
 brokers:
   ibkr:
     host: 127.0.0.1
@@ -434,28 +467,4 @@ databento_signals:
     min_daily_volume: 100
 
 
-# Regime switching (added Apr 2026)
-strategy:
-  # Rebalance schedule (validated 2000-2022, all 8 OOS folds)
-  # adaptive: biweekly in GREEN (ChoppyScore<0.17), weekly in YELLOW+
-  rebalance_frequency: adaptive       # daily | weekly | biweekly | monthly | adaptive
-  adaptive_weekly_threshold: 0.17     # YELLOW onset threshold (see adaptive_scheduler_report.pdf)
-
-  regime_switching:
-    enabled: true
-    bull_vix_threshold: 20.0
-    bull_spy_ma_period: 200
-    # IS-validated weights — grid-search on 2018-2022 only
-    # OOS Sharpe: +0.15 (2023-2025, PIT universe, exec delay)
-    # Overfit weights (ts=0.60/mr=0.10/macd=0.25) gave: -0.007 OOS — do NOT revert
-    # IS-validated base weights (v1.0.0-paper-baseline, grid-search 2018-2022)
-    # Post-validation VWAP-SMA addition: ts_mom trimmed 0.50→0.45, macd 0.30→0.25
-    # The 0.10 offset is applied in signals.py via (bull_w_ts_mom - 0.05) etc.
-    # Trim is evidence-based: VWAP-SMA IC +0.042 t=+6.02 at 10d (27yr dataset)
-    bull_w_ts_mom: 0.50   # effective in bull blend: 0.45 (code applies -0.05)
-    bull_w_mr: 0.15
-    bull_w_macd: 0.30     # effective in bull blend: 0.25 (code applies -0.05)
-    bull_w_rsi: 0.05
-    bull_use_pmo: false
-    bull_use_adx: false   # ADX disabled in all regimes — hurts Sharpe OOS (see diagnostics/technical_indicator_ic.py)
-    bear_use_adx: false   # IC: 16.92 Sharpe with ADX vs 17.82 without — net negative
+# Regime switching configuration moved into strategy: block above (Apr 2026)

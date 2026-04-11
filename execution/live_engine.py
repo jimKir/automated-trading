@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import signal
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -196,7 +197,7 @@ class LiveEngine:
                 import yfinance as yf
 
                 vix_open = float(yf.Ticker("^VIX").history(period="2d")["Close"].iloc[-1])
-                self._isd.reset_day(vix_open, account.equity, datetime.utcnow().date())
+                self._isd.reset_day(vix_open, account.equity, datetime.now(timezone.utc).date())
             except Exception:
                 pass
 
@@ -213,7 +214,7 @@ class LiveEngine:
         log.info("Trading engine stopped.")
 
     def _trading_cycle(self) -> None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Check circuit breakers
         account = self.broker.get_account()
@@ -256,8 +257,35 @@ class LiveEngine:
             log.warning("No market data received — skipping cycle")
             return
 
-        # Generate signals
-        signals = self.signal_gen.generate_latest(all_data)
+        # Build price DataFrame and populate _price_df_live for adaptive rebalance
+        price_data = pd.DataFrame({sym: df["Close"] for sym, df in all_data.items()
+                                    if "Close" in df.columns})
+        self._price_df_live = price_data
+
+        # Get current choppy score for regime dispatch
+        choppy_score = 0.0
+        try:
+            from regime.choppy_regime import ChoppyRegimeDetector
+            _choppy_det = ChoppyRegimeDetector()
+            _vix_s = None
+            if "^VIX" in all_data:
+                _vix_s = all_data["^VIX"]["Close"]
+            elif "VIX" in price_data.columns:
+                _vix_s = price_data["VIX"]
+            if _vix_s is not None:
+                choppy_score = _choppy_det.score_today(price_data, _vix_s)
+        except Exception as _chop_e:
+            log.debug(f"Choppy score computation failed: {_chop_e}")
+
+        # Get SPY price series for regime detection
+        spy_prices = None
+        if "SPY" in all_data:
+            spy_prices = all_data["SPY"]["Close"]
+
+        # Generate signals with regime context
+        signals = self.signal_gen.generate_latest(
+            all_data, choppy_score=choppy_score, spy_prices=spy_prices
+        )
         log.info(f"Signals: { {k: f'{v:+.3f}' for k, v in signals.items() if abs(v) > 0.05} }")
 
         # Get current prices
@@ -359,7 +387,7 @@ class LiveEngine:
                     _ms, start=start_date, end=end_date, auto_adjust=True, progress=False
                 )
                 if not _mdf.empty:
-                    if isinstance(_mdf.columns, _pd.MultiIndex):
+                    if isinstance(_mdf.columns, pd.MultiIndex):
                         _mdf.columns = _mdf.columns.get_level_values(0)
                     _macro_data[_ms] = _mdf
             if _macro_data:
@@ -454,7 +482,6 @@ class LiveEngine:
 
         if self._rebalance_freq == "daily":
             return elapsed >= timedelta(hours=20)
-<<<<<<< Updated upstream
 
         elif self._rebalance_freq == "weekly":
             return elapsed >= timedelta(days=5) and now.weekday() == 4  # Friday
@@ -463,11 +490,6 @@ class LiveEngine:
             return elapsed >= timedelta(days=14)
 
         elif self._rebalance_freq == "monthly":
-=======
-        if self._rebalance_freq == "weekly":
-            return elapsed >= timedelta(days=5) and now.weekday() == 4  # Friday
-        if self._rebalance_freq == "monthly":
->>>>>>> Stashed changes
             return elapsed >= timedelta(days=25) and now.day <= 3
 
         elif self._rebalance_freq == "adaptive":
