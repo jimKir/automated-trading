@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -79,8 +79,7 @@ class RawDataLake:
 
         if self.storage.exists(data_path):
             raise FileExistsError(
-                f"Raw data already exists at {data_path}. "
-                "Raw lake is immutable and append-only."
+                f"Raw data already exists at {data_path}. Raw lake is immutable and append-only."
             )
 
         # Compute checksum
@@ -99,7 +98,7 @@ class RawDataLake:
             "extension": extension,
             "checksum_sha256": checksum,
             "size_bytes": len(data),
-            "ingestion_time": datetime.now(tz=timezone.utc).isoformat(),
+            "ingestion_time": datetime.now(tz=UTC).isoformat(),
             "data_path": data_path,
             **(metadata or {}),
         }

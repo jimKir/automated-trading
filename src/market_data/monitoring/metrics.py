@@ -15,6 +15,7 @@ try:
         Summary,
         generate_latest,
     )
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -221,9 +222,7 @@ class MetricsCollector:
             return
         self.ingestion_errors.labels(vendor=vendor, error_type=error_type).inc()
 
-    def record_storage_write(
-        self, layer: str, fmt: str, bytes_count: int
-    ) -> None:
+    def record_storage_write(self, layer: str, fmt: str, bytes_count: int) -> None:
         """Record a storage write.
 
         Args:

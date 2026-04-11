@@ -5,12 +5,12 @@ Supports:
   - ccxt      (crypto live)
   - IBKR TWS  (equities / futures live)  -- adapter stub
 """
+
 from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
@@ -26,6 +26,7 @@ _YF_MAX_WORKERS = 8
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _validate_ohlcv(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     required = {"Open", "High", "Low", "Close", "Volume"}
@@ -48,8 +49,13 @@ def _fetch_single_symbol(sym: str, start: str, end: str, interval: str, retries:
     for attempt in range(1, retries + 1):
         try:
             raw = yf.download(
-                sym, start=start, end=end, interval=interval,
-                progress=False, auto_adjust=True, threads=False,
+                sym,
+                start=start,
+                end=end,
+                interval=interval,
+                progress=False,
+                auto_adjust=True,
+                threads=False,
             )
             if raw.empty:
                 return sym, None
@@ -57,9 +63,9 @@ def _fetch_single_symbol(sym: str, start: str, end: str, interval: str, retries:
                 raw.columns = raw.columns.get_level_values(0)
             raw = _validate_ohlcv(raw, sym)
             return sym, raw
-        except Exception as exc:
+        except Exception:
             if attempt < retries:
-                time.sleep(1.5 ** attempt)
+                time.sleep(1.5**attempt)
             else:
                 return sym, None
     return sym, None
@@ -69,14 +75,15 @@ def _fetch_single_symbol(sym: str, start: str, end: str, interval: str, retries:
 # yfinance feed  (free, good for backtest + paper)
 # ---------------------------------------------------------------------------
 
+
 def fetch_yfinance(
-    symbols: List[str],
+    symbols: list[str],
     start: str,
     end: str,
     interval: str = "1d",
     retries: int = 3,
     max_workers: int = _YF_MAX_WORKERS,
-) -> Dict[str, pd.DataFrame]:
+) -> dict[str, pd.DataFrame]:
     """
     Fetch OHLCV data from Yahoo Finance — PARALLEL via thread pool.
 
@@ -91,7 +98,7 @@ def fetch_yfinance(
     interval    : "1d", "1h", "5m", etc.
     max_workers : max concurrent download threads (default 8)
     """
-    result: Dict[str, pd.DataFrame] = {}
+    result: dict[str, pd.DataFrame] = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
@@ -117,15 +124,16 @@ def fetch_yfinance(
 # CCXT feed  (crypto live / paper)
 # ---------------------------------------------------------------------------
 
+
 def fetch_ccxt(
-    symbols: List[str],
+    symbols: list[str],
     exchange_id: str = "binance",
     start: str = None,
     end: str = None,
     timeframe: str = "1d",
     api_key: str = "",
     api_secret: str = "",
-) -> Dict[str, pd.DataFrame]:
+) -> dict[str, pd.DataFrame]:
     """
     Fetch OHLCV from any CCXT-supported exchange.
     Falls back to public endpoints if no credentials.
@@ -143,18 +151,18 @@ def fetch_ccxt(
 
     exchange = exchange_cls(kwargs)
 
-    since_ms = (
-        int(datetime.strptime(start, "%Y-%m-%d").timestamp() * 1000) if start else None
-    )
+    since_ms = int(datetime.strptime(start, "%Y-%m-%d").timestamp() * 1000) if start else None
 
-    result: Dict[str, pd.DataFrame] = {}
+    result: dict[str, pd.DataFrame] = {}
     for sym in symbols:
         try:
             ohlcv = exchange.fetch_ohlcv(sym, timeframe=timeframe, since=since_ms, limit=1000)
             if not ohlcv:
                 log.warning(f"[{sym}] No data from {exchange_id}")
                 continue
-            df = pd.DataFrame(ohlcv, columns=["timestamp", "Open", "High", "Low", "Close", "Volume"])
+            df = pd.DataFrame(
+                ohlcv, columns=["timestamp", "Open", "High", "Low", "Close", "Volume"]
+            )
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
             df = df.set_index("timestamp")
             result[sym] = df
@@ -169,6 +177,7 @@ def fetch_ccxt(
 # Universal loader
 # ---------------------------------------------------------------------------
 
+
 class DataFeed:
     """
     Unified interface: chooses backend based on config mode.
@@ -180,16 +189,16 @@ class DataFeed:
     def __init__(self, config: dict):
         self.config = config
         self.mode = config["system"]["mode"]
-        self._cache: Dict[str, pd.DataFrame] = {}
+        self._cache: dict[str, pd.DataFrame] = {}
 
     def load(
         self,
-        symbols: List[str],
-        start: Optional[str] = None,
-        end: Optional[str] = None,
+        symbols: list[str],
+        start: str | None = None,
+        end: str | None = None,
         interval: str = "1d",
         source: str = "yfinance",
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Load data. Returns dict of {symbol: OHLCV DataFrame}.
         Uses internal cache to avoid re-downloading.
@@ -200,9 +209,12 @@ class DataFeed:
             return {s: self._cache[per_sym_keys[s]] for s in symbols}
 
         if source == "yfinance":
-            data = fetch_yfinance(symbols, start=start or "2018-01-01",
-                                  end=end or datetime.today().strftime("%Y-%m-%d"),
-                                  interval=interval)
+            data = fetch_yfinance(
+                symbols,
+                start=start or "2018-01-01",
+                end=end or datetime.today().strftime("%Y-%m-%d"),
+                interval=interval,
+            )
         elif source == "ccxt":
             binance_cfg = self.config.get("brokers", {}).get("binance", {})
             data = fetch_ccxt(
@@ -223,10 +235,10 @@ class DataFeed:
 
         return data
 
-    def load_all(self, start: str = None, end: str = None) -> Dict[str, pd.DataFrame]:
+    def load_all(self, start: str = None, end: str = None) -> dict[str, pd.DataFrame]:
         """Load all assets defined in config."""
         assets_cfg = self.config.get("assets", {})
-        all_data: Dict[str, pd.DataFrame] = {}
+        all_data: dict[str, pd.DataFrame] = {}
 
         if assets_cfg.get("equities", {}).get("enabled"):
             syms = assets_cfg["equities"]["universe"]

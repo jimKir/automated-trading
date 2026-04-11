@@ -21,19 +21,21 @@ Key design decisions:
   - Sector-level and market-level features capture contagion effects
 """
 
-import os
 import logging
+import os
 import warnings
+from datetime import datetime, timedelta
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 
 # Shared indicators — canonical implementations
 try:
     import sys as _sys
-    _sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent.parent))
+
+    _sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
     from utils.indicators import compute_adx as _compute_adx_shared
+
     _USE_SHARED_ADX = True
 except ImportError:
     _USE_SHARED_ADX = False
@@ -45,44 +47,110 @@ logger = logging.getLogger(__name__)
 # ===========================================================================
 # SECTOR MAP  (identical to momentum scanner V2 for consistency)
 # ===========================================================================
-SECTOR_MAP: Dict[str, str] = {
+SECTOR_MAP: dict[str, str] = {
     # Technology
-    "AAPL": "Tech", "MSFT": "Tech", "NVDA": "Tech", "GOOGL": "Tech",
-    "GOOG": "Tech", "META": "Tech", "AVGO": "Tech", "AMD": "Tech",
-    "INTC": "Tech", "QCOM": "Tech", "CRM": "Tech", "ADBE": "Tech",
-    "TXN": "Tech", "AMAT": "Tech", "MU": "Tech", "LRCX": "Tech",
-    "PANW": "Tech", "INTU": "Tech", "NOW": "Tech", "ORCL": "Tech",
+    "AAPL": "Tech",
+    "MSFT": "Tech",
+    "NVDA": "Tech",
+    "GOOGL": "Tech",
+    "GOOG": "Tech",
+    "META": "Tech",
+    "AVGO": "Tech",
+    "AMD": "Tech",
+    "INTC": "Tech",
+    "QCOM": "Tech",
+    "CRM": "Tech",
+    "ADBE": "Tech",
+    "TXN": "Tech",
+    "AMAT": "Tech",
+    "MU": "Tech",
+    "LRCX": "Tech",
+    "PANW": "Tech",
+    "INTU": "Tech",
+    "NOW": "Tech",
+    "ORCL": "Tech",
     # Energy
-    "XOM": "Energy", "CVX": "Energy", "COP": "Energy", "EOG": "Energy",
-    "SLB": "Energy", "MPC": "Energy", "PSX": "Energy", "OKE": "Energy",
-    "VLO": "Energy", "DVN": "Energy",
+    "XOM": "Energy",
+    "CVX": "Energy",
+    "COP": "Energy",
+    "EOG": "Energy",
+    "SLB": "Energy",
+    "MPC": "Energy",
+    "PSX": "Energy",
+    "OKE": "Energy",
+    "VLO": "Energy",
+    "DVN": "Energy",
     # Financials
-    "JPM": "Financials", "BAC": "Financials", "WFC": "Financials",
-    "GS": "Financials", "MS": "Financials", "BLK": "Financials",
-    "SCHW": "Financials", "C": "Financials", "AXP": "Financials",
-    "USB": "Financials", "PNC": "Financials",
+    "JPM": "Financials",
+    "BAC": "Financials",
+    "WFC": "Financials",
+    "GS": "Financials",
+    "MS": "Financials",
+    "BLK": "Financials",
+    "SCHW": "Financials",
+    "C": "Financials",
+    "AXP": "Financials",
+    "USB": "Financials",
+    "PNC": "Financials",
     # Healthcare
-    "UNH": "Health", "LLY": "Health", "JNJ": "Health", "MRK": "Health",
-    "ABBV": "Health", "TMO": "Health", "ABT": "Health", "DHR": "Health",
-    "ISRG": "Health", "PFE": "Health", "GILD": "Health", "REGN": "Health",
-    "BMY": "Health", "MDT": "Health", "CVS": "Health",
+    "UNH": "Health",
+    "LLY": "Health",
+    "JNJ": "Health",
+    "MRK": "Health",
+    "ABBV": "Health",
+    "TMO": "Health",
+    "ABT": "Health",
+    "DHR": "Health",
+    "ISRG": "Health",
+    "PFE": "Health",
+    "GILD": "Health",
+    "REGN": "Health",
+    "BMY": "Health",
+    "MDT": "Health",
+    "CVS": "Health",
     # Consumer Discretionary
-    "AMZN": "ConDisc", "TSLA": "ConDisc", "HD": "ConDisc", "MCD": "ConDisc",
-    "NKE": "ConDisc", "LOW": "ConDisc", "SBUX": "ConDisc", "TGT": "ConDisc",
-    "BKNG": "ConDisc", "ABNB": "ConDisc",
+    "AMZN": "ConDisc",
+    "TSLA": "ConDisc",
+    "HD": "ConDisc",
+    "MCD": "ConDisc",
+    "NKE": "ConDisc",
+    "LOW": "ConDisc",
+    "SBUX": "ConDisc",
+    "TGT": "ConDisc",
+    "BKNG": "ConDisc",
+    "ABNB": "ConDisc",
     # Consumer Staples
-    "WMT": "ConStap", "PG": "ConStap", "COST": "ConStap", "PEP": "ConStap",
-    "KO": "ConStap", "PM": "ConStap", "MDLZ": "ConStap", "CL": "ConStap",
+    "WMT": "ConStap",
+    "PG": "ConStap",
+    "COST": "ConStap",
+    "PEP": "ConStap",
+    "KO": "ConStap",
+    "PM": "ConStap",
+    "MDLZ": "ConStap",
+    "CL": "ConStap",
     # Industrials
-    "CAT": "Indust", "HON": "Indust", "BA": "Indust", "GE": "Indust",
-    "LMT": "Indust", "RTX": "Indust", "MMM": "Indust", "ROK": "Indust",
+    "CAT": "Indust",
+    "HON": "Indust",
+    "BA": "Indust",
+    "GE": "Indust",
+    "LMT": "Indust",
+    "RTX": "Indust",
+    "MMM": "Indust",
+    "ROK": "Indust",
     "UPS": "Indust",
     # Real Estate
-    "PLD": "REIT", "AMT": "REIT", "CCI": "REIT", "DLR": "REIT",
+    "PLD": "REIT",
+    "AMT": "REIT",
+    "CCI": "REIT",
+    "DLR": "REIT",
     "EQIX": "REIT",
     # Utilities / Comm
-    "NEE": "Util", "DUK": "Util", "SO": "Util",
-    "NFLX": "Comm", "DIS": "Comm", "T": "Comm",
+    "NEE": "Util",
+    "DUK": "Util",
+    "SO": "Util",
+    "NFLX": "Comm",
+    "DIS": "Comm",
+    "T": "Comm",
 }
 
 UNIVERSE = list(SECTOR_MAP.keys())
@@ -97,6 +165,7 @@ MIN_HISTORY_DAYS = 504  # ~2 years
 # ===========================================================================
 # 1. DATA PIPELINE
 # ===========================================================================
+
 
 class DataPipeline:
     """
@@ -128,7 +197,7 @@ class DataPipeline:
       - Small on disk (~60% smaller than CSV for OHLCV data)
     """
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: str | None = None):
         self.cache_dir = cache_dir or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), ".vol_cache"
         )
@@ -162,10 +231,10 @@ class DataPipeline:
 
     def fetch(
         self,
-        symbols: List[str],
+        symbols: list[str],
         lookback_years: float = 3.0,
         force_refresh: bool = False,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Fetch daily OHLCV for all symbols, using disk cache when fresh.
 
@@ -182,8 +251,8 @@ class DataPipeline:
         start_str = start.strftime("%Y-%m-%d")
         end_str = end.strftime("%Y-%m-%d")
 
-        result: Dict[str, pd.DataFrame] = {}
-        symbols_to_download: List[str] = []
+        result: dict[str, pd.DataFrame] = {}
+        symbols_to_download: list[str] = []
 
         # ── Phase 1: load from cache where possible ───────────────────
         if not force_refresh:
@@ -242,8 +311,7 @@ class DataPipeline:
 
                     if len(symbols_to_download) == 1:
                         df.columns = [
-                            c.lower() if isinstance(c, str) else c[0].lower()
-                            for c in df.columns
+                            c.lower() if isinstance(c, str) else c[0].lower() for c in df.columns
                         ]
 
                     df = df.dropna(subset=["close"])
@@ -295,9 +363,7 @@ class DataPipeline:
                 pass  # corrupted → re-download
 
         try:
-            vix = yf.download(
-                "^VIX", start=start_str, end=end_str, progress=False
-            )
+            vix = yf.download("^VIX", start=start_str, end=end_str, progress=False)
             if isinstance(vix.columns, pd.MultiIndex):
                 series = vix[("Close", "^VIX")].dropna()
             else:
@@ -312,7 +378,7 @@ class DataPipeline:
             logger.warning(f"VIX fetch failed: {e}")
             return pd.Series(dtype=float)
 
-    def clear_cache(self, symbol: Optional[str] = None):
+    def clear_cache(self, symbol: str | None = None):
         """
         Clear cached data.
 
@@ -321,6 +387,7 @@ class DataPipeline:
                     If None, clear everything.
         """
         import shutil
+
         if symbol:
             sym_dir = os.path.join(self._ohlcv_dir, symbol.upper())
             if os.path.exists(sym_dir):
@@ -332,7 +399,7 @@ class DataPipeline:
             os.makedirs(self._vix_dir, exist_ok=True)
             logger.info("Full cache cleared")
 
-    def cache_info(self) -> Dict:
+    def cache_info(self) -> dict:
         """Return a summary of what's in the cache."""
         info = {"ohlcv_symbols": [], "vix_cached": False, "total_size_mb": 0.0}
         total_bytes = 0
@@ -357,6 +424,7 @@ class DataPipeline:
 # ===========================================================================
 # 2. VOLATILITY ESTIMATORS
 # ===========================================================================
+
 
 class VolatilityEstimators:
     """
@@ -391,8 +459,7 @@ class VolatilityEstimators:
 
     @staticmethod
     def garman_klass(
-        open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series,
-        window: int = 20
+        open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, window: int = 20
     ) -> pd.Series:
         """
         Garman-Klass (1980) OHLC estimator.
@@ -405,8 +472,7 @@ class VolatilityEstimators:
 
     @staticmethod
     def yang_zhang(
-        open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series,
-        window: int = 20
+        open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, window: int = 20
     ) -> pd.Series:
         """
         Yang-Zhang (2000) — the most efficient OHLC estimator.
@@ -438,8 +504,7 @@ class VolatilityEstimators:
 
     @staticmethod
     def rogers_satchell(
-        open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series,
-        window: int = 20
+        open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, window: int = 20
     ) -> pd.Series:
         """Rogers-Satchell (1991) — drift-independent estimator."""
         log_ho = np.log(high / open_)
@@ -457,7 +522,7 @@ class VolatilityEstimators:
         RV_t = sum of squared log returns over next `horizon` days, annualised.
         """
         log_ret = np.log(close / close.shift(1))
-        sq_ret = log_ret ** 2
+        sq_ret = log_ret**2
         # Forward sum of squared returns
         fwd_rv = sq_ret.shift(-horizon).rolling(horizon).sum()
         return np.sqrt(fwd_rv * (252 / horizon))
@@ -466,6 +531,7 @@ class VolatilityEstimators:
 # ===========================================================================
 # 3. FEATURE ENGINEERING
 # ===========================================================================
+
 
 class FeatureEngine:
     """
@@ -482,15 +548,16 @@ class FeatureEngine:
       H. Momentum/mean-reversion signals (RSI, return z-score)
     """
 
-    def __init__(self, vix_data: Optional[pd.Series] = None,
-                 all_data: Optional[Dict[str, pd.DataFrame]] = None):
+    def __init__(
+        self, vix_data: pd.Series | None = None, all_data: dict[str, pd.DataFrame] | None = None
+    ):
         self.vix = vix_data
         self.all_data = all_data or {}
         self.vol_est = VolatilityEstimators()
 
     def build_features(
         self, sym: str, df: pd.DataFrame
-    ) -> Tuple[pd.DataFrame, Dict[str, pd.Series]]:
+    ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
         """
         Build full feature matrix for a single symbol.
         Returns (features_df, targets_dict).
@@ -509,7 +576,7 @@ class FeatureEngine:
 
         # ── B. HAR components (Corsi 2009) ─────────────────────────────
         # HAR decomposes vol into daily (1d), weekly (5d), monthly (22d)
-        sq_ret = log_ret ** 2
+        sq_ret = log_ret**2
         feats["har_daily"] = sq_ret.rolling(1).mean() * 252
         feats["har_weekly"] = sq_ret.rolling(5).mean() * 252
         feats["har_monthly"] = sq_ret.rolling(22).mean() * 252
@@ -539,18 +606,14 @@ class FeatureEngine:
         feats["vol_volume_corr"] = abs_ret.rolling(20).corr(v)
 
         # ── E. Range features ──────────────────────────────────────────
-        tr = pd.concat([
-            h - l,
-            (h - c.shift(1)).abs(),
-            (l - c.shift(1)).abs()
-        ], axis=1).max(axis=1)
+        tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
         feats["atr_14"] = tr.rolling(14).mean() / c  # normalised ATR
         feats["atr_5"] = tr.rolling(5).mean() / c
 
         # Bollinger bandwidth
         bb_std = c.rolling(20).std()
         bb_ma = c.rolling(20).mean()
-        feats["bband_width"] = (2 * bb_std / bb_ma.replace(0, np.nan))
+        feats["bband_width"] = 2 * bb_std / bb_ma.replace(0, np.nan)
 
         # Intraday range ratio (today's range vs average)
         daily_range = (h - l) / c
@@ -570,8 +633,9 @@ class FeatureEngine:
 
         # Sector average volatility
         sector = SECTOR_MAP.get(sym, "Unknown")
-        sector_peers = [s for s, sec in SECTOR_MAP.items()
-                        if sec == sector and s != sym and s in self.all_data]
+        sector_peers = [
+            s for s, sec in SECTOR_MAP.items() if sec == sector and s != sym and s in self.all_data
+        ]
         if sector_peers:
             peer_vols = []
             for peer in sector_peers[:5]:  # max 5 peers for speed
@@ -636,10 +700,9 @@ class FeatureEngine:
         feats["macd_line"] = macd_line / c  # as % of price
         feats["macd_signal"] = macd_signal / c
         feats["macd_histogram"] = macd_hist / c
-        feats["macd_crossover"] = (
-            (macd_line > macd_signal).astype(float) -
-            (macd_line.shift(1) > macd_signal.shift(1)).astype(float)
-        )  # +1 = bullish cross, -1 = bearish cross, 0 = no change
+        feats["macd_crossover"] = (macd_line > macd_signal).astype(float) - (
+            macd_line.shift(1) > macd_signal.shift(1)
+        ).astype(float)  # +1 = bullish cross, -1 = bearish cross, 0 = no change
 
         # MACD histogram acceleration (rate of change of histogram)
         feats["macd_hist_accel"] = macd_hist.diff() / c
@@ -675,19 +738,18 @@ class FeatureEngine:
         plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
         minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
 
-        tr_adx = pd.concat([
-            h - l,
-            (h - c.shift(1)).abs(),
-            (l - c.shift(1)).abs()
-        ], axis=1).max(axis=1)
+        tr_adx = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(
+            axis=1
+        )
 
         atr_adx = tr_adx.ewm(span=adx_period, adjust=False).mean()
-        plus_di = 100 * (plus_dm.ewm(span=adx_period, adjust=False).mean() /
-                         atr_adx.replace(0, np.nan))
-        minus_di = 100 * (minus_dm.ewm(span=adx_period, adjust=False).mean() /
-                          atr_adx.replace(0, np.nan))
-        dx = 100 * ((plus_di - minus_di).abs() /
-                     (plus_di + minus_di).replace(0, np.nan))
+        plus_di = 100 * (
+            plus_dm.ewm(span=adx_period, adjust=False).mean() / atr_adx.replace(0, np.nan)
+        )
+        minus_di = 100 * (
+            minus_dm.ewm(span=adx_period, adjust=False).mean() / atr_adx.replace(0, np.nan)
+        )
+        dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan))
         adx = dx.ewm(span=adx_period, adjust=False).mean()
 
         feats["adx"] = adx / 100  # normalise to [0, 1]
@@ -707,10 +769,9 @@ class FeatureEngine:
         feats["pmo_line"] = pmo_line
         feats["pmo_signal"] = pmo_signal
         feats["pmo_histogram"] = pmo_line - pmo_signal
-        feats["pmo_crossover"] = (
-            (pmo_line > pmo_signal).astype(float) -
-            (pmo_line.shift(1) > pmo_signal.shift(1)).astype(float)
-        )
+        feats["pmo_crossover"] = (pmo_line > pmo_signal).astype(float) - (
+            pmo_line.shift(1) > pmo_signal.shift(1)
+        ).astype(float)
 
         # ── M. RSI Divergence ─────────────────────────────────────────
         # Price making new highs but RSI isn't → bearish divergence → vol spike
@@ -728,26 +789,28 @@ class FeatureEngine:
         feats["dist_from_low"] = (c - low_20) / range_20
         # Squeeze detection: range contraction → vol expansion coming
         feats["range_contraction"] = range_20 / c.rolling(60).apply(
-            lambda x: x.max() - x.min(), raw=True).replace(0, np.nan)
+            lambda x: x.max() - x.min(), raw=True
+        ).replace(0, np.nan)
 
         # ── O. Combined confirmation signals ──────────────────────────
         # Multiple indicators agreeing → stronger vol signal
         feats["momentum_alignment"] = (
-            feats.get("rsi_overbought", 0).astype(float) +
-            feats.get("stoch_overbought", 0).astype(float) +
-            (feats.get("macd_histogram", 0) > 0).astype(float)
+            feats.get("rsi_overbought", 0).astype(float)
+            + feats.get("stoch_overbought", 0).astype(float)
+            + (feats.get("macd_histogram", 0) > 0).astype(float)
         ) / 3.0  # 1.0 = all bullish momentum, used for vol context
 
         feats["reversal_risk"] = (
-            feats.get("rsi_oversold", 0).astype(float) +
-            feats.get("stoch_oversold", 0).astype(float) +
-            (feats.get("macd_crossover", 0) == -1).astype(float) +
-            (feats.get("rsi_divergence", 0) > 0).astype(float)
+            feats.get("rsi_oversold", 0).astype(float)
+            + feats.get("stoch_oversold", 0).astype(float)
+            + (feats.get("macd_crossover", 0) == -1).astype(float)
+            + (feats.get("rsi_divergence", 0) > 0).astype(float)
         ) / 4.0  # higher = more reversal signals → vol expansion likely
 
         # Return z-score (how extreme is today's return?)
-        feats["ret_zscore"] = (log_ret - log_ret.rolling(60).mean()) / \
-                               log_ret.rolling(60).std().replace(0, np.nan)
+        feats["ret_zscore"] = (log_ret - log_ret.rolling(60).mean()) / log_ret.rolling(
+            60
+        ).std().replace(0, np.nan)
 
         # Consecutive direction (streak of up or down days)
         direction = np.sign(log_ret)
@@ -765,6 +828,7 @@ class FeatureEngine:
 # ===========================================================================
 # 4. HAR MODEL (Heterogeneous AutoRegressive)
 # ===========================================================================
+
 
 class HARModel:
     """
@@ -827,6 +891,7 @@ class HARModel:
 # 5. LSTM WITH ATTENTION
 # ===========================================================================
 
+
 class LSTMVolModel:
     """
     Bidirectional LSTM with temporal attention for volatility prediction.
@@ -861,6 +926,7 @@ class LSTMVolModel:
         try:
             os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
             import tensorflow as tf
+
             tf.get_logger().setLevel("ERROR")
             self._tf_available = True
         except ImportError:
@@ -874,20 +940,18 @@ class LSTMVolModel:
     def _build_model(self, n_features: int):
         """Build LSTM with attention."""
         import tensorflow as tf
-        from tensorflow.keras import layers, Model
+        from tensorflow.keras import Model, layers
 
         inp = layers.Input(shape=(self.seq_len, n_features))
 
         # Bidirectional LSTM
-        lstm_out = layers.Bidirectional(
-            layers.LSTM(64, return_sequences=True, dropout=0.2)
-        )(inp)
+        lstm_out = layers.Bidirectional(layers.LSTM(64, return_sequences=True, dropout=0.2))(inp)
 
         # Temporal Attention
         # Learn which timesteps are most informative for vol prediction
-        attn_score = layers.Dense(1, activation="tanh")(lstm_out)      # (batch, seq, 1)
-        attn_weight = layers.Softmax(axis=1)(attn_score)                # (batch, seq, 1)
-        context = layers.Multiply()([lstm_out, attn_weight])            # weighted
+        attn_score = layers.Dense(1, activation="tanh")(lstm_out)  # (batch, seq, 1)
+        attn_weight = layers.Softmax(axis=1)(attn_score)  # (batch, seq, 1)
+        context = layers.Multiply()([lstm_out, attn_weight])  # weighted
         context = layers.Lambda(lambda x: tf.reduce_sum(x, axis=1))(context)  # (batch, 128)
 
         # Dense head
@@ -903,9 +967,7 @@ class LSTMVolModel:
         )
         return model
 
-    def _create_sequences(
-        self, X: np.ndarray, y: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _create_sequences(self, X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Convert flat arrays to sequences for LSTM input."""
         Xs, ys = [], []
         for i in range(self.seq_len, len(X)):
@@ -968,7 +1030,8 @@ class LSTMVolModel:
         # Train
         logger.info(f"LSTM training: {len(X_train)} train, {len(X_val)} val sequences")
         self.model.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             validation_data=(X_val, y_val),
             epochs=self.epochs,
             batch_size=self.batch_size,
@@ -1000,10 +1063,9 @@ class LSTMVolModel:
         if len(X_scaled) < self.seq_len:
             return preds
 
-        X_seq = np.array([
-            X_scaled[i - self.seq_len : i]
-            for i in range(self.seq_len, len(X_scaled))
-        ])
+        X_seq = np.array(
+            [X_scaled[i - self.seq_len : i] for i in range(self.seq_len, len(X_scaled))]
+        )
 
         raw_pred = self.model.predict(X_seq, verbose=0).ravel()
 
@@ -1012,7 +1074,7 @@ class LSTMVolModel:
         raw_pred = np.expm1(raw_pred)  # inverse of log1p
         raw_pred = np.clip(raw_pred, 0, 5)  # cap at 500% vol (sanity)
 
-        preds.iloc[self.seq_len:] = raw_pred
+        preds.iloc[self.seq_len :] = raw_pred
 
         return preds
 
@@ -1020,6 +1082,7 @@ class LSTMVolModel:
 # ===========================================================================
 # 6. GRADIENT BOOSTING MODEL
 # ===========================================================================
+
 
 class GBMVolModel:
     """
@@ -1042,10 +1105,12 @@ class GBMVolModel:
             return self._backend
         try:
             import lightgbm
+
             self._backend = "lightgbm"
         except ImportError:
             try:
                 import xgboost
+
                 self._backend = "xgboost"
             except ImportError:
                 self._backend = "sklearn"
@@ -1077,6 +1142,7 @@ class GBMVolModel:
 
         if backend == "lightgbm":
             import lightgbm as lgb
+
             train_data = lgb.Dataset(X_train, label=y_train)
             val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
             params = {
@@ -1095,7 +1161,8 @@ class GBMVolModel:
             }
             callbacks = [lgb.early_stopping(50, verbose=False)]
             self.model = lgb.train(
-                params, train_data,
+                params,
+                train_data,
                 num_boost_round=500,
                 valid_sets=[val_data],
                 callbacks=callbacks,
@@ -1103,6 +1170,7 @@ class GBMVolModel:
 
         elif backend == "xgboost":
             import xgboost as xgb
+
             dtrain = xgb.DMatrix(X_train, label=y_train)
             dval = xgb.DMatrix(X_val, label=y_val)
             params = {
@@ -1115,7 +1183,9 @@ class GBMVolModel:
                 "verbosity": 0,
             }
             self.model = xgb.train(
-                params, dtrain, num_boost_round=500,
+                params,
+                dtrain,
+                num_boost_round=500,
                 evals=[(dval, "val")],
                 early_stopping_rounds=50,
                 verbose_eval=False,
@@ -1124,9 +1194,13 @@ class GBMVolModel:
 
         else:
             from sklearn.ensemble import GradientBoostingRegressor
+
             self.model = GradientBoostingRegressor(
-                n_estimators=300, max_depth=5, learning_rate=0.05,
-                subsample=0.8, min_samples_leaf=20
+                n_estimators=300,
+                max_depth=5,
+                learning_rate=0.05,
+                subsample=0.8,
+                min_samples_leaf=20,
             )
             self.model.fit(X_train, y_train)
 
@@ -1144,30 +1218,31 @@ class GBMVolModel:
             pred = self.model.predict(X_clean)
         elif backend == "xgboost":
             import xgboost as xgb
+
             pred = self.model.predict(xgb.DMatrix(X_clean))
         else:
             pred = self.model.predict(X_clean)
 
         return pd.Series(np.clip(pred, 0, 5), index=X.index)
 
-    def feature_importance(self) -> Optional[pd.Series]:
+    def feature_importance(self) -> pd.Series | None:
         if self.model is None:
             return None
         backend = self._get_backend()
         if backend == "lightgbm":
             imp = self.model.feature_importance(importance_type="gain")
             return pd.Series(imp, index=self.feature_names).sort_values(ascending=False)
-        elif backend == "xgboost":
+        if backend == "xgboost":
             scores = self.model.get_score(importance_type="gain")
             return pd.Series(scores).sort_values(ascending=False)
-        else:
-            imp = self.model.feature_importances_
-            return pd.Series(imp, index=self.feature_names).sort_values(ascending=False)
+        imp = self.model.feature_importances_
+        return pd.Series(imp, index=self.feature_names).sort_values(ascending=False)
 
 
 # ===========================================================================
 # 7. ADAPTIVE ENSEMBLE
 # ===========================================================================
+
 
 class AdaptiveEnsemble:
     """
@@ -1190,8 +1265,8 @@ class AdaptiveEnsemble:
 
     def combine(
         self,
-        predictions: Dict[str, pd.Series],
-        actuals: Optional[pd.Series] = None,
+        predictions: dict[str, pd.Series],
+        actuals: pd.Series | None = None,
     ) -> pd.Series:
         """
         Combine model predictions.
@@ -1206,7 +1281,7 @@ class AdaptiveEnsemble:
         else:
             # Equal weights
             n = len(self.model_names)
-            self.weights = {m: 1.0 / n for m in self.model_names}
+            self.weights = dict.fromkeys(self.model_names, 1.0 / n)
 
         # Weighted combination
         combined = pd.Series(0.0, index=pred_df.index)
@@ -1218,7 +1293,7 @@ class AdaptiveEnsemble:
 
     def _compute_adaptive_weights(
         self, pred_df: pd.DataFrame, actuals: pd.Series
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compute weights based on rolling QLIKE loss."""
         weights = {}
         losses = {}
@@ -1237,8 +1312,8 @@ class AdaptiveEnsemble:
                 continue
 
             # QLIKE: log(σ²_pred) + σ²_actual / σ²_pred
-            p_sq = p ** 2
-            a_sq = a ** 2
+            p_sq = p**2
+            a_sq = a**2
             qlike = (np.log(p_sq) + a_sq / p_sq).mean()
             losses[model] = max(qlike, 0.01)
 
@@ -1265,6 +1340,7 @@ class AdaptiveEnsemble:
 # 8. WALK-FORWARD VALIDATOR
 # ===========================================================================
 
+
 class WalkForwardValidator:
     """
     Walk-forward validation for time series.
@@ -1282,12 +1358,9 @@ class WalkForwardValidator:
         self.min_train_pct = min_train_pct
         self.results = []
 
-    def evaluate(
-        self, predictions: pd.Series, actuals: pd.Series
-    ) -> Dict[str, float]:
+    def evaluate(self, predictions: pd.Series, actuals: pd.Series) -> dict[str, float]:
         """Compute comprehensive evaluation metrics."""
-        mask = predictions.notna() & actuals.notna() & \
-               (predictions > 0) & (actuals > 0)
+        mask = predictions.notna() & actuals.notna() & (predictions > 0) & (actuals > 0)
         pred = predictions[mask]
         actual = actuals[mask]
 
@@ -1298,8 +1371,8 @@ class WalkForwardValidator:
         mae = (pred - actual).abs().mean()
 
         # QLIKE
-        p_sq = pred ** 2
-        a_sq = actual ** 2
+        p_sq = pred**2
+        a_sq = actual**2
         qlike = (np.log(p_sq) + a_sq / p_sq).mean()
 
         # R² (out-of-sample)
@@ -1333,6 +1406,7 @@ class WalkForwardValidator:
 # 9. MAIN ORCHESTRATOR
 # ===========================================================================
 
+
 class VolatilityPredictor:
     """
     End-to-end volatility prediction pipeline.
@@ -1364,10 +1438,10 @@ class VolatilityPredictor:
 
     def run(
         self,
-        symbols: Optional[List[str]] = None,
+        symbols: list[str] | None = None,
         lookback_years: float = 3.0,
         force_refresh: bool = False,
-    ) -> Dict:
+    ) -> dict:
         """
         Run the full prediction pipeline.
 
@@ -1528,7 +1602,9 @@ class VolatilityPredictor:
                 "symbol": sym,
                 "sector": SECTOR_MAP.get(sym, "Unknown"),
                 "current_vol": round(current_vol * 100, 1) if not np.isnan(current_vol) else None,
-                "predicted_vol": round(predicted_vol * 100, 1) if not np.isnan(predicted_vol) else None,
+                "predicted_vol": round(predicted_vol * 100, 1)
+                if not np.isnan(predicted_vol)
+                else None,
                 "vol_change_pct": round(vol_change * 100, 1),
                 "vol_percentile": round(vol_percentile, 0),
                 "regime": regime,
@@ -1555,7 +1631,9 @@ class VolatilityPredictor:
             dirs = sector_summary[sec]["directions"]
             sector_summary[sec]["avg_current_vol"] = round(np.mean(vols), 1) if vols else None
             sector_summary[sec]["avg_predicted_vol"] = round(np.mean(preds), 1) if preds else None
-            sector_summary[sec]["dominant_direction"] = max(set(dirs), key=dirs.count) if dirs else "UNKNOWN"
+            sector_summary[sec]["dominant_direction"] = (
+                max(set(dirs), key=dirs.count) if dirs else "UNKNOWN"
+            )
             sector_summary[sec]["n_stocks"] = len(sector_summary[sec]["symbols"])
 
         return {
@@ -1576,6 +1654,7 @@ class VolatilityPredictor:
 # FACADE — simple entry point for external callers (vol_targeting, live engine)
 # ===========================================================================
 
+
 class VolatilityPredictionEngine:
     """
     Thin facade over the multi-model vol forecasting stack.
@@ -1590,12 +1669,12 @@ class VolatilityPredictionEngine:
     """
 
     def __init__(self):
-        self._pipeline  = DataPipeline()
-        self._feat_eng  = FeatureEngine()
+        self._pipeline = DataPipeline()
+        self._feat_eng = FeatureEngine()
         self._estimators = VolatilityEstimators()
-        self._har       = HARModel()
-        self._ensemble  = AdaptiveEnsemble()
-        self._fitted    = False
+        self._har = HARModel()
+        self._ensemble = AdaptiveEnsemble()
+        self._fitted = False
 
     def predict_one(
         self,
@@ -1603,7 +1682,7 @@ class VolatilityPredictionEngine:
         price_df: "pd.DataFrame",
         horizon: int = 5,
         as_of_date=None,
-    ) -> Optional[float]:
+    ) -> float | None:
         """
         Predict annualised volatility for one symbol using available price data.
 
@@ -1621,8 +1700,9 @@ class VolatilityPredictionEngine:
         try:
             df = price_df.copy()
             # Normalise column names: vol_engine expects lowercase
-            col_map = {c: c.lower() for c in df.columns
-                       if c in ("Open","High","Low","Close","Volume")}
+            col_map = {
+                c: c.lower() for c in df.columns if c in ("Open", "High", "Low", "Close", "Volume")
+            }
             if col_map:
                 df = df.rename(columns=col_map)
 
@@ -1647,12 +1727,12 @@ class VolatilityPredictionEngine:
 
             # HAR model: realised variance at daily / weekly / monthly
             log_ret = np.log(close / close.shift(1)).dropna()
-            rv_d    = float((log_ret ** 2).iloc[-1] * 252)
-            rv_w    = float((log_ret ** 2).rolling(5).mean().iloc[-1] * 252)
-            rv_m    = float((log_ret ** 2).rolling(21).mean().iloc[-1] * 252)
+            rv_d = float((log_ret**2).iloc[-1] * 252)
+            rv_w = float((log_ret**2).rolling(5).mean().iloc[-1] * 252)
+            rv_m = float((log_ret**2).rolling(21).mean().iloc[-1] * 252)
 
             # Weighted average of HAR components (Corsi 2009 weights)
-            har_vol = float(np.sqrt(max(0.4*rv_d + 0.35*rv_w + 0.25*rv_m, 1e-8)))
+            har_vol = float(np.sqrt(max(0.4 * rv_d + 0.35 * rv_w + 0.25 * rv_m, 1e-8)))
 
             # Add technical regime context
             recent_vol = float(log_ret.rolling(21).std().iloc[-1] * np.sqrt(252))
@@ -1665,7 +1745,7 @@ class VolatilityPredictionEngine:
             # Blend HAR with recent EWMA for responsiveness
             ewma_var = float(log_ret.ewm(span=21).var().iloc[-1] * 252)
             ewma_vol = float(np.sqrt(max(ewma_var, 1e-8)))
-            blended  = 0.6 * har_vol + 0.4 * ewma_vol
+            blended = 0.6 * har_vol + 0.4 * ewma_vol
 
             return float(np.clip(blended * vix_adj, 0.02, 2.0))
 

@@ -11,24 +11,28 @@ Zero cost — metadata queries are free.
 Usage:
     PYTHONPATH=. python diagnostics/check_databento_catalog.py
 """
-import os, sys, warnings
+
+import os
+import sys
+import warnings
+
 warnings.filterwarnings("ignore")
 sys.path.insert(0, ".")
 
 from datetime import date, datetime
-from pathlib import Path
 
 KEY = os.environ.get("DATABENTO_KEY", "")
 
 try:
     import databento as db
 except ImportError:
-    print("databento not installed"); sys.exit(1)
+    print("databento not installed")
+    sys.exit(1)
 
 client = db.Historical(key=KEY)
 
-CUTOFF     = date(2025, 10, 31)
-TEST_SYMS  = ["AAPL", "MSFT", "NVDA"]
+CUTOFF = date(2025, 10, 31)
+TEST_SYMS = ["AAPL", "MSFT", "NVDA"]
 
 print()
 print("=" * 68)
@@ -57,22 +61,23 @@ except Exception as e:
 # ── 3. Check data availability for XNAS.ITCH imbalance post-cutoff ───────────
 print(f"\n[3/4] XNAS.ITCH imbalance availability after {CUTOFF}:")
 test_dates = [
-    date(2025, 11,  3),
+    date(2025, 11, 3),
     date(2025, 11, 14),
-    date(2025, 12,  1),
-    date(2026,  1,  5),
-    date(2026,  2,  2),
-    date(2026,  3,  2),
+    date(2025, 12, 1),
+    date(2026, 1, 5),
+    date(2026, 2, 2),
+    date(2026, 3, 2),
 ]
 for d in test_dates:
     try:
         # Use get_range with limit=1 to check existence cheaply
         start = datetime(d.year, d.month, d.day, 19, 50, 0)
-        end   = datetime(d.year, d.month, d.day, 20,  1, 0)
+        end = datetime(d.year, d.month, d.day, 20, 1, 0)
         store = client.timeseries.get_range(
             dataset="XNAS.ITCH",
             schema="imbalance",
-            start=start, end=end,
+            start=start,
+            end=end,
             symbols=TEST_SYMS,
             limit=1,
         )
@@ -83,17 +88,18 @@ for d in test_dates:
     print(f"  {d}  {status}")
 
 # ── 4. Check alternative datasets that might carry imbalance ─────────────────
-print(f"\n[4/4] Alternative datasets — imbalance schema probe:")
-alt_datasets = ["DBEQ.BASIC", "DBEQ.PLUS", "FINN.NLS", "XNYS.TRADES",
-                "EQUS.MINI", "EQUS.SUMMARY"]
+print("\n[4/4] Alternative datasets — imbalance schema probe:")
+alt_datasets = ["DBEQ.BASIC", "DBEQ.PLUS", "FINN.NLS", "XNYS.TRADES", "EQUS.MINI", "EQUS.SUMMARY"]
 for ds in alt_datasets:
     try:
         schemas = client.metadata.list_schemas(dataset=ds)
         has_imb = "imbalance" in schemas
         has_stat = "statistics" in schemas
         markers = []
-        if has_imb:  markers.append("imbalance ✅")
-        if has_stat: markers.append("statistics ✅")
+        if has_imb:
+            markers.append("imbalance ✅")
+        if has_stat:
+            markers.append("statistics ✅")
         if markers:
             print(f"  {ds:<20} {', '.join(markers)}")
         else:
@@ -102,11 +108,11 @@ for ds in alt_datasets:
         print(f"  {ds:<20} unavailable: {str(e)[:50]}")
 
 # ── 5. Check XNAS.ITCH imbalance date range from catalog ─────────────────────
-print(f"\n[5/4] XNAS.ITCH imbalance date range from catalog:")
+print("\n[5/4] XNAS.ITCH imbalance date range from catalog:")
 try:
     info = client.metadata.get_dataset_range(dataset="XNAS.ITCH")
     print(f"  Dataset range: {info}")
-except Exception as e:
+except Exception:
     try:
         # Alternative metadata call
         cond = client.metadata.get_dataset_condition(

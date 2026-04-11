@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
-import numpy as np
-import pandas as pd
 import structlog
 
 from market_data.storage.analytics_lake import AnalyticsLake
@@ -24,7 +22,7 @@ class QualityCheckResult:
     check_name: str
     passed: bool
     details: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
 
 
 @dataclass
@@ -91,9 +89,7 @@ class DataQualityChecker:
         report = QualityReport(date=check_date)
 
         if symbols is None:
-            records = self.symbol_master.list_symbols(
-                asset_class="equity", active_only=True
-            )
+            records = self.symbol_master.list_symbols(asset_class="equity", active_only=True)
             symbols = [r.ticker for r in records]
 
         if not symbols:
@@ -126,9 +122,7 @@ class DataQualityChecker:
         )
         return report
 
-    def check_missing_timestamps(
-        self, check_date: str, symbols: list[str]
-    ) -> QualityCheckResult:
+    def check_missing_timestamps(self, check_date: str, symbols: list[str]) -> QualityCheckResult:
         """Check for missing timestamps (gaps in expected data).
 
         Args:
@@ -168,9 +162,7 @@ class DataQualityChecker:
             },
         )
 
-    def check_price_outliers(
-        self, check_date: str, symbols: list[str]
-    ) -> QualityCheckResult:
+    def check_price_outliers(self, check_date: str, symbols: list[str]) -> QualityCheckResult:
         """Detect price outliers exceeding N standard deviations.
 
         Args:
@@ -212,10 +204,12 @@ class DataQualityChecker:
             z_scores = ((returns - mean) / std).abs()
             max_z = z_scores.max()
             if max_z > self.outlier_std_threshold:
-                outliers.append({
-                    "ticker": ticker,
-                    "max_z_score": round(float(max_z), 2),
-                })
+                outliers.append(
+                    {
+                        "ticker": ticker,
+                        "max_z_score": round(float(max_z), 2),
+                    }
+                )
 
         passed = len(outliers) == 0
         return QualityCheckResult(
@@ -228,9 +222,7 @@ class DataQualityChecker:
             },
         )
 
-    def check_zero_volume(
-        self, check_date: str, symbols: list[str]
-    ) -> QualityCheckResult:
+    def check_zero_volume(self, check_date: str, symbols: list[str]) -> QualityCheckResult:
         """Check for zero-volume bars which may indicate stale data.
 
         Args:
@@ -273,9 +265,7 @@ class DataQualityChecker:
             },
         )
 
-    def check_negative_prices(
-        self, check_date: str, symbols: list[str]
-    ) -> QualityCheckResult:
+    def check_negative_prices(self, check_date: str, symbols: list[str]) -> QualityCheckResult:
         """Check for negative prices which are always invalid.
 
         Args:
@@ -318,9 +308,7 @@ class DataQualityChecker:
             },
         )
 
-    def check_completeness(
-        self, check_date: str, symbols: list[str]
-    ) -> QualityCheckResult:
+    def check_completeness(self, check_date: str, symbols: list[str]) -> QualityCheckResult:
         """Check data completeness against expected symbol universe.
 
         Alerts if completeness falls below threshold (default 99.5%).
@@ -393,9 +381,7 @@ class DataQualityChecker:
             Quality check result.
         """
         dt = datetime.fromisoformat(check_date)
-        records = self.symbol_master.list_symbols(
-            asset_class="equity", active_only=True
-        )
+        records = self.symbol_master.list_symbols(asset_class="equity", active_only=True)
 
         sample_size = min(self.cross_validation_sample_size, len(records))
         sample = random.sample(records, sample_size) if records else []
@@ -435,12 +421,14 @@ class DataQualityChecker:
 
             diff_ratio = abs(price_a - price_b) / abs(price_a)
             if diff_ratio > tolerance:
-                mismatches.append({
-                    "ticker": record.ticker,
-                    "price_a": round(price_a, 4),
-                    "price_b": round(price_b, 4),
-                    "diff_ratio": round(diff_ratio, 4),
-                })
+                mismatches.append(
+                    {
+                        "ticker": record.ticker,
+                        "price_a": round(price_a, 4),
+                        "price_b": round(price_b, 4),
+                        "diff_ratio": round(diff_ratio, 4),
+                    }
+                )
 
         passed = len(mismatches) == 0
         return QualityCheckResult(
@@ -454,9 +442,7 @@ class DataQualityChecker:
             },
         )
 
-    def generate_dashboard_data(
-        self, reports: list[QualityReport]
-    ) -> dict[str, Any]:
+    def generate_dashboard_data(self, reports: list[QualityReport]) -> dict[str, Any]:
         """Generate data quality dashboard summary.
 
         Args:
@@ -491,9 +477,7 @@ class DataQualityChecker:
         return {
             "dates": dates,
             "pass_rates": [round(r, 4) for r in pass_rates],
-            "overall_pass_rate": round(
-                sum(pass_rates) / len(pass_rates), 4
-            ) if pass_rates else 0.0,
+            "overall_pass_rate": round(sum(pass_rates) / len(pass_rates), 4) if pass_rates else 0.0,
             "check_summary": check_summary,
             "total_reports": len(reports),
         }

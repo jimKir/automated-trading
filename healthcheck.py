@@ -17,6 +17,7 @@ Or alongside the trading engine — it runs in a background thread
 automatically when the trading engine starts (set system.healthcheck: true
 in settings.yaml).
 """
+
 from __future__ import annotations
 
 import json
@@ -32,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 _START_TIME = time.time()
 _PORTFOLIO_SNAPSHOT: dict = {}
-_SIGNALS_SNAPSHOT:   dict = {}
+_SIGNALS_SNAPSHOT: dict = {}
 
 
 def update_portfolio(snap: dict) -> None:
@@ -59,12 +60,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            self._send_json({
-                "status":   "ok",
-                "mode":     os.environ.get("TRADING_MODE", "paper"),
-                "uptime_s": round(time.time() - _START_TIME),
-                "ts":       datetime.utcnow().isoformat() + "Z",
-            })
+            self._send_json(
+                {
+                    "status": "ok",
+                    "mode": os.environ.get("TRADING_MODE", "paper"),
+                    "uptime_s": round(time.time() - _START_TIME),
+                    "ts": datetime.utcnow().isoformat() + "Z",
+                }
+            )
 
         elif self.path == "/status":
             snap = dict(_PORTFOLIO_SNAPSHOT)

@@ -1,13 +1,15 @@
 """
 YAML config loader with environment variable override support.
 """
+
 import os
-import yaml
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
+import yaml
 
 
-def load_config(path: str = "config/settings.yaml") -> Dict[str, Any]:
+def load_config(path: str = "config/settings.yaml") -> dict[str, Any]:
     """Load YAML config, interpolating ${ENV_VAR} references."""
     cfg_path = Path(path)
     if not cfg_path.exists():
@@ -18,11 +20,13 @@ def load_config(path: str = "config/settings.yaml") -> Dict[str, Any]:
 
     # Simple env var injection  ${VAR_NAME}
     import re
+
     def replace_env(match):
         var = match.group(1)
         value = os.environ.get(var)
         if value is None:
             import logging
+
             logging.getLogger("ConfigLoader").warning(
                 f"Environment variable ${{{var}}} not set; keeping placeholder"
             )

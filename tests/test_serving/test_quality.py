@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pyarrow as pa
 
 from market_data.serving.quality import DataQualityChecker, QualityReport
-from market_data.storage.analytics_lake import AnalyticsLake, OHLCV_SCHEMA
-from market_data.storage.cloud_storage import LocalStorageBackend
+from market_data.storage.analytics_lake import OHLCV_SCHEMA, AnalyticsLake
 from market_data.storage.symbol_master import SymbolMaster
 
 
@@ -21,7 +20,7 @@ class TestDataQualityChecker:
             symbol_master=symbol_master,
         )
         # Write data with negative prices
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         sid = symbol_master.get_symbol_id("AAPL")
         table = pa.Table.from_pylist(
             [
@@ -63,7 +62,7 @@ class TestDataQualityChecker:
         )
 
         # Write data for AAPL
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         sid = symbol_master.get_symbol_id("AAPL")
         table = pa.Table.from_pylist(
             [
@@ -105,7 +104,7 @@ class TestDataQualityChecker:
         assert report.total_checks == 0
 
     def test_generate_dashboard_data(self) -> None:
-        from market_data.serving.quality import DataQualityChecker, QualityCheckResult, QualityReport
+        from market_data.serving.quality import DataQualityChecker, QualityCheckResult
 
         reports = [
             QualityReport(
@@ -124,6 +123,7 @@ class TestDataQualityChecker:
         # Use a dummy instance just for the method
         class FakeLake:
             pass
+
         class FakeSM:
             pass
 

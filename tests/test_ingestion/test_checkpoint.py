@@ -43,12 +43,20 @@ class TestCheckpointManager:
     def test_get_incomplete(self, tmp_dir: Path) -> None:
         mgr = CheckpointManager(db_path=tmp_dir / "checkpoints.db")
         state1 = CheckpointState(
-            vendor="databento", symbol="AAPL", schema="ohlcv-1d",
-            start_date="2024-01-01", end_date="2024-01-31", status="in_progress",
+            vendor="databento",
+            symbol="AAPL",
+            schema="ohlcv-1d",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            status="in_progress",
         )
         state2 = CheckpointState(
-            vendor="databento", symbol="MSFT", schema="ohlcv-1d",
-            start_date="2024-01-01", end_date="2024-01-31", status="in_progress",
+            vendor="databento",
+            symbol="MSFT",
+            schema="ohlcv-1d",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            status="in_progress",
         )
         mgr.save(state1)
         mgr.save(state2)
@@ -78,8 +86,11 @@ class TestCheckpointManager:
     def test_clear_completed(self, tmp_dir: Path) -> None:
         mgr = CheckpointManager(db_path=tmp_dir / "checkpoints.db")
         state = CheckpointState(
-            vendor="databento", symbol="AAPL", schema="ohlcv-1d",
-            start_date="2024-01-01", end_date="2024-01-31",
+            vendor="databento",
+            symbol="AAPL",
+            schema="ohlcv-1d",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
         )
         mgr.save(state)
         mgr.mark_completed(state)

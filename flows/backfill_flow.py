@@ -6,15 +6,14 @@ from datetime import date, timedelta
 
 import structlog
 from prefect import flow, task
-from prefect.tasks import task_input_hash
 
 from market_data.config import get_settings
+from market_data.ingestion.alpaca_client import AlpacaClient
 from market_data.ingestion.backfill import BackfillOrchestrator, BackfillSummary
 from market_data.ingestion.checkpoint import CheckpointManager
 from market_data.ingestion.databento_client import DatabentoClient
-from market_data.ingestion.alpaca_client import AlpacaClient
 from market_data.ingestion.rate_limiter import TokenBucketRateLimiter
-from market_data.monitoring.alerts import Alert, AlertManager, AlertSeverity
+from market_data.monitoring.alerts import AlertManager
 
 logger = structlog.get_logger(__name__)
 
@@ -148,13 +147,14 @@ def backfill_flow(
     if symbols is None:
         symbols = settings.ingestion.backfill.symbols or ["AAPL", "MSFT", "GOOGL"]
     if start_date is None:
-        start_date = settings.ingestion.backfill.start_date or (
-            date.today() - timedelta(days=730)
-        ).isoformat()
+        start_date = (
+            settings.ingestion.backfill.start_date
+            or (date.today() - timedelta(days=730)).isoformat()
+        )
     if end_date is None:
-        end_date = settings.ingestion.backfill.end_date or (
-            date.today() - timedelta(days=1)
-        ).isoformat()
+        end_date = (
+            settings.ingestion.backfill.end_date or (date.today() - timedelta(days=1)).isoformat()
+        )
     if vendors is None:
         vendors = ["databento", "alpaca"]
     if schemas is None:

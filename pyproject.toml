@@ -48,13 +48,113 @@ market-data = "market_data.cli:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# ============================================================
+#  Ruff — linter + formatter (replaces flake8, isort, black)
+#  Docs: https://docs.astral.sh/ruff/
+# ============================================================
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# Only lint project code, not vendored / cached / venv files
+exclude = [
+    "venv",
+    ".venv",
+    "__pycache__",
+    ".cache",
+    "data_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+    "momentum_signals_exploration b",
+    "volatility_prediction b",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+select = [
+    # Core Python
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade — modernize syntax to 3.11+
+    # Bugs & correctness
+    "B",      # flake8-bugbear
+    "S",      # flake8-bandit (security) — critical for trading code
+    "A",      # flake8-builtins shadowing
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez — enforce tz-aware datetimes
+    "ISC",    # flake8-implicit-str-concat
+    "PIE",    # flake8-pie (misc improvements)
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "TID",    # flake8-tidy-imports
+    "ICN",    # flake8-import-conventions
+    # Performance
+    "PERF",   # perflint
+    "FURB",   # refurb — modernize patterns
+    # Pylint subset (high-value rules only)
+    "PLC",    # pylint convention
+    "PLE",    # pylint errors
+    "PLW",    # pylint warnings
+    # Ruff-specific
+    "RUF",    # ruff-native rules
+    # Pytest
+    "PT",     # flake8-pytest-style
+]
+ignore = [
+    "E501",    # line-too-long — formatter handles this
+    "ISC001",  # conflicts with ruff formatter
+    "S101",    # assert — allowed globally, more specific in per-file below
+    "RUF002",  # ambiguous unicode in docstrings — false positives
+    "RUF013",  # implicit-optional — mypy catches this better
+    "PLR2004", # magic-value-comparison — too noisy for trading code with thresholds
+    "PLR0913", # too-many-arguments — trading functions legitimately have many params
+    "PLR0912", # too-many-branches — strategy code is inherently branchy
+    "PLR0915", # too-many-statements
+    "DTZ005",  # datetime.now() without tz — will fix incrementally
+    "S110",    # try-except-pass — used intentionally in resilient fetchers
+    "B905",    # zip-without-explicit-strict — too noisy for pandas-heavy code
+    "N806",    # non-lowercase variable — trading uses SPY, QQQ, etc as vars
+    "PLC0415", # import-outside-top-level — conditional imports are intentional
+    "RET504",  # unnecessary-assign-before-return — often clearer to name the result
+]
 
+[tool.ruff.lint.per-file-ignores]
+# Tests can use assert, magic values, hardcoded passwords in fixtures
+"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PT011"]
+# Scripts can use print, have top-level code
+"scripts/**/*.py" = ["T20"]
+"fetch_all.py" = ["T20", "BLE001"]
+"daily_data_update.py" = ["T20", "BLE001"]
+"crypto_fetcher.py" = ["T20", "BLE001"]
+"INSTALL_AND_RUN.sh" = ["ALL"]
+# Exploratory notebooks / analysis scripts
+"momentum_signals_exploration/**/*.py" = ["T20", "E402", "BLE001", "S311"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["market_data", "backtest", "core", "data", "execution", "regime", "risk", "strategy", "utils"]
+force-single-line = false
+combine-as-imports = true
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+# ============================================================
+#  Pytest
+# ============================================================
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
@@ -62,9 +162,27 @@ markers = [
     "slow: marks tests as slow",
     "integration: marks integration tests",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
+# ============================================================
+#  Mypy — strict static type checking
+# ============================================================
 [tool.mypy]
 python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+warn_unreachable = true
+show_error_codes = true
+# Gradual typing: allow untyped third-party libs
+ignore_missing_imports = true
+# Per-module overrides for stricter enforcement on core code
+[[tool.mypy.overrides]]
+module = ["src.market_data.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false

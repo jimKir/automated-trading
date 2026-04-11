@@ -48,12 +48,14 @@ Anti-overfitting:
   - Multiplier clipped to [0.5, 1.3] — conservative range
   - Volume disabled gracefully if Volume column missing (futures/some ETFs)
 """
+
 from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Optional
+
 from utils.logger import get_logger
 
 log = get_logger("Signals")
@@ -86,15 +88,17 @@ class SignalGenerator:
         # Reactive blend weights (configurable via strategy.blend_weights)
         blend = sc.get("blend_weights", {})
         self.w_ts_mom = blend.get("ts_momentum", 0.40)
-        self.w_mr     = blend.get("mean_reversion", 0.30)
-        self.w_macd   = blend.get("macd", 0.20)
-        self.w_rsi    = blend.get("rsi", 0.10)
+        self.w_mr = blend.get("mean_reversion", 0.30)
+        self.w_macd = blend.get("macd", 0.20)
+        self.w_rsi = blend.get("rsi", 0.10)
 
         # Predictive signal config
         pred = sc.get("predictive", {})
         self.credit_regime_enabled = pred.get("credit_regime_enabled", True)
         self.credit_regime_weight = pred.get("credit_regime_weight", 0.30)
-        self.reactive_weight = 1.0 - self.credit_regime_weight if self.credit_regime_enabled else 1.0
+        self.reactive_weight = (
+            1.0 - self.credit_regime_weight if self.credit_regime_enabled else 1.0
+        )
 
         # Regime-conditional factor switching
         # Backtest validated: Sharpe 0.65 → 3.24 (+396%) OOS 2023-2026
@@ -103,18 +107,20 @@ class SignalGenerator:
         # Bear/choppy regime (VIX≥20 or SPY<200MA): full factor set incl. MR+PMO+ADX
         rs = sc.get("regime_switching", {})
         self.regime_switching_enabled = rs.get("enabled", True)
-        self.bull_vix_threshold   = rs.get("bull_vix_threshold",   20.0)
-        self.bull_spy_ma_period   = rs.get("bull_spy_ma_period",   200)
+        self.bull_vix_threshold = rs.get("bull_vix_threshold", 20.0)
+        self.bull_spy_ma_period = rs.get("bull_spy_ma_period", 200)
         # Factor weights in bull regime (weights sum to 1.0 after credit overlay)
         self.bull_w_ts_mom = rs.get("bull_w_ts_mom", 0.60)  # up from 0.40
-        self.bull_w_mr     = rs.get("bull_w_mr",     0.10)  # down from 0.30 (main change)
-        self.bull_w_macd   = rs.get("bull_w_macd",   0.25)  # up from 0.20
-        self.bull_w_rsi    = rs.get("bull_w_rsi",    0.05)  # down from 0.10
+        self.bull_w_mr = rs.get("bull_w_mr", 0.10)  # down from 0.30 (main change)
+        self.bull_w_macd = rs.get("bull_w_macd", 0.25)  # up from 0.20
+        self.bull_w_rsi = rs.get("bull_w_rsi", 0.05)  # down from 0.10
         # In bull regime: no PMO contrarian (fights uptrend), no ADX gate (early rally)
-        self.bull_use_pmo  = rs.get("bull_use_pmo",  False)
-        self.bull_use_adx  = rs.get("bull_use_adx",  False)
-        log.info(f"RegimeSwitching: {'ENABLED' if self.regime_switching_enabled else 'DISABLED'} | "
-                 f"bull_vix<{self.bull_vix_threshold} | bull_spy_ma{self.bull_spy_ma_period}")
+        self.bull_use_pmo = rs.get("bull_use_pmo", False)
+        self.bull_use_adx = rs.get("bull_use_adx", False)
+        log.info(
+            f"RegimeSwitching: {'ENABLED' if self.regime_switching_enabled else 'DISABLED'} | "
+            f"bull_vix<{self.bull_vix_threshold} | bull_spy_ma{self.bull_spy_ma_period}"
+        )
 
         # ── H2O Trend Classifier (rides strong trends longer) ────────────
         self._trend_classifier = None
@@ -123,6 +129,7 @@ class SignalGenerator:
         if self.trend_classifier_enabled:
             try:
                 from core.h2o_trend_classifier import H2OTrendClassifier
+
                 self._trend_classifier = H2OTrendClassifier(config)
             except Exception as e:
                 log.warning(f"TrendClassifier init failed: {e}")
@@ -135,20 +142,21 @@ class SignalGenerator:
         if self.pv_enabled:
             try:
                 from core.price_volume_segments import PriceVolumeSegmenter
+
                 self._pv_segmenter = PriceVolumeSegmenter(config)
             except Exception as e:
                 log.warning(f"PVSegmenter init failed: {e}")
                 self._pv_segmenter = None
 
         # Cache for macro data (set externally or fetched in generate)
-        self._macro_data: Dict[str, pd.DataFrame] = {}
-        self._credit_signal_cache: Optional[pd.Series] = None
+        self._macro_data: dict[str, pd.DataFrame] = {}
+        self._credit_signal_cache: pd.Series | None = None
 
-    def set_macro_data(self, macro_data: Dict[str, pd.DataFrame]) -> None:
+    def set_macro_data(self, macro_data: dict[str, pd.DataFrame]) -> None:
         """Inject macro data for credit regime signal."""
         self._macro_data = macro_data
 
-    def set_imbalance_scores(self, scores: Dict[str, "pd.Series"]) -> None:
+    def set_imbalance_scores(self, scores: dict[str, pd.Series]) -> None:
         """
         Inject pre-computed closing imbalance scores per symbol.
         Expected format: {symbol: pd.Series(index=DatetimeIndex, values=float)}
@@ -160,9 +168,9 @@ class SignalGenerator:
         Regime gate is applied internally (VIX >= 18 threshold).
         IC evidence: +0.16 when VIX>25, +0.05 when VIX 18-25, ≈0 when VIX<18.
         """
-        self._imbalance_scores: Dict[str, pd.Series] = scores
+        self._imbalance_scores: dict[str, pd.Series] = scores
         self._credit_signal_cache = None  # invalidate cache
-        self._credit_signal_as_of: Optional[pd.Timestamp] = None
+        self._credit_signal_as_of: pd.Timestamp | None = None
 
     # -----------------------------------------------------------------------
     # Building blocks — reactive (per-asset)
@@ -197,8 +205,8 @@ class SignalGenerator:
         """Z-score based mean reversion signal."""
         z = self._rolling_zscore(close, self.slow)
         signal = pd.Series(0.0, index=close.index)
-        signal[z > self.zscore_entry] = -1.0   # overbought → short
-        signal[z < -self.zscore_entry] = 1.0   # oversold  → long
+        signal[z > self.zscore_entry] = -1.0  # overbought → short
+        signal[z < -self.zscore_entry] = 1.0  # oversold  → long
         signal[(z > -self.zscore_exit) & (z < self.zscore_exit)] = 0.0
         return signal
 
@@ -230,13 +238,18 @@ class SignalGenerator:
         z = self._rolling_zscore(histogram, self.slow)
         return z.clip(-2, 2) / 2  # maps to [-1, 1]
 
-    def _atr(self, high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> pd.Series:
+    def _atr(
+        self, high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14
+    ) -> pd.Series:
         """Average True Range for stop-loss calibration."""
-        tr = pd.concat([
-            high - low,
-            (high - close.shift()).abs(),
-            (low - close.shift()).abs(),
-        ], axis=1).max(axis=1)
+        tr = pd.concat(
+            [
+                high - low,
+                (high - close.shift()).abs(),
+                (low - close.shift()).abs(),
+            ],
+            axis=1,
+        ).max(axis=1)
         return tr.rolling(window).mean()
 
     # -----------------------------------------------------------------------
@@ -270,7 +283,7 @@ class SignalGenerator:
         # Fast vs slow MA on normalised OBV
         obv_fast = obv_norm.rolling(self.fast).mean()
         obv_slow = obv_norm.rolling(self.slow).mean()
-        raw = (obv_fast - obv_slow).clip(-2, 2) / 2   # → [-1, 1]
+        raw = (obv_fast - obv_slow).clip(-2, 2) / 2  # → [-1, 1]
         return raw.fillna(0)
 
     def _volume_trend_ratio(self, volume: pd.Series) -> pd.Series:
@@ -290,20 +303,20 @@ class SignalGenerator:
         Economic logic: trends on rising volume are more reliable than those
         on declining volume (Blume, Easley & O'Hara 1994).
         """
-        vol_fast = volume.rolling(self.fast).mean()   # 20d average
-        vol_slow = volume.rolling(self.slow).mean()   # 60d average
+        vol_fast = volume.rolling(self.fast).mean()  # 20d average
+        vol_slow = volume.rolling(self.slow).mean()  # 60d average
         ratio = (vol_fast / vol_slow.replace(0, np.nan)).fillna(1.0)
 
         # Map ratio to multiplier:
         #   ratio 0.5 → multiplier 0.5 (volume halved vs baseline)
         #   ratio 1.0 → multiplier 1.0 (flat)
         #   ratio 1.5 → multiplier 1.3 (volume 50% above baseline, cap at 1.3)
-        multiplier = 0.5 + 0.5 * ratio   # linear interpolation
+        multiplier = 0.5 + 0.5 * ratio  # linear interpolation
         return multiplier.clip(0.5, 1.3)
 
-    def _chaikin_money_flow(self, high: pd.Series, low: pd.Series,
-                             close: pd.Series, volume: pd.Series,
-                             window: int = 20) -> pd.Series:
+    def _chaikin_money_flow(
+        self, high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series, window: int = 20
+    ) -> pd.Series:
         """
         Factor 10: Chaikin Money Flow (CMF).
 
@@ -346,14 +359,15 @@ class SignalGenerator:
         Walk-forward: 3/3 positive OOS years (2023-2025) as contrarian factor.
         Weight in blend: 15% (validated, additive to existing factors).
         """
-        roc  = (close / close.shift(1) - 1) * 100
+        roc = (close / close.shift(1) - 1) * 100
         ema1 = roc.ewm(span=35, min_periods=10).mean() * 20
-        pmo  = ema1.ewm(span=20, min_periods=5).mean()
-        sig  = pmo.ewm(span=10, min_periods=3).mean()
+        pmo = ema1.ewm(span=20, min_periods=5).mean()
+        sig = pmo.ewm(span=10, min_periods=3).mean()
         crossover = pmo - sig
         # Flip sign: contrarian (IC is negative, so -signal has positive IC)
-        return (-crossover).clip(-2, 2) / 2   # normalise to [-1, 1]
+        return (-crossover).clip(-2, 2) / 2  # normalise to [-1, 1]
 
+<<<<<<< Updated upstream
     def _stochastic_contrarian(self, high: pd.Series, low: pd.Series,
                                 close: pd.Series, k_period: int = 14,
                                 smooth: int = 3) -> pd.Series:
@@ -383,6 +397,11 @@ class SignalGenerator:
 
     def _adx(self, high: pd.Series, low: pd.Series, close: pd.Series,
               period: int = 14) -> pd.Series:
+=======
+    def _adx(
+        self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+    ) -> pd.Series:
+>>>>>>> Stashed changes
         """
         ADX (14-period). Used as a FILTER gate, not a directional signal.
         ADX >= 20: trending regime → full position size (multiplier = 1.0)
@@ -396,18 +415,18 @@ class SignalGenerator:
             return pd.Series(20.0, index=close.index)  # neutral default
         tr_arr, dmp_arr, dmm_arr = [], [], []
         for i in range(1, n):
-            hl  = hi[i] - lo[i]
-            hpc = abs(hi[i] - cl[i-1])
-            lpc = abs(lo[i] - cl[i-1])
+            hl = hi[i] - lo[i]
+            hpc = abs(hi[i] - cl[i - 1])
+            lpc = abs(lo[i] - cl[i - 1])
             tr_arr.append(max(hl, hpc, lpc))
-            up   = hi[i] - hi[i-1]
-            down = lo[i-1] - lo[i]
-            dmp_arr.append(up   if up   > down and up   > 0 else 0.0)
-            dmm_arr.append(down if down > up   and down > 0 else 0.0)
-        atr   = pd.Series(tr_arr).ewm(span=period, min_periods=period).mean()
-        di_p  = pd.Series(dmp_arr).ewm(span=period, min_periods=period).mean() / (atr + 1e-9) * 100
-        di_m  = pd.Series(dmm_arr).ewm(span=period, min_periods=period).mean() / (atr + 1e-9) * 100
-        dx    = (di_p - di_m).abs() / (di_p + di_m + 1e-9) * 100
+            up = hi[i] - hi[i - 1]
+            down = lo[i - 1] - lo[i]
+            dmp_arr.append(up if up > down and up > 0 else 0.0)
+            dmm_arr.append(down if down > up and down > 0 else 0.0)
+        atr = pd.Series(tr_arr).ewm(span=period, min_periods=period).mean()
+        di_p = pd.Series(dmp_arr).ewm(span=period, min_periods=period).mean() / (atr + 1e-9) * 100
+        di_m = pd.Series(dmm_arr).ewm(span=period, min_periods=period).mean() / (atr + 1e-9) * 100
+        dx = (di_p - di_m).abs() / (di_p + di_m + 1e-9) * 100
         adx_s = dx.ewm(span=period, min_periods=period).mean()
         result = pd.Series(np.nan, index=close.index)
         result.iloc[1:] = adx_s.values
@@ -419,9 +438,9 @@ class SignalGenerator:
 
     def _detect_bull_regime(
         self,
-        close_index: "pd.DatetimeIndex",
-        as_of_date: Optional["pd.Timestamp"] = None,
-    ) -> "pd.Series":
+        close_index: pd.DatetimeIndex,
+        as_of_date: pd.Timestamp | None = None,
+    ) -> pd.Series:
         """
         Per-day bull/bear regime classification.
         Returns boolean Series: True = bull, False = bear/neutral.
@@ -443,12 +462,12 @@ class SignalGenerator:
 
             vix_close = vix_data["Close"].squeeze().reindex(close_index).ffill()
             spy_close = spy_data["Close"].squeeze().reindex(close_index).ffill()
-            spy_ma    = spy_close.rolling(self.bull_spy_ma_period, min_periods=50).mean()
+            spy_ma = spy_close.rolling(self.bull_spy_ma_period, min_periods=50).mean()
 
             if as_of_date is not None:
                 vix_close = vix_close.loc[:as_of_date]
                 spy_close = spy_close.loc[:as_of_date]
-                spy_ma    = spy_ma.loc[:as_of_date]
+                spy_ma = spy_ma.loc[:as_of_date]
 
             bull = (vix_close < self.bull_vix_threshold) & (spy_close > spy_ma)
             return bull.reindex(close_index).fillna(False)
@@ -456,8 +475,9 @@ class SignalGenerator:
             log.debug(f"Regime detection failed: {e}")
             return pd.Series(False, index=close_index)
 
-    def _vwap_daily_proxy(self, close: pd.Series, high: pd.Series,
-                           low: pd.Series, volume: pd.Series) -> pd.Series:
+    def _vwap_daily_proxy(
+        self, close: pd.Series, high: pd.Series, low: pd.Series, volume: pd.Series
+    ) -> pd.Series:
         """
         Daily VWAP distance proxy.
         NOTE: The validated IC +0.054 (p=0.007) is from 1-min Alpaca bars.
@@ -465,10 +485,10 @@ class SignalGenerator:
         Used here at low weight (5%) as a directional tiebreaker only.
         Full signal lives in strategy/alpaca_microstructure.py.
         """
-        tp   = (high + low + close) / 3
+        tp = (high + low + close) / 3
         vwap = (tp * volume).rolling(5).sum() / volume.rolling(5).sum().replace(0, np.nan)
-        dev  = (close - vwap) / (vwap + 1e-9)
-        return dev.clip(-0.1, 0.1) / 0.1   # normalise to [-1, 1]
+        dev = (close - vwap) / (vwap + 1e-9)
+        return dev.clip(-0.1, 0.1) / 0.1  # normalise to [-1, 1]
 
     def _vwap_sma_proxy(self, close: pd.Series) -> pd.Series:
         """
@@ -498,8 +518,8 @@ class SignalGenerator:
         self,
         close: pd.Series,
         volume: pd.Series,
-        high:   Optional[pd.Series] = None,
-        low:    Optional[pd.Series] = None,
+        high: pd.Series | None = None,
+        low: pd.Series | None = None,
     ) -> pd.Series:
         """
         Combine the 3 volume factors into a single multiplier in [0.5, 1.3].
@@ -534,23 +554,19 @@ class SignalGenerator:
         # Positive = confirms upside, negative = confirms downside (both directions ok)
         # We want: strong OBV/CMF agreement → high multiplier, disagreement → low
         # So we take the ABSOLUTE value as confirmation strength, then scale
-        obv_confirm = (1.0 + 0.15 * obv_sig).clip(0.7, 1.3)   # ±15% from OBV
-        cmf_confirm = (1.0 + 0.10 * cmf).clip(0.85, 1.15)     # ±10% from CMF
+        obv_confirm = (1.0 + 0.15 * obv_sig).clip(0.7, 1.3)  # ±15% from OBV
+        cmf_confirm = (1.0 + 0.10 * cmf).clip(0.85, 1.15)  # ±10% from CMF
 
         # Volume trend ratio directly used (already in multiplier space)
         # Blend: 40% OBV-confirm + 40% VTR + 20% CMF-confirm
-        combined = (
-            0.40 * obv_confirm
-            + 0.40 * vtr
-            + 0.20 * cmf_confirm
-        )
+        combined = 0.40 * obv_confirm + 0.40 * vtr + 0.20 * cmf_confirm
         return combined.clip(0.5, 1.3)
 
     # -----------------------------------------------------------------------
     # PREDICTIVE: Credit Regime Signal
     # -----------------------------------------------------------------------
 
-    def _compute_credit_regime(self, as_of_date: Optional[pd.Timestamp] = None) -> pd.Series:
+    def _compute_credit_regime(self, as_of_date: pd.Timestamp | None = None) -> pd.Series:
         """
         Cross-asset leading indicator for equity risk appetite.
         Combines three forward-looking signals:
@@ -583,7 +599,9 @@ class SignalGenerator:
         if hyg is not None and lqd is not None:
             ratio = hyg["Close"] / lqd["Close"]
             ratio_ret = ratio.pct_change(5)  # 1-week momentum
-            z = (ratio_ret - ratio_ret.rolling(60).mean()) / ratio_ret.rolling(60).std().replace(0, np.nan)
+            z = (ratio_ret - ratio_ret.rolling(60).mean()) / ratio_ret.rolling(60).std().replace(
+                0, np.nan
+            )
             components.append(z.clip(-2, 2) / 2)
             log.debug("Credit regime: HYG/LQD component active")
 
@@ -602,7 +620,9 @@ class SignalGenerator:
         if tlt_data is not None and shy_data is not None:
             curve = shy_data["Close"] / tlt_data["Close"]
             curve_mom = curve.pct_change(20)
-            z = (curve_mom - curve_mom.rolling(60).mean()) / curve_mom.rolling(60).std().replace(0, np.nan)
+            z = (curve_mom - curve_mom.rolling(60).mean()) / curve_mom.rolling(60).std().replace(
+                0, np.nan
+            )
             components.append(z.clip(-2, 2) / 2)
             log.debug("Credit regime: Yield curve component active")
 
@@ -618,8 +638,10 @@ class SignalGenerator:
             result = result[result.index <= as_of_date]
         self._credit_signal_cache = result
         self._credit_signal_as_of = as_of_date
-        log.debug(f"Credit regime signal computed: {len(result)} values, "
-                  f"{len(components)} components active")
+        log.debug(
+            f"Credit regime signal computed: {len(result)} values, "
+            f"{len(components)} components active"
+        )
         return self._credit_signal_cache
 
     # -----------------------------------------------------------------------
@@ -630,11 +652,15 @@ class SignalGenerator:
         self,
         sym: str,
         df: pd.DataFrame,
-        as_of_date: Optional[pd.Timestamp],
+        as_of_date: pd.Timestamp | None,
         credit_signal: pd.Series,
+<<<<<<< Updated upstream
         all_data: Dict[str, pd.DataFrame],
         choppy_score: "pd.Series" = None,
         all_prices: dict = None,
+=======
+        all_data: dict[str, pd.DataFrame],
+>>>>>>> Stashed changes
     ) -> tuple:
         """Compute signal for a single symbol — thread-safe, no shared mutation."""
         close = df["Close"]
@@ -685,7 +711,7 @@ class SignalGenerator:
         try:
             if "High" in df.columns and "Low" in df.columns and "Volume" in df.columns:
                 h_col = df["High"][df.index <= as_of_date] if as_of_date else df["High"]
-                l_col = df["Low"][df.index  <= as_of_date] if as_of_date else df["Low"]
+                l_col = df["Low"][df.index <= as_of_date] if as_of_date else df["Low"]
                 v_col = df["Volume"][df.index <= as_of_date] if as_of_date else df["Volume"]
                 vwap_sig = self._vwap_daily_proxy(close, h_col, l_col, v_col).fillna(0)
         except Exception as exc:
@@ -702,7 +728,7 @@ class SignalGenerator:
         try:
             if "High" in df.columns and "Low" in df.columns:
                 h_col = df["High"][df.index <= as_of_date] if as_of_date else df["High"]
-                l_col = df["Low"][df.index  <= as_of_date] if as_of_date else df["Low"]
+                l_col = df["Low"][df.index <= as_of_date] if as_of_date else df["Low"]
                 adx_s = self._adx(h_col, l_col, close)
                 adx_mult = self._adx_position_multiplier(adx_s)
         except Exception as exc:
@@ -778,6 +804,7 @@ class SignalGenerator:
         # walk-forward OOS validation. IC was significant IS but did not
         # replicate OOS. Keeping _vwap_sma_proxy() method for future research.
         bull_blend = (
+<<<<<<< Updated upstream
             self.bull_w_ts_mom * ts_mom.fillna(0)             # 0.50
             + self.bull_w_mr   * mr.fillna(0)                 # 0.15 unchanged
             + self.bull_w_macd * macd.fillna(0)               # 0.30
@@ -792,6 +819,21 @@ class SignalGenerator:
             + 0.12 * pmo_sig          # contrarian (IC -0.021 p=0.009)
             + 0.10 * stoch_sig        # contrarian (IC +0.023 p=0.004) — NEW
             + 0.08 * imbalance_sig    # regime-gated by VIX
+=======
+            self.bull_w_ts_mom * ts_mom.fillna(0)
+            + self.bull_w_mr * mr.fillna(0)
+            + self.bull_w_macd * macd.fillna(0)
+            + self.bull_w_rsi * rsi_filter.fillna(0)
+            + 0.10 * imbalance_sig  # regime-gated internally by VIX
+        )
+        bear_blend = (
+            (self.w_ts_mom * 0.75) * ts_mom.fillna(0)
+            + (self.w_mr * 0.75) * mr.fillna(0)
+            + (self.w_macd * 0.75) * macd.fillna(0)
+            + (self.w_rsi * 0.75) * rsi_filter.fillna(0)
+            + 0.15 * pmo_sig
+            + 0.10 * imbalance_sig
+>>>>>>> Stashed changes
         )
 
         # ── Gated T3: choppy-regime weight shift ─────────────────────────────
@@ -854,10 +896,13 @@ class SignalGenerator:
 
         # --- Factor 7: Credit regime (predictive, cross-asset) ---
         if self.credit_regime_enabled and len(credit_signal) > 0:
-            cs_aligned = credit_signal[~credit_signal.index.duplicated(keep="last")].reindex(close.index).fillna(0)
+            cs_aligned = (
+                credit_signal[~credit_signal.index.duplicated(keep="last")]
+                .reindex(close.index)
+                .fillna(0)
+            )
             combined = (
-                self.reactive_weight * reactive.fillna(0)
-                + self.credit_regime_weight * cs_aligned
+                self.reactive_weight * reactive.fillna(0) + self.credit_regime_weight * cs_aligned
             )
         else:
             combined = reactive
@@ -870,21 +915,47 @@ class SignalGenerator:
                 volume = volume[volume.index <= as_of_date]
             vol_nonzero = (volume > 0).sum()
             if vol_nonzero > self.slow * 2:
-                high_col = df["High"][df.index <= as_of_date] if (as_of_date and "High" in df.columns) else df.get("High")
-                low_col  = df["Low"][df.index  <= as_of_date] if (as_of_date and "Low"  in df.columns) else df.get("Low")
-                vol_mult_factor = self._volume_confirmation_multiplier(
-                    close, volume, high=high_col, low=low_col
-                ).reindex(close.index).fillna(1.0)
+                high_col = (
+                    df["High"][df.index <= as_of_date]
+                    if (as_of_date and "High" in df.columns)
+                    else df.get("High")
+                )
+                low_col = (
+                    df["Low"][df.index <= as_of_date]
+                    if (as_of_date and "Low" in df.columns)
+                    else df.get("Low")
+                )
+                vol_mult_factor = (
+                    self._volume_confirmation_multiplier(close, volume, high=high_col, low=low_col)
+                    .reindex(close.index)
+                    .fillna(1.0)
+                )
 
         combined_with_vol = (combined * vol_mult_factor).clip(-1, 1)
 
         # --- Factor 11: H2O Trend Classifier overlay ─────────────────
         if self._trend_classifier is not None and self.trend_classifier_enabled:
             try:
-                high_col = df["High"][df.index <= as_of_date] if (as_of_date and "High" in df.columns) else df.get("High")
-                low_col  = df["Low"][df.index  <= as_of_date] if (as_of_date and "Low"  in df.columns) else df.get("Low")
-                vol_col  = df["Volume"][df.index <= as_of_date] if (as_of_date and "Volume" in df.columns) else df.get("Volume")
-                spy_close = all_data.get("SPY", {}).get("Close") if isinstance(all_data.get("SPY"), pd.DataFrame) else None
+                high_col = (
+                    df["High"][df.index <= as_of_date]
+                    if (as_of_date and "High" in df.columns)
+                    else df.get("High")
+                )
+                low_col = (
+                    df["Low"][df.index <= as_of_date]
+                    if (as_of_date and "Low" in df.columns)
+                    else df.get("Low")
+                )
+                vol_col = (
+                    df["Volume"][df.index <= as_of_date]
+                    if (as_of_date and "Volume" in df.columns)
+                    else df.get("Volume")
+                )
+                spy_close = (
+                    all_data.get("SPY", {}).get("Close")
+                    if isinstance(all_data.get("SPY"), pd.DataFrame)
+                    else None
+                )
                 vix_s = self._macro_data.get("^VIX", pd.DataFrame()).get("Close")
                 trend_mult = self._trend_classifier.get_multiplier(
                     close, high_col, low_col, vol_col, vix_s, spy_close, as_of_date
@@ -896,17 +967,31 @@ class SignalGenerator:
         # --- Factor 12: Price-Volume Segment score ───────────────────
         if self._pv_segmenter is not None and self.pv_enabled:
             try:
-                vol_col = df["Volume"][df.index <= as_of_date] if (as_of_date and "Volume" in df.columns) else df.get("Volume")
-                high_col = df["High"][df.index <= as_of_date] if (as_of_date and "High" in df.columns) else df.get("High")
-                low_col  = df["Low"][df.index  <= as_of_date] if (as_of_date and "Low"  in df.columns) else df.get("Low")
-                open_col = df["Open"][df.index <= as_of_date] if (as_of_date and "Open" in df.columns) else df.get("Open")
+                vol_col = (
+                    df["Volume"][df.index <= as_of_date]
+                    if (as_of_date and "Volume" in df.columns)
+                    else df.get("Volume")
+                )
+                high_col = (
+                    df["High"][df.index <= as_of_date]
+                    if (as_of_date and "High" in df.columns)
+                    else df.get("High")
+                )
+                low_col = (
+                    df["Low"][df.index <= as_of_date]
+                    if (as_of_date and "Low" in df.columns)
+                    else df.get("Low")
+                )
+                open_col = (
+                    df["Open"][df.index <= as_of_date]
+                    if (as_of_date and "Open" in df.columns)
+                    else df.get("Open")
+                )
                 pv_score = self._pv_segmenter.score(
                     close, vol_col, high_col, low_col, open_col, as_of_date
                 )
                 w = self.pv_weight
-                combined_with_vol = (
-                    (1.0 - w) * combined_with_vol + w * pv_score
-                ).clip(-1, 1)
+                combined_with_vol = ((1.0 - w) * combined_with_vol + w * pv_score).clip(-1, 1)
             except Exception:
                 pass
 
@@ -914,8 +999,8 @@ class SignalGenerator:
 
     def generate(
         self,
-        all_data: Dict[str, pd.DataFrame],
-        as_of_date: Optional[pd.Timestamp] = None,
+        all_data: dict[str, pd.DataFrame],
+        as_of_date: pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         """
         Generate signals for all symbols — PARALLEL per-symbol computation.
@@ -925,12 +1010,10 @@ class SignalGenerator:
         pd.DataFrame  shape = (dates, symbols)
           Values in [-1, 1]. Positive=long, Negative=short, 0=flat.
         """
-        signals: Dict[str, pd.Series] = {}
+        signals: dict[str, pd.Series] = {}
 
         # Collect close prices for cross-sectional ranking
-        closes = pd.DataFrame({
-            sym: df["Close"] for sym, df in all_data.items()
-        })
+        closes = pd.DataFrame({sym: df["Close"] for sym, df in all_data.items()})
 
         if as_of_date:
             closes = closes[closes.index <= as_of_date]
@@ -948,8 +1031,7 @@ class SignalGenerator:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(
-                        self._compute_symbol_signal,
-                        sym, df, as_of_date, credit_signal, all_data
+                        self._compute_symbol_signal, sym, df, as_of_date, credit_signal, all_data
                     ): sym
                     for sym, df in all_data.items()
                 }
@@ -959,17 +1041,13 @@ class SignalGenerator:
         else:
             # Sequential for small universes (thread overhead not worth it)
             for sym, df in all_data.items():
-                _, sig = self._compute_symbol_signal(
-                    sym, df, as_of_date, credit_signal, all_data
-                )
+                _, sig = self._compute_symbol_signal(sym, df, as_of_date, credit_signal, all_data)
                 signals[sym] = sig
 
         signal_df = pd.DataFrame(signals)
 
         # --- Cross-sectional overlay ---
-        eq_syms = [s for s in signal_df.columns if not any(
-            s.endswith(x) for x in ["-USD", "=F"]
-        )]
+        eq_syms = [s for s in signal_df.columns if not any(s.endswith(x) for x in ["-USD", "=F"])]
         if len(eq_syms) > 1:
             eq_signals = signal_df[eq_syms].copy()
             cs_mom = closes[eq_syms].copy()
@@ -978,21 +1056,18 @@ class SignalGenerator:
             for sym in eq_syms:
                 if sym in cs_ranks.columns:
                     signal_df[sym] = (
-                        0.70 * signal_df[sym].fillna(0)
-                        + 0.30 * cs_ranks[sym].fillna(0)
+                        0.70 * signal_df[sym].fillna(0) + 0.30 * cs_ranks[sym].fillna(0)
                     ).clip(-1, 1)
 
         return signal_df
 
-    def generate_latest(
-        self, all_data: Dict[str, pd.DataFrame]
-    ) -> Dict[str, float]:
+    def generate_latest(self, all_data: dict[str, pd.DataFrame]) -> dict[str, float]:
         """Return the latest signal for each symbol (for live trading)."""
         signal_df = self.generate(all_data)
         if signal_df.empty:
             return {}
         latest = signal_df.iloc[-1].to_dict()
-        log.info(f"Latest signals: { {k: f'{v:.3f}' for k,v in latest.items()} }")
+        log.info(f"Latest signals: { {k: f'{v:.3f}' for k, v in latest.items()} }")
         return latest
 
     def compute_stop_loss(

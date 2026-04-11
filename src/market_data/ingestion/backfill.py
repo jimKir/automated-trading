@@ -145,13 +145,15 @@ class BackfillOrchestrator:
                         )
                     except Exception as e:
                         self.checkpoint_mgr.mark_failed(checkpoint)
-                        failed_chunks.append({
-                            "symbol": symbol,
-                            "schema": schema.value,
-                            "chunk_start": str(chunk_start),
-                            "chunk_end": str(chunk_end),
-                            "error": str(e),
-                        })
+                        failed_chunks.append(
+                            {
+                                "symbol": symbol,
+                                "schema": schema.value,
+                                "chunk_start": str(chunk_start),
+                                "chunk_end": str(chunk_end),
+                                "error": str(e),
+                            }
+                        )
                         self.logger.error(
                             "chunk_failed",
                             symbol=symbol,
@@ -176,9 +178,7 @@ class BackfillOrchestrator:
         )
         return summary
 
-    def _partition_date_range(
-        self, start: date, end: date
-    ) -> list[tuple[date, date]]:
+    def _partition_date_range(self, start: date, end: date) -> list[tuple[date, date]]:
         """Partition a date range into chunks of chunk_size_days.
 
         Args:
@@ -202,9 +202,7 @@ class BackfillOrchestrator:
         Returns:
             BackfillSummary of resumed operations.
         """
-        incomplete = self.checkpoint_mgr.get_incomplete(
-            vendor=self.client.vendor_name
-        )
+        incomplete = self.checkpoint_mgr.get_incomplete(vendor=self.client.vendor_name)
         if not incomplete:
             self.logger.info("no_incomplete_backfills")
             return BackfillSummary(
@@ -245,11 +243,13 @@ class BackfillOrchestrator:
                 self.checkpoint_mgr.mark_completed(cp)
             except Exception as e:
                 self.checkpoint_mgr.mark_failed(cp)
-                failed.append({
-                    "symbol": cp.symbol,
-                    "schema": cp.schema,
-                    "error": str(e),
-                })
+                failed.append(
+                    {
+                        "symbol": cp.symbol,
+                        "schema": cp.schema,
+                        "error": str(e),
+                    }
+                )
 
         return BackfillSummary(
             total_chunks=len(incomplete),

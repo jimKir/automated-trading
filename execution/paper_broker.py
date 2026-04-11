@@ -4,17 +4,14 @@ Paper Trading Broker
 Simulates real broker execution locally for testing.
 No internet connection needed — uses a DataFeed for prices.
 """
+
 from __future__ import annotations
 
 import uuid
-from typing import Dict, List, Optional
 
-import pandas as pd
 import yfinance as yf
 
-from execution.broker_base import (
-    BrokerBase, Order, OrderSide, OrderStatus, OrderType, AccountInfo
-)
+from execution.broker_base import AccountInfo, BrokerBase, Order, OrderSide, OrderStatus
 from utils.logger import get_logger
 
 log = get_logger("PaperBroker")
@@ -25,8 +22,8 @@ class PaperBroker(BrokerBase):
         self.config = config
         self.equity = config.get("capital", {}).get("initial_equity", 25000)
         self.cash = float(self.equity)
-        self._positions: Dict[str, dict] = {}
-        self._orders: Dict[str, Order] = {}
+        self._positions: dict[str, dict] = {}
+        self._orders: dict[str, Order] = {}
         self._commission_pct = config.get("backtest", {}).get("commission_pct", 0.001)
         self._slippage_pct = config.get("backtest", {}).get("slippage_pct", 0.0005)
 
@@ -39,8 +36,7 @@ class PaperBroker(BrokerBase):
 
     def get_account(self) -> AccountInfo:
         mkt_value = sum(
-            pos["quantity"] * self.get_latest_price(sym)
-            for sym, pos in self._positions.items()
+            pos["quantity"] * self.get_latest_price(sym) for sym, pos in self._positions.items()
         )
         total_equity = self.cash + mkt_value
         return AccountInfo(
@@ -52,10 +48,10 @@ class PaperBroker(BrokerBase):
             positions=self._positions.copy(),
         )
 
-    def get_position(self, symbol: str) -> Optional[dict]:
+    def get_position(self, symbol: str) -> dict | None:
         return self._positions.get(symbol)
 
-    def get_positions(self) -> Dict[str, dict]:
+    def get_positions(self) -> dict[str, dict]:
         return self._positions.copy()
 
     def place_order(self, order: Order) -> Order:
@@ -88,7 +84,11 @@ class PaperBroker(BrokerBase):
             pos = self._positions[sym]
             old_qty = pos["quantity"]
             new_qty = old_qty + order.quantity
-            pos["avg_price"] = (old_qty * pos["avg_price"] + order.quantity * fill_price) / new_qty if new_qty else 0
+            pos["avg_price"] = (
+                (old_qty * pos["avg_price"] + order.quantity * fill_price) / new_qty
+                if new_qty
+                else 0
+            )
             pos["quantity"] = new_qty
 
         else:  # SELL
@@ -127,7 +127,7 @@ class PaperBroker(BrokerBase):
             return True
         return False
 
-    def get_order_status(self, order_id: str) -> Optional[Order]:
+    def get_order_status(self, order_id: str) -> Order | None:
         return self._orders.get(order_id)
 
     def get_latest_price(self, symbol: str) -> float:
@@ -140,7 +140,7 @@ class PaperBroker(BrokerBase):
             log.warning(f"[{symbol}] Price fetch failed: {e}")
         return 0.0
 
-    def get_latest_prices(self, symbols: List[str]) -> Dict[str, float]:
+    def get_latest_prices(self, symbols: list[str]) -> dict[str, float]:
         prices = {}
         for sym in symbols:
             prices[sym] = self.get_latest_price(sym)

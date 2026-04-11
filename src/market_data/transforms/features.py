@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,7 @@ class FeatureVersion:
     """Feature version metadata for lineage tracking."""
 
     version: str
-    created_at: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
     features: list[str] = field(default_factory=list)
     parameters: dict[str, Any] = field(default_factory=dict)
     parent_version: str | None = None
@@ -91,26 +91,35 @@ class FeatureEngineer:
         result["realized_vol_20"] = self.garman_klass_volatility(
             result["open"], result["high"], result["low"], result["close"], 20
         )
-        result["parkinson_vol_20"] = self.parkinson_volatility(
-            result["high"], result["low"], 20
-        )
-        result["atr_14"] = self.atr(
-            result["high"], result["low"], result["close"], 14
-        )
+        result["parkinson_vol_20"] = self.parkinson_volatility(result["high"], result["low"], 20)
+        result["atr_14"] = self.atr(result["high"], result["low"], result["close"], 14)
 
         # Record version
         feature_cols = [
-            "return_1d", "return_5d", "return_20d",
-            "sma_20", "ema_50", "rsi_14",
-            "macd", "macd_signal", "macd_histogram",
-            "bb_upper", "bb_middle", "bb_lower",
-            "obv", "volume_ratio",
-            "realized_vol_20", "parkinson_vol_20", "atr_14",
+            "return_1d",
+            "return_5d",
+            "return_20d",
+            "sma_20",
+            "ema_50",
+            "rsi_14",
+            "macd",
+            "macd_signal",
+            "macd_histogram",
+            "bb_upper",
+            "bb_middle",
+            "bb_lower",
+            "obv",
+            "volume_ratio",
+            "realized_vol_20",
+            "parkinson_vol_20",
+            "atr_14",
         ]
-        self._versions.append(FeatureVersion(
-            version=self.version,
-            features=feature_cols,
-        ))
+        self._versions.append(
+            FeatureVersion(
+                version=self.version,
+                features=feature_cols,
+            )
+        )
 
         logger.info(
             "features_computed",
@@ -279,9 +288,7 @@ class FeatureEngineer:
         return np.sqrt(gk.rolling(window=window, min_periods=1).mean() * 252)
 
     @staticmethod
-    def parkinson_volatility(
-        high: pd.Series, low: pd.Series, window: int = 20
-    ) -> pd.Series:
+    def parkinson_volatility(high: pd.Series, low: pd.Series, window: int = 20) -> pd.Series:
         """Parkinson volatility estimator using high-low range.
 
         Args:
@@ -294,9 +301,7 @@ class FeatureEngineer:
         """
         log_hl_sq = np.log(high / low) ** 2
         factor = 1.0 / (4.0 * np.log(2.0))
-        return np.sqrt(
-            factor * log_hl_sq.rolling(window=window, min_periods=1).mean() * 252
-        )
+        return np.sqrt(factor * log_hl_sq.rolling(window=window, min_periods=1).mean() * 252)
 
     @staticmethod
     def atr(

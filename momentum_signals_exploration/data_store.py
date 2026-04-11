@@ -31,6 +31,7 @@ CLI — list all cached items:
     python -m momentum_signals_exploration.data_store --list
     python -m momentum_signals_exploration.data_store --clear-expired
 """
+
 from __future__ import annotations
 
 import functools
@@ -38,25 +39,25 @@ import hashlib
 import json
 import logging
 import os
-import tempfile
-import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-_REPO_ROOT   = Path(__file__).parent.parent
-CACHE_DIR    = _REPO_ROOT / ".cache" / "computed"
+_REPO_ROOT = Path(__file__).parent.parent
+CACHE_DIR = _REPO_ROOT / ".cache" / "computed"
 MANIFEST_FILE = _REPO_ROOT / ".cache" / "manifest.json"
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _ensure_dirs():
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -96,14 +97,14 @@ def _file_path(safe_key: str, content_hash: str, ext: str) -> Path:
     return CACHE_DIR / f"{safe_key}_{content_hash}.{ext}"
 
 
-def _content_hash(key: str, params: Optional[dict] = None) -> str:
+def _content_hash(key: str, params: dict | None = None) -> str:
     h = hashlib.md5(key.encode())
     if params:
         h.update(json.dumps(params, sort_keys=True, default=str).encode())
     return h.hexdigest()[:8]
 
 
-def _is_expired(entry: dict, max_age_days: Optional[int]) -> bool:
+def _is_expired(entry: dict, max_age_days: int | None) -> bool:
     if max_age_days is None:
         return False
     created = datetime.fromisoformat(entry.get("created", "1970-01-01"))
@@ -114,12 +115,13 @@ def _is_expired(entry: dict, max_age_days: Optional[int]) -> bool:
 # Core save / load
 # ---------------------------------------------------------------------------
 
+
 def save_result(
     key: str,
     data: Any,
-    params: Optional[dict] = None,
+    params: dict | None = None,
     script: str = "",
-    max_age_days: Optional[int] = 30,
+    max_age_days: int | None = 30,
     artifact_type: str = "computed",
 ) -> Path:
     """
@@ -134,21 +136,21 @@ def save_result(
     import pandas as pd
 
     _ensure_dirs()
-    safe  = _safe_key(key)
+    safe = _safe_key(key)
     chash = _content_hash(key, params)
 
     if isinstance(data, pd.DataFrame):
-        ext  = "parquet"
+        ext = "parquet"
         path = _file_path(safe, chash, ext)
         # Atomic write
-        tmp  = path.with_suffix(".tmp")
+        tmp = path.with_suffix(".tmp")
         data.to_parquet(tmp, index=True, engine="pyarrow", compression="snappy")
         os.replace(tmp, path)
     else:
-        ext  = "json"
+        ext = "json"
         path = _file_path(safe, chash, ext)
         payload = data if isinstance(data, (dict, list)) else {"value": data}
-        tmp  = path.with_suffix(".tmp")
+        tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload, indent=2, default=str))
         os.replace(tmp, path)
 
@@ -160,14 +162,14 @@ def save_result(
     # Update manifest
     manifest = _load_manifest()
     manifest.setdefault("entries", {})[key] = {
-        "key":           key,
-        "file":          str(path.relative_to(_REPO_ROOT)),
-        "created":       datetime.now().isoformat(timespec="seconds"),
-        "expires":       expires_str,
-        "size_bytes":    path.stat().st_size,
+        "key": key,
+        "file": str(path.relative_to(_REPO_ROOT)),
+        "created": datetime.now().isoformat(timespec="seconds"),
+        "expires": expires_str,
+        "size_bytes": path.stat().st_size,
         "artifact_type": artifact_type,
-        "script":        script,
-        "params_hash":   chash,
+        "script": script,
+        "params_hash": chash,
     }
     _save_manifest(manifest)
 
@@ -177,9 +179,9 @@ def save_result(
 
 def load_result(
     key: str,
-    params: Optional[dict] = None,
-    max_age_days: Optional[int] = None,
-) -> Optional[Any]:
+    params: dict | None = None,
+    max_age_days: int | None = None,
+) -> Any | None:
     """
     Load a previously saved result.
     Returns None if not found, expired, or corrupted (caller should recompute).
@@ -187,7 +189,7 @@ def load_result(
     import pandas as pd
 
     manifest = _load_manifest()
-    entry    = manifest.get("entries", {}).get(key)
+    entry = manifest.get("entries", {}).get(key)
 
     if not entry:
         return None
@@ -213,13 +215,13 @@ def load_result(
         if file_path.suffix == ".parquet":
             data = pd.read_parquet(file_path, engine="pyarrow")
         else:
-            raw  = json.loads(file_path.read_text())
+            raw = json.loads(file_path.read_text())
             data = raw.get("value", raw) if isinstance(raw, dict) and "value" in raw else raw
 
         # Age info for log
-        created  = datetime.fromisoformat(entry["created"])
+        created = datetime.fromisoformat(entry["created"])
         age_days = (datetime.now() - created).days
-        age_str  = f"{age_days}d ago" if age_days > 0 else "today"
+        age_str = f"{age_days}d ago" if age_days > 0 else "today"
         logger.info(f"[DataStore] HIT     '{key}' (computed {age_str}) ← {file_path.name}")
         return data
 
@@ -231,6 +233,7 @@ def load_result(
 # ---------------------------------------------------------------------------
 # Decorator
 # ---------------------------------------------------------------------------
+
 
 def cached_result(
     key: str,
@@ -250,14 +253,17 @@ def cached_result(
     If params_from_args=True, a hash of the function's arguments is
     included in the cache key so different inputs produce different entries.
     """
+
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
             params = None
             if params_from_args:
-                import pickle, hashlib
+                import hashlib
+                import pickle
+
                 try:
-                    raw   = pickle.dumps((args, kwargs))
+                    raw = pickle.dumps((args, kwargs))
                     params = {"args_hash": hashlib.md5(raw).hexdigest()[:12]}
                 except Exception:
                     pass
@@ -270,6 +276,7 @@ def cached_result(
             result = fn(*args, **kwargs)
 
             import inspect
+
             script = inspect.getfile(fn)
             save_result(
                 key,
@@ -280,13 +287,16 @@ def cached_result(
                 artifact_type=artifact_type,
             )
             return result
+
         return wrapper
+
     return decorator
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def _print_table(entries: dict):
     if not entries:
@@ -301,17 +311,17 @@ def _print_table(entries: dict):
     print(header)
     print("  " + "─" * 128)
     for e in sorted(entries.values(), key=lambda x: x.get("created", "")):
-        key     = e.get("key", "")[:44]
-        atype   = e.get("artifact_type", "")[:17]
+        key = e.get("key", "")[:44]
+        atype = e.get("artifact_type", "")[:17]
         created = e.get("created", "?")[:19]
         expires = e.get("expires", "never")
         if expires:
             expires = expires[:19]
-        size    = e.get("size_bytes", 0)
-        size_s  = f"{size/1024:.1f} KB" if size < 1_048_576 else f"{size/1_048_576:.1f} MB"
-        file_s  = Path(e.get("file", "")).name
+        size = e.get("size_bytes", 0)
+        size_s = f"{size / 1024:.1f} KB" if size < 1_048_576 else f"{size / 1_048_576:.1f} MB"
+        file_s = Path(e.get("file", "")).name
         # Mark expired
-        is_exp  = ""
+        is_exp = ""
         if expires and expires != "never":
             try:
                 if datetime.fromisoformat(expires) < datetime.now():
@@ -326,8 +336,8 @@ def _print_table(entries: dict):
 
 def _clear_expired():
     manifest = _load_manifest()
-    entries  = manifest.get("entries", {})
-    removed  = 0
+    entries = manifest.get("entries", {})
+    removed = 0
     for key, e in list(entries.items()):
         expires = e.get("expires")
         if expires and expires != "never":
@@ -346,6 +356,7 @@ def _clear_expired():
 
 if __name__ == "__main__":
     import sys
+
     args = sys.argv[1:]
     if "--clear-expired" in args:
         _clear_expired()

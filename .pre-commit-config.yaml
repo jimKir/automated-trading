@@ -1,0 +1,55 @@
+# Pre-commit hooks — run `pre-commit install` once, then auto-checks on every commit
+# Docs: https://pre-commit.com
+# Update hooks: `pre-commit autoupdate`
+
+repos:
+  # ── Ruff: lint + format (replaces flake8, isort, black) ────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.10
+    hooks:
+      - id: ruff
+        name: ruff lint
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        types_or: [python, pyi]
+
+  # ── Standard file hygiene ──────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: \.cache/
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  # ── Security: detect secrets before they hit git ───────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # ── Mypy: static type checking ────────────────────────────────────
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        name: mypy type check
+        additional_dependencies:
+          - pandas-stubs
+          - types-PyYAML
+          - types-requests
+          - pydantic>=2.6.0
+        args: [--config-file=pyproject.toml]
+        # Only check src/ for now — expand gradually
+        files: ^src/
+        pass_filenames: false

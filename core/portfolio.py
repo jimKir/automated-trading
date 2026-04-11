@@ -4,14 +4,16 @@ Portfolio Manager
 Tracks positions, cash, P&L, and generates target weights from signals.
 Uses CostModel for realistic transaction and carrying cost simulation.
 """
+
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Optional
-from dataclasses import dataclass, field
-from utils.logger import get_logger
+
 from core.cost_model import CostModel
+from utils.logger import get_logger
 
 log = get_logger("Portfolio")
 
@@ -44,19 +46,20 @@ class Portfolio:
     def __init__(self, config: dict):
         self.initial_equity = config.get("capital", {}).get("initial_equity", 25000)
         self.cash = float(self.initial_equity)
-        self.positions: Dict[str, Position] = {}
+        self.positions: dict[str, Position] = {}
         self.trade_log: list = []
         self.equity_curve: list = []
         self._equity_curve_dates: list = []
         self.cost_model = CostModel(config)
         self._config = config
         # Futures roll tracking
-        self._last_roll_date: Dict[str, pd.Timestamp] = {}
+        self._last_roll_date: dict[str, pd.Timestamp] = {}
         # Optional optimizer
         self._optimizer = None
         if config.get("optimizer", {}).get("enabled", False):
             try:
                 from core.optimizer import PortfolioOptimizer
+
                 self._optimizer = PortfolioOptimizer(config)
             except Exception as e:
                 log.warning(f"Optimizer failed to load: {e}")
@@ -82,13 +85,13 @@ class Portfolio:
 
     def compute_target_weights(
         self,
-        signals:            Dict[str, float],
-        max_position_pct:   float = 0.15,
+        signals: dict[str, float],
+        max_position_pct: float = 0.15,
         max_portfolio_heat: float = 0.40,
-        price_history:      Optional[Dict[str, "pd.DataFrame"]] = None,
-        as_of_date:         Optional["pd.Timestamp"] = None,
-        spy_data:           Optional["pd.DataFrame"] = None,
-    ) -> Dict[str, float]:
+        price_history: dict[str, pd.DataFrame] | None = None,
+        as_of_date: pd.Timestamp | None = None,
+        spy_data: pd.DataFrame | None = None,
+    ) -> dict[str, float]:
         """
         Convert signal strengths to target portfolio weights.
 
@@ -105,22 +108,22 @@ class Portfolio:
         # ── Optimized path ────────────────────────────────────────────────────
         if self._optimizer is not None and price_history is not None:
             return self._optimizer.compute_weights(
-                signals          = signals,
-                price_history    = price_history,
-                max_position_pct = max_position_pct,
-                max_portfolio_heat = max_portfolio_heat,
-                as_of_date       = as_of_date,
-                spy_data         = spy_data,
+                signals=signals,
+                price_history=price_history,
+                max_position_pct=max_position_pct,
+                max_portfolio_heat=max_portfolio_heat,
+                as_of_date=as_of_date,
+                spy_data=spy_data,
             )
 
         # ── Original signal-proportional path (fallback) ──────────────────────
         active = {k: v for k, v in signals.items() if abs(v) > 0.05}
         if not active:
-            return {k: 0.0 for k in signals}
+            return dict.fromkeys(signals, 0.0)
 
-        longs  = {k: v for k, v in active.items() if v > 0}
+        longs = {k: v for k, v in active.items() if v > 0}
         shorts = {k: v for k, v in active.items() if v < 0}
-        weights: Dict[str, float] = {}
+        weights: dict[str, float] = {}
 
         if longs:
             total_long_signal = sum(longs.values())
@@ -144,16 +147,16 @@ class Portfolio:
 
     def compute_orders(
         self,
-        target_weights: Dict[str, float],
-        current_prices: Dict[str, float],
-    ) -> Dict[str, float]:
+        target_weights: dict[str, float],
+        current_prices: dict[str, float],
+    ) -> dict[str, float]:
         """
         Compare target vs current positions to generate order quantities.
         Positive = buy, Negative = sell/short.
 
         Returns {symbol: quantity_change}
         """
-        orders: Dict[str, float] = {}
+        orders: dict[str, float] = {}
         equity = self.equity
 
         for sym, target_w in target_weights.items():
@@ -186,9 +189,9 @@ class Portfolio:
         quantity: float,
         price: float,
         date: pd.Timestamp,
-        commission_pct: float = None,   # kept for API compat; ignored — CostModel is used
-        slippage_pct: float = None,     # kept for API compat; ignored
-    ) -> Optional[dict]:
+        commission_pct: float = None,  # kept for API compat; ignored — CostModel is used
+        slippage_pct: float = None,  # kept for API compat; ignored
+    ) -> dict | None:
         """
         Simulate order execution using the full CostModel.
         Costs: commission + bid-ask half-spread + market impact.
@@ -217,7 +220,7 @@ class Portfolio:
         if is_buy:
             total_debit = notional + tx_cost
         else:
-            total_debit = -(notional - tx_cost)   # negative = cash inflow minus costs
+            total_debit = -(notional - tx_cost)  # negative = cash inflow minus costs
 
         # Check cash sufficiency for buys
         if is_buy and total_debit > self.cash:
@@ -244,8 +247,8 @@ class Portfolio:
             new_qty = old_qty + quantity
             if new_qty != 0:
                 pos.avg_entry_price = (
-                    (old_qty * pos.avg_entry_price + quantity * fill_price) / new_qty
-                )
+                    old_qty * pos.avg_entry_price + quantity * fill_price
+                ) / new_qty
             pos.quantity = new_qty
         else:
             # Position reversal (long→short or short→long)
@@ -297,6 +300,7 @@ class Portfolio:
 
             # Futures roll check: roll every ~63 trading days (quarterly)
             from core.cost_model import _classify
+
             if _classify(sym) == "future":
                 last_roll = self._last_roll_date.get(sym)
                 if last_roll is None or (date - last_roll).days >= 90:
@@ -309,7 +313,7 @@ class Portfolio:
 
         return total_daily_cost
 
-    def update_prices(self, prices: Dict[str, float]) -> None:
+    def update_prices(self, prices: dict[str, float]) -> None:
         """Update current prices for all positions."""
         for sym, price in prices.items():
             if sym in self.positions:

@@ -16,18 +16,19 @@ Usage:
     PYTHONPATH=. python diagnostics/smoke_test_empty_files.py --samples 10
     PYTHONPATH=. python diagnostics/smoke_test_empty_files.py --date 2023-02-03
 """
+
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import random
 import sys
 import warnings
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
+
 warnings.filterwarnings("ignore")  # suppress BentoWarning: No data found
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -35,15 +36,51 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 CACHE_DIR = Path(__file__).parent.parent / ".cache" / "databento"
 DATABENTO_KEY = os.environ.get("DATABENTO_KEY", "")
 
-_US_HOLIDAYS = np.array([
-    "2022-12-26","2023-01-02","2023-01-16","2023-02-20","2023-04-07","2023-05-29",
-    "2023-06-19","2023-07-04","2023-09-04","2023-11-23","2023-11-24","2023-12-25",
-    "2024-01-01","2024-01-15","2024-02-19","2024-03-29","2024-05-27","2024-06-19",
-    "2024-07-04","2024-09-02","2024-11-28","2024-11-29","2024-12-25",
-    "2025-01-01","2025-01-09","2025-01-20","2025-02-17","2025-04-18","2025-05-26",
-    "2025-06-19","2025-07-04","2025-09-01","2025-11-27","2025-11-28","2025-12-25",
-    "2026-01-01","2026-01-19","2026-02-16","2026-04-03",
-], dtype="datetime64[D]")
+_US_HOLIDAYS = np.array(
+    [
+        "2022-12-26",
+        "2023-01-02",
+        "2023-01-16",
+        "2023-02-20",
+        "2023-04-07",
+        "2023-05-29",
+        "2023-06-19",
+        "2023-07-04",
+        "2023-09-04",
+        "2023-11-23",
+        "2023-11-24",
+        "2023-12-25",
+        "2024-01-01",
+        "2024-01-15",
+        "2024-02-19",
+        "2024-03-29",
+        "2024-05-27",
+        "2024-06-19",
+        "2024-07-04",
+        "2024-09-02",
+        "2024-11-28",
+        "2024-11-29",
+        "2024-12-25",
+        "2025-01-01",
+        "2025-01-09",
+        "2025-01-20",
+        "2025-02-17",
+        "2025-04-18",
+        "2025-05-26",
+        "2025-06-19",
+        "2025-07-04",
+        "2025-09-01",
+        "2025-11-27",
+        "2025-11-28",
+        "2025-12-25",
+        "2026-01-01",
+        "2026-01-19",
+        "2026-02-16",
+        "2026-04-03",
+    ],
+    dtype="datetime64[D]",
+)
+
 
 def is_td(d: date) -> bool:
     return bool(np.is_busday(np.datetime64(d, "D"), holidays=_US_HOLIDAYS))
@@ -51,10 +88,12 @@ def is_td(d: date) -> bool:
 
 # ── Collect empty stub files ───────────────────────────────────────────────────
 
+
 def find_empty_stubs() -> list[tuple[date, Path]]:
     """Return list of (trading_date, file_path) for all empty v={} stubs."""
     results = []
     import re
+
     date_pat = re.compile(r"_(\d{4}-\d{2}-\d{2})_")
     for f in CACHE_DIR.glob("imbalance_*.json"):
         if f.stat().st_size >= 100:
@@ -73,6 +112,7 @@ def find_empty_stubs() -> list[tuple[date, Path]]:
 
 # ── Databento re-query ────────────────────────────────────────────────────────
 
+
 def requery_imbalance(d: date, symbols: list[str], wide: bool = False) -> dict:
     """
     Re-query Databento imbalance for date d.
@@ -80,6 +120,7 @@ def requery_imbalance(d: date, symbols: list[str], wide: bool = False) -> dict:
     Returns dict with keys: rows, columns, raw_df_head, elapsed_s, error
     """
     import time
+
     try:
         import databento as db
     except ImportError:
@@ -90,12 +131,12 @@ def requery_imbalance(d: date, symbols: list[str], wide: bool = False) -> dict:
     if wide:
         # Wide window: 3:30 PM ET (19:30 UTC) to 4:30 PM ET (20:30 UTC)
         start_dt = datetime(d.year, d.month, d.day, 19, 30, 0)
-        end_dt   = datetime(d.year, d.month, d.day, 20, 30, 0)
+        end_dt = datetime(d.year, d.month, d.day, 20, 30, 0)
         label = "wide (3:30-4:30 ET)"
     else:
         # Original tight window: 3:50 PM ET (19:50 UTC) to 4:01 PM ET (20:01 UTC)
         start_dt = datetime(d.year, d.month, d.day, 19, 50, 0)
-        end_dt   = datetime(d.year, d.month, d.day, 20,  1, 0)
+        end_dt = datetime(d.year, d.month, d.day, 20, 1, 0)
         label = "tight (3:50-4:01 ET)"
 
     t0 = time.time()
@@ -110,16 +151,33 @@ def requery_imbalance(d: date, symbols: list[str], wide: bool = False) -> dict:
         df = store.to_df(pretty_ts=True, map_symbols=True, tz="UTC")
         elapsed = time.time() - t0
         if df.empty:
-            return {"rows": 0, "cols": [], "sample": None, "elapsed_s": round(elapsed,1),
-                    "window": label, "error": None}
+            return {
+                "rows": 0,
+                "cols": [],
+                "sample": None,
+                "elapsed_s": round(elapsed, 1),
+                "window": label,
+                "error": None,
+            }
         cols = list(df.columns)
         sample = df.head(2).to_dict("records")
-        return {"rows": len(df), "cols": cols, "sample": sample,
-                "elapsed_s": round(elapsed, 1), "window": label, "error": None}
+        return {
+            "rows": len(df),
+            "cols": cols,
+            "sample": sample,
+            "elapsed_s": round(elapsed, 1),
+            "window": label,
+            "error": None,
+        }
     except Exception as e:
-        return {"rows": -1, "cols": [], "sample": None,
-                "elapsed_s": round(time.time()-t0, 1),
-                "window": label, "error": str(e)}
+        return {
+            "rows": -1,
+            "cols": [],
+            "sample": None,
+            "elapsed_s": round(time.time() - t0, 1),
+            "window": label,
+            "error": str(e),
+        }
 
 
 def requery_statistics(d: date, symbols: list[str]) -> dict:
@@ -129,6 +187,7 @@ def requery_statistics(d: date, symbols: list[str]) -> dict:
     If this returns data when imbalance doesn't, the schema is the issue.
     """
     import time
+
     try:
         import databento as db
     except ImportError:
@@ -137,7 +196,7 @@ def requery_statistics(d: date, symbols: list[str]) -> dict:
     client = db.Historical(key=DATABENTO_KEY)
     # Full trading day window
     start_dt = datetime(d.year, d.month, d.day, 13, 30, 0)  # 9:30 AM ET
-    end_dt   = datetime(d.year, d.month, d.day, 20,  5, 0)  # 4:05 PM ET
+    end_dt = datetime(d.year, d.month, d.day, 20, 5, 0)  # 4:05 PM ET
 
     t0 = time.time()
     try:
@@ -152,25 +211,32 @@ def requery_statistics(d: date, symbols: list[str]) -> dict:
         elapsed = time.time() - t0
         return {"rows": len(df), "elapsed_s": round(elapsed, 1), "error": None}
     except Exception as e:
-        return {"rows": -1, "elapsed_s": round(time.time()-t0, 1), "error": str(e)}
+        return {"rows": -1, "elapsed_s": round(time.time() - t0, 1), "error": str(e)}
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 SYMS_SAMPLE = ["AAPL", "MSFT", "NVDA", "AMZN", "META"]  # 5 large-caps for spot check
 
+
 def main():
     parser = argparse.ArgumentParser(description="Smoke-test empty Databento cache files")
-    parser.add_argument("--samples", type=int, default=5,
-                        help="Number of empty-stub dates to re-query (default: 5)")
-    parser.add_argument("--date",    type=str, default=None,
-                        help="Test a specific date (YYYY-MM-DD) instead of random sample")
-    parser.add_argument("--wide",    action="store_true",
-                        help="Also test with a wider 2-hour time window")
-    parser.add_argument("--stats",   action="store_true",
-                        help="Also query statistics schema to cross-check")
-    parser.add_argument("--all",     action="store_true",
-                        help="Run all checks (--wide + --stats)")
+    parser.add_argument(
+        "--samples", type=int, default=5, help="Number of empty-stub dates to re-query (default: 5)"
+    )
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Test a specific date (YYYY-MM-DD) instead of random sample",
+    )
+    parser.add_argument(
+        "--wide", action="store_true", help="Also test with a wider 2-hour time window"
+    )
+    parser.add_argument(
+        "--stats", action="store_true", help="Also query statistics schema to cross-check"
+    )
+    parser.add_argument("--all", action="store_true", help="Run all checks (--wide + --stats)")
     args = parser.parse_args()
 
     if args.all:
@@ -209,10 +275,10 @@ def main():
     print()
 
     # Results tracking
-    truly_empty     = []
+    truly_empty = []
     found_with_wide = []
     found_with_stats = []
-    api_errors      = []
+    api_errors = []
 
     print(f"  {'Date':<12} {'Tight':>8} {'Wide':>8} {'Stats':>8}  Verdict")
     print("  " + "─" * 60)
@@ -224,7 +290,7 @@ def main():
         # Test 1: original tight window (same as signal module)
         r = requery_imbalance(d, SYMS_SAMPLE, wide=False)
         if r["error"]:
-            row_tight = f"ERR"
+            row_tight = "ERR"
             api_errors.append((d, r["error"]))
         elif r["rows"] == 0:
             row_tight = "0"
@@ -258,8 +324,9 @@ def main():
 
         if verdict_parts:
             # Check if ONLY stats found data (not wide/tight)
-            only_stats = (not any("TIGHT" in p or "WIDE" in p for p in verdict_parts)
-                          and any("STATS" in p for p in verdict_parts))
+            only_stats = not any("TIGHT" in p or "WIDE" in p for p in verdict_parts) and any(
+                "STATS" in p for p in verdict_parts
+            )
             if only_stats:
                 verdict = "✅ empty (stats=opening-cross-only, no closing imbalance)"
                 truly_empty.append(d)
@@ -281,11 +348,15 @@ def main():
     print(f"  Tested:              {len(sample)} dates")
     print(f"  ✅ Truly empty:      {len(truly_empty)}  — Databento has no imbalance data")
     if found_with_wide:
-        print(f"  ⚠️  Found (wide win): {len(found_with_wide)}  — data exists but original window too tight")
+        print(
+            f"  ⚠️  Found (wide win): {len(found_with_wide)}  — data exists but original window too tight"
+        )
         print(f"     Dates: {[str(d) for d in found_with_wide]}")
-        print(f"     FIX: widen the imbalance fetch window in strategy/databento_imbalance.py")
+        print("     FIX: widen the imbalance fetch window in strategy/databento_imbalance.py")
     if found_with_stats:
-        print(f"  ⚠️  Stats has data:   {len(found_with_stats)}  — imbalance schema gap, statistics works")
+        print(
+            f"  ⚠️  Stats has data:   {len(found_with_stats)}  — imbalance schema gap, statistics works"
+        )
         print(f"     Dates: {[str(d) for d in found_with_stats]}")
     if api_errors:
         print(f"  ❌ API errors:       {len(api_errors)}")
@@ -314,7 +385,7 @@ def main():
         print("  no closing imbalance data (Databento confirmed behaviour).")
         print()
         print("  The v={} stubs are CORRECT — do NOT re-fetch or delete them.")
-        print("  They save ~${:.2f} in pointless API calls.".format(len(stubs) * 0.05))
+        print(f"  They save ~${len(stubs) * 0.05:.2f} in pointless API calls.")
         print()
         print("  The opening cross data (stat_type=1) IS available on these days")
         print("  and is already handled by OpeningCrossSignal in")

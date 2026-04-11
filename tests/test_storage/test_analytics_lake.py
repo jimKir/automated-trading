@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pyarrow as pa
 
-from market_data.storage.analytics_lake import AnalyticsLake, OHLCV_SCHEMA
-from market_data.storage.cloud_storage import LocalStorageBackend
+from market_data.storage.analytics_lake import OHLCV_SCHEMA, AnalyticsLake
 
 
 class TestAnalyticsLake:
     def test_write_and_read(self, analytics_lake: AnalyticsLake) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         table = pa.Table.from_pylist(
             [
                 {
@@ -63,7 +62,7 @@ class TestAnalyticsLake:
         assert result is None
 
     def test_read_date_range(self, analytics_lake: AnalyticsLake) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         for month in [1, 2, 3]:
             table = pa.Table.from_pylist(
                 [
@@ -104,7 +103,7 @@ class TestAnalyticsLake:
         assert result.num_rows == 3
 
     def test_list_files(self, analytics_lake: AnalyticsLake) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         table = pa.Table.from_pylist(
             [
                 {

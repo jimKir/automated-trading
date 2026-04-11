@@ -3,19 +3,20 @@ Backtest Reporter
 =================
 Generates a rich HTML + JSON performance report from backtest results.
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 from utils.logger import get_logger
 
@@ -36,9 +37,7 @@ def _safe(v: Any) -> Any:
 def save_metrics_json(metrics: dict, output_dir: str = "results") -> str:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     clean = {
-        k: _safe(v)
-        for k, v in metrics.items()
-        if not isinstance(v, (pd.Series, pd.DataFrame))
+        k: _safe(v) for k, v in metrics.items() if not isinstance(v, (pd.Series, pd.DataFrame))
     }
     out = Path(output_dir) / "metrics.json"
     with open(out, "w") as f:
@@ -68,7 +67,9 @@ def plot_results(
     # --- 1. Equity curve ---
     ax1 = fig.add_subplot(gs[0, :])
     equity_norm = equity / equity.iloc[0] * 100
-    ax1.plot(equity_norm.index, equity_norm.values, color="#1f77b4", linewidth=1.8, label="Strategy")
+    ax1.plot(
+        equity_norm.index, equity_norm.values, color="#1f77b4", linewidth=1.8, label="Strategy"
+    )
     ax1.fill_between(equity_norm.index, 100, equity_norm.values, alpha=0.15, color="#1f77b4")
     ax1.axhline(100, color="gray", linestyle="--", linewidth=0.8, label="Breakeven")
     ax1.set_title("Equity Curve (normalised to 100)", fontweight="bold")
@@ -102,28 +103,43 @@ def plot_results(
     try:
         monthly = returns.resample("ME").apply(lambda r: (1 + r).prod() - 1) * 100
         monthly.index = [d.strftime("%Y-%m") for d in monthly.index]
-        ax4.bar(range(len(monthly)), monthly.values,
-                color=["#2ca02c" if v >= 0 else "#d62728" for v in monthly.values])
+        ax4.bar(
+            range(len(monthly)),
+            monthly.values,
+            color=["#2ca02c" if v >= 0 else "#d62728" for v in monthly.values],
+        )
         step = max(1, len(monthly) // 6)
         ax4.set_xticks(range(0, len(monthly), step))
-        ax4.set_xticklabels(monthly.index[::step], rotation=45, fontsize=8, ha='right')
+        ax4.set_xticklabels(monthly.index[::step], rotation=45, fontsize=8, ha="right")
         ax4.set_title("Monthly Returns (%)", fontweight="bold")
         ax4.axhline(0, color="black", linewidth=0.8)
         ax4.grid(True, alpha=0.3)
     except Exception as e:
-        ax4.text(0.5, 0.5, f"Monthly chart error:\n{e}", ha="center", va="center", transform=ax4.transAxes)
+        ax4.text(
+            0.5,
+            0.5,
+            f"Monthly chart error:\n{e}",
+            ha="center",
+            va="center",
+            transform=ax4.transAxes,
+        )
 
     # --- 5. Return distribution ---
     ax5 = fig.add_subplot(gs[3, 0])
     from scipy import stats as scipy_stats
+
     daily_pct = returns * 100
-    ax5.hist(daily_pct.dropna(), bins=60, color="#1f77b4", alpha=0.7, density=True, label="Strategy")
+    ax5.hist(
+        daily_pct.dropna(), bins=60, color="#1f77b4", alpha=0.7, density=True, label="Strategy"
+    )
     x = np.linspace(daily_pct.min(), daily_pct.max(), 200)
     mu, sigma = daily_pct.mean(), daily_pct.std()
     ax5.plot(x, scipy_stats.norm.pdf(x, mu, sigma), color="orange", linewidth=2, label="Normal fit")
     ax5.axvline(0, color="red", linestyle="--", linewidth=1)
     var_line = -float(np.percentile(daily_pct.dropna(), 1))
-    ax5.axvline(-var_line, color="purple", linestyle="--", linewidth=1, label=f"99% VaR: {var_line:.2f}%")
+    ax5.axvline(
+        -var_line, color="purple", linestyle="--", linewidth=1, label=f"99% VaR: {var_line:.2f}%"
+    )
     ax5.set_title("Daily Return Distribution", fontweight="bold")
     ax5.set_xlabel("Daily Return (%)")
     ax5.legend(fontsize=8)
@@ -184,11 +200,13 @@ def generate_html_report(
 
     stress = metrics.get("stress_scenarios", {})
     stress_rows = "\n".join(
-        f"<tr><td>{k}</td><td class='{'neg' if v < 0 else 'pos'}'>{v*100:.1f}%</td></tr>"
+        f"<tr><td>{k}</td><td class='{'neg' if v < 0 else 'pos'}'>{v * 100:.1f}%</td></tr>"
         for k, v in stress.items()
     )
 
-    initial_equity = metrics.get("final_equity", 25000) / max(1, 1 + metrics.get("total_return_pct", 0) / 100)
+    initial_equity = metrics.get("final_equity", 25000) / max(
+        1, 1 + metrics.get("total_return_pct", 0) / 100
+    )
     cost_rows = "\n".join(
         f"<tr><td>{label}</td><td>${metrics.get(key, 0):,.2f}</td><td class='neg'>{metrics.get(key, 0) / max(initial_equity, 1) * 100:.3f}%</td></tr>"
         for label, key in [
@@ -228,12 +246,10 @@ def generate_html_report(
         "Final Equity ($)": f"{metrics.get('final_equity', 0):,.2f}",
     }
 
-    metric_rows = "\n".join(
-        f"<tr><td>{k}</td><td>{v}</td></tr>"
-        for k, v in scalar_metrics.items()
-    )
+    metric_rows = "\n".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in scalar_metrics.items())
 
     import base64
+
     chart_b64 = ""
     if chart_path and Path(chart_path).exists():
         with open(chart_path, "rb") as f:
@@ -331,31 +347,30 @@ def generate_comparison_report(
             delta = float(ews_v) - float(base_v)
             if higher_better:
                 return "pos" if delta > 0 else ("neg" if delta < 0 else "")
-            else:
-                return "pos" if delta < 0 else ("neg" if delta > 0 else "")
+            return "pos" if delta < 0 else ("neg" if delta > 0 else "")
         except Exception:
             return ""
 
     comparison_rows = [
-        ("Total Return (%)",       "total_return_pct",           True,  "%"),
-        ("Ann. Return (%)",        "ann_return_pct",             True,  "%"),
-        ("Ann. Volatility (%)",    "ann_volatility_pct",         False, "%"),
-        ("Sharpe Ratio",           "sharpe_ratio",               True,  ""),
-        ("Sortino Ratio",          "sortino_ratio",              True,  ""),
-        ("Calmar Ratio",           "calmar_ratio",               True,  ""),
-        ("Max Drawdown (%)",       "max_drawdown_pct",           False, "%"),
-        ("MDD Duration (days)",    "max_drawdown_duration_days", False, ""),
-        ("Win Rate (%)",           "win_rate_pct",               True,  "%"),
-        ("VaR 99% (%)",            "var_hist_99_pct",            False, "%"),
-        ("CVaR 99% (%)",           "cvar_hist_99_pct",           False, "%"),
-        ("Skewness",               "skewness",                   True,  ""),
-        ("Excess Kurtosis",        "excess_kurtosis",            False, ""),
-        ("Omega Ratio",            "omega_ratio",                True,  ""),
-        ("Tail Ratio",             "tail_ratio",                 True,  ""),
-        ("Alpha Ann. (%)",         "alpha_ann_pct",              True,  "%"),
-        ("Beta",                   "beta",                       False, ""),
-        ("Information Ratio",      "information_ratio",          True,  ""),
-        ("Final Equity ($)",       "final_equity",               True,  ""),
+        ("Total Return (%)", "total_return_pct", True, "%"),
+        ("Ann. Return (%)", "ann_return_pct", True, "%"),
+        ("Ann. Volatility (%)", "ann_volatility_pct", False, "%"),
+        ("Sharpe Ratio", "sharpe_ratio", True, ""),
+        ("Sortino Ratio", "sortino_ratio", True, ""),
+        ("Calmar Ratio", "calmar_ratio", True, ""),
+        ("Max Drawdown (%)", "max_drawdown_pct", False, "%"),
+        ("MDD Duration (days)", "max_drawdown_duration_days", False, ""),
+        ("Win Rate (%)", "win_rate_pct", True, "%"),
+        ("VaR 99% (%)", "var_hist_99_pct", False, "%"),
+        ("CVaR 99% (%)", "cvar_hist_99_pct", False, "%"),
+        ("Skewness", "skewness", True, ""),
+        ("Excess Kurtosis", "excess_kurtosis", False, ""),
+        ("Omega Ratio", "omega_ratio", True, ""),
+        ("Tail Ratio", "tail_ratio", True, ""),
+        ("Alpha Ann. (%)", "alpha_ann_pct", True, "%"),
+        ("Beta", "beta", False, ""),
+        ("Information Ratio", "information_ratio", True, ""),
+        ("Final Equity ($)", "final_equity", True, ""),
     ]
 
     table_rows = ""
@@ -367,7 +382,7 @@ def generate_comparison_report(
         try:
             delta = float(ev) - float(bv)
             delta_sign = "+" if delta > 0 else ""
-            delta_cls  = _delta_class(bv, ev, higher_better)
+            delta_cls = _delta_class(bv, ev, higher_better)
             better_icon = "✓" if (delta > 0) == higher_better else ("✗" if delta != 0 else "")
             table_rows += (
                 f"<tr><td>{label}</td>"
@@ -377,33 +392,31 @@ def generate_comparison_report(
             )
         except Exception:
             table_rows += (
-                f"<tr><td>{label}</td>"
-                f"<td>{_fmt(bv)}</td>"
-                f"<td>{_fmt(ev)}</td>"
-                f"<td>—</td></tr>\n"
+                f"<tr><td>{label}</td><td>{_fmt(bv)}</td><td>{_fmt(ev)}</td><td>—</td></tr>\n"
             )
 
     # EWS regime breakdown
-    ews_green    = ews_metrics.get("ews_days_green",  0)
-    ews_yellow   = ews_metrics.get("ews_days_yellow", 0)
-    ews_orange   = ews_metrics.get("ews_days_orange", 0)
-    ews_red      = ews_metrics.get("ews_days_red",    0)
-    ews_avg_sc   = ews_metrics.get("ews_avg_scale",   1.0)
-    total_days   = ews_green + ews_yellow + ews_orange + ews_red or 1
+    ews_green = ews_metrics.get("ews_days_green", 0)
+    ews_yellow = ews_metrics.get("ews_days_yellow", 0)
+    ews_orange = ews_metrics.get("ews_days_orange", 0)
+    ews_red = ews_metrics.get("ews_days_red", 0)
+    ews_avg_sc = ews_metrics.get("ews_avg_scale", 1.0)
+    total_days = ews_green + ews_yellow + ews_orange + ews_red or 1
 
     # Build equity comparison chart using base64-embedded Chart.js data
     eq_base = base_metrics.get("equity_curve")
-    eq_ews  = ews_metrics.get("equity_curve")
+    eq_ews = ews_metrics.get("equity_curve")
     chart_labels = chart_base_data = chart_ews_data = "[]"
     if eq_base is not None and eq_ews is not None:
         import json as _json
+
         common_idx = eq_base.index.intersection(eq_ews.index)
-        labels_list     = [str(d.date()) for d in common_idx[::5]]  # every 5 days
-        base_norm       = (eq_base.reindex(common_idx) / eq_base.iloc[0] * 100).iloc[::5]
-        ews_norm        = (eq_ews.reindex(common_idx)  / eq_ews.iloc[0]  * 100).iloc[::5]
-        chart_labels    = _json.dumps(labels_list)
+        labels_list = [str(d.date()) for d in common_idx[::5]]  # every 5 days
+        base_norm = (eq_base.reindex(common_idx) / eq_base.iloc[0] * 100).iloc[::5]
+        ews_norm = (eq_ews.reindex(common_idx) / eq_ews.iloc[0] * 100).iloc[::5]
+        chart_labels = _json.dumps(labels_list)
         chart_base_data = _json.dumps([round(float(v), 2) for v in base_norm])
-        chart_ews_data  = _json.dumps([round(float(v), 2) for v in ews_norm])
+        chart_ews_data = _json.dumps([round(float(v), 2) for v in ews_norm])
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -472,17 +485,17 @@ new Chart(document.getElementById('eqChart'), {{
   <div class="card">
     <p style="color:#8b949e;font-size:13px;">Proportion of trading days in each EWS state</p>
     <div class="regime-bar">
-      <div class="seg-green"  style="width:{ews_green/total_days*100:.1f}%" title="GREEN {ews_green}d"></div>
-      <div class="seg-yellow" style="width:{ews_yellow/total_days*100:.1f}%" title="YELLOW {ews_yellow}d"></div>
-      <div class="seg-orange" style="width:{ews_orange/total_days*100:.1f}%" title="ORANGE {ews_orange}d"></div>
-      <div class="seg-red"    style="width:{ews_red/total_days*100:.1f}%"    title="RED {ews_red}d"></div>
+      <div class="seg-green"  style="width:{ews_green / total_days * 100:.1f}%" title="GREEN {ews_green}d"></div>
+      <div class="seg-yellow" style="width:{ews_yellow / total_days * 100:.1f}%" title="YELLOW {ews_yellow}d"></div>
+      <div class="seg-orange" style="width:{ews_orange / total_days * 100:.1f}%" title="ORANGE {ews_orange}d"></div>
+      <div class="seg-red"    style="width:{ews_red / total_days * 100:.1f}%"    title="RED {ews_red}d"></div>
     </div>
     <table>
       <tr><th>Regime</th><th>Scale</th><th>Days</th><th>% of period</th></tr>
-      <tr><td style="color:#3fb950">GREEN  (full exposure)</td><td>100%</td><td>{ews_green}</td><td>{ews_green/total_days*100:.1f}%</td></tr>
-      <tr><td style="color:#d4b04a">YELLOW (trim)</td>        <td>70%</td> <td>{ews_yellow}</td><td>{ews_yellow/total_days*100:.1f}%</td></tr>
-      <tr><td style="color:#e07b30">ORANGE (reduce)</td>      <td>40%</td> <td>{ews_orange}</td><td>{ews_orange/total_days*100:.1f}%</td></tr>
-      <tr><td style="color:#f85149">RED/CRITICAL (defensive)</td><td>≤20%</td><td>{ews_red}</td><td>{ews_red/total_days*100:.1f}%</td></tr>
+      <tr><td style="color:#3fb950">GREEN  (full exposure)</td><td>100%</td><td>{ews_green}</td><td>{ews_green / total_days * 100:.1f}%</td></tr>
+      <tr><td style="color:#d4b04a">YELLOW (trim)</td>        <td>70%</td> <td>{ews_yellow}</td><td>{ews_yellow / total_days * 100:.1f}%</td></tr>
+      <tr><td style="color:#e07b30">ORANGE (reduce)</td>      <td>40%</td> <td>{ews_orange}</td><td>{ews_orange / total_days * 100:.1f}%</td></tr>
+      <tr><td style="color:#f85149">RED/CRITICAL (defensive)</td><td>≤20%</td><td>{ews_red}</td><td>{ews_red / total_days * 100:.1f}%</td></tr>
       <tr style="border-top:2px solid #58a6ff"><td><strong>Average scale factor</strong></td><td colspan="3"><strong>{ews_avg_sc:.1%}</strong></td></tr>
     </table>
   </div>

@@ -42,7 +42,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"Starting backfill:")
+    print("Starting backfill:")
     print(f"  Symbols: {args.symbols}")
     print(f"  Date range: {args.start_date} to {args.end_date}")
     print(f"  Vendors: {args.vendors}")

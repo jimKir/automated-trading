@@ -5,7 +5,6 @@ from __future__ import annotations
 import sqlite3
 import threading
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -191,9 +190,7 @@ class SymbolMaster:
         """
         with self._lock, sqlite3.connect(str(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM symbols WHERE symbol_id = ?", (symbol_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM symbols WHERE symbol_id = ?", (symbol_id,)).fetchone()
 
         if row is None:
             return None
@@ -309,9 +306,7 @@ class SymbolMaster:
             ).fetchone()
             return row[0] if row else 0
 
-    def get_options_contracts(
-        self, underlying_symbol_id: int
-    ) -> list[OptionsContract]:
+    def get_options_contracts(self, underlying_symbol_id: int) -> list[OptionsContract]:
         """Get all options contracts for an underlying symbol.
 
         Args:

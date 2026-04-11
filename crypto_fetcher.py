@@ -5,10 +5,12 @@ Crypto Data Fetcher using yfinance
 Fallback for crypto pairs not available via Alpaca.
 Provides BTC-USD, ETH-USD, SOL-USD and other major crypto.
 """
+
+from __future__ import annotations
+
 import logging
+
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Optional
 import yfinance as yf
 
 logger = logging.getLogger("crypto_fetcher")
@@ -23,7 +25,7 @@ class YFinanceCryptoFetcher:
     def __init__(self):
         logger.info("YFinance crypto fetcher initialized")
 
-    def fetch_bars(self, sym: str, start: str, end: str) -> Optional[pd.DataFrame]:
+    def fetch_bars(self, sym: str, start: str, end: str) -> pd.DataFrame | None:
         """
         Fetch daily OHLCV bars for a crypto symbol.
 

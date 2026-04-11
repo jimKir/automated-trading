@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import io
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
-import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import structlog
 
-from market_data.storage.analytics_lake import OHLCV_SCHEMA, QUOTES_SCHEMA, TRADES_SCHEMA
+from market_data.storage.analytics_lake import OHLCV_SCHEMA, TRADES_SCHEMA
 from market_data.storage.symbol_master import SymbolMaster
 
 logger = structlog.get_logger(__name__)
@@ -35,9 +32,7 @@ class DataNormalizer:
     def __init__(self, symbol_master: SymbolMaster) -> None:
         self.symbol_master = symbol_master
 
-    def normalize_databento_trades(
-        self, dbn_path: str | Path, symbol: str
-    ) -> pa.Table:
+    def normalize_databento_trades(self, dbn_path: str | Path, symbol: str) -> pa.Table:
         """Convert Databento DBN trades to normalized Parquet format.
 
         Args:
@@ -48,26 +43,29 @@ class DataNormalizer:
             Normalized PyArrow table.
         """
         symbol_id = self._resolve_symbol_id(symbol)
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
 
         try:
             import databento as db
+
             store = db.DBNStore.from_file(str(dbn_path))
             df = store.to_df()
 
             records = []
             for _, row in df.iterrows():
                 ts_ns = int(row.get("ts_event", 0))
-                records.append({
-                    "timestamp_utc": ts_ns,
-                    "symbol_id": symbol_id,
-                    "price": float(row.get("price", 0)) / 1e9,  # DBN uses fixed-point
-                    "size": int(row.get("size", 0)),
-                    "exchange_id": int(row.get("publisher_id", 0)) % 128,
-                    "conditions": str(row.get("conditions", "")),
-                    "sequence_number": int(row.get("sequence", 0)),
-                    "ingestion_time": now,
-                })
+                records.append(
+                    {
+                        "timestamp_utc": ts_ns,
+                        "symbol_id": symbol_id,
+                        "price": float(row.get("price", 0)) / 1e9,  # DBN uses fixed-point
+                        "size": int(row.get("size", 0)),
+                        "exchange_id": int(row.get("publisher_id", 0)) % 128,
+                        "conditions": str(row.get("conditions", "")),
+                        "sequence_number": int(row.get("sequence", 0)),
+                        "ingestion_time": now,
+                    }
+                )
 
             return pa.Table.from_pylist(records, schema=TRADES_SCHEMA)
         except ImportError:
@@ -77,9 +75,7 @@ class DataNormalizer:
                 schema=TRADES_SCHEMA,
             )
 
-    def normalize_databento_ohlcv(
-        self, dbn_path: str | Path, symbol: str
-    ) -> pa.Table:
+    def normalize_databento_ohlcv(self, dbn_path: str | Path, symbol: str) -> pa.Table:
         """Convert Databento DBN OHLCV bars to normalized Parquet format.
 
         Args:
@@ -90,27 +86,30 @@ class DataNormalizer:
             Normalized PyArrow table.
         """
         symbol_id = self._resolve_symbol_id(symbol)
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
 
         try:
             import databento as db
+
             store = db.DBNStore.from_file(str(dbn_path))
             df = store.to_df()
 
             records = []
             for _, row in df.iterrows():
-                records.append({
-                    "timestamp_utc": int(row.get("ts_event", 0)),
-                    "symbol_id": symbol_id,
-                    "open": float(row.get("open", 0)) / 1e9,
-                    "high": float(row.get("high", 0)) / 1e9,
-                    "low": float(row.get("low", 0)) / 1e9,
-                    "close": float(row.get("close", 0)) / 1e9,
-                    "volume": int(row.get("volume", 0)),
-                    "vwap": 0.0,
-                    "trade_count": 0,
-                    "ingestion_time": now,
-                })
+                records.append(
+                    {
+                        "timestamp_utc": int(row.get("ts_event", 0)),
+                        "symbol_id": symbol_id,
+                        "open": float(row.get("open", 0)) / 1e9,
+                        "high": float(row.get("high", 0)) / 1e9,
+                        "low": float(row.get("low", 0)) / 1e9,
+                        "close": float(row.get("close", 0)) / 1e9,
+                        "volume": int(row.get("volume", 0)),
+                        "vwap": 0.0,
+                        "trade_count": 0,
+                        "ingestion_time": now,
+                    }
+                )
 
             return pa.Table.from_pylist(records, schema=OHLCV_SCHEMA)
         except ImportError:
@@ -120,9 +119,7 @@ class DataNormalizer:
                 schema=OHLCV_SCHEMA,
             )
 
-    def normalize_alpaca_bars(
-        self, json_path: str | Path, symbol: str
-    ) -> pa.Table:
+    def normalize_alpaca_bars(self, json_path: str | Path, symbol: str) -> pa.Table:
         """Convert Alpaca JSON bars to normalized Parquet format.
 
         Args:
@@ -133,7 +130,7 @@ class DataNormalizer:
             Normalized PyArrow table.
         """
         symbol_id = self._resolve_symbol_id(symbol)
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
 
         with open(json_path) as f:
             bars = json.load(f)
@@ -144,18 +141,20 @@ class DataNormalizer:
             ts_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
             ts_ns = int(ts_dt.timestamp() * 1e9)
 
-            records.append({
-                "timestamp_utc": ts_ns,
-                "symbol_id": symbol_id,
-                "open": float(bar.get("open", bar.get("o", 0))),
-                "high": float(bar.get("high", bar.get("h", 0))),
-                "low": float(bar.get("low", bar.get("l", 0))),
-                "close": float(bar.get("close", bar.get("c", 0))),
-                "volume": int(bar.get("volume", bar.get("v", 0))),
-                "vwap": float(bar.get("vwap", bar.get("vw", 0)) or 0),
-                "trade_count": int(bar.get("trade_count", bar.get("n", 0)) or 0),
-                "ingestion_time": now,
-            })
+            records.append(
+                {
+                    "timestamp_utc": ts_ns,
+                    "symbol_id": symbol_id,
+                    "open": float(bar.get("open", bar.get("o", 0))),
+                    "high": float(bar.get("high", bar.get("h", 0))),
+                    "low": float(bar.get("low", bar.get("l", 0))),
+                    "close": float(bar.get("close", bar.get("c", 0))),
+                    "volume": int(bar.get("volume", bar.get("v", 0))),
+                    "vwap": float(bar.get("vwap", bar.get("vw", 0)) or 0),
+                    "trade_count": int(bar.get("trade_count", bar.get("n", 0)) or 0),
+                    "ingestion_time": now,
+                }
+            )
 
         return pa.Table.from_pylist(records, schema=OHLCV_SCHEMA)
 

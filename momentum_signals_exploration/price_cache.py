@@ -26,17 +26,15 @@ Usage:
     )
     # df is MultiIndex (symbol, date) with columns [open, high, low, close, volume]
 """
+
 from __future__ import annotations
 
 import hashlib
 import logging
 import os
-import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Union
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -45,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Paths
 # ---------------------------------------------------------------------------
 _REPO_ROOT = Path(__file__).parent.parent
-CACHE_DIR  = _REPO_ROOT / ".cache" / "prices"
+CACHE_DIR = _REPO_ROOT / ".cache" / "prices"
 
 # How many trailing trading-days to always re-fetch (bars may be revised)
 REFRESH_TAIL_DAYS = 7
@@ -55,12 +53,13 @@ REFRESH_TAIL_DAYS = 7
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _symbols_hash(symbols: List[str]) -> str:
+
+def _symbols_hash(symbols: list[str]) -> str:
     joined = ",".join(sorted(set(s.upper() for s in symbols)))
     return hashlib.md5(joined.encode()).hexdigest()[:8]
 
 
-def _date_str(d: Union[str, date, datetime]) -> str:
+def _date_str(d: str | date | datetime) -> str:
     if isinstance(d, datetime):
         return d.strftime("%Y-%m-%d")
     if isinstance(d, date):
@@ -68,13 +67,13 @@ def _date_str(d: Union[str, date, datetime]) -> str:
     return str(d)[:10]
 
 
-def _cache_filename(symbols: List[str], start: str, end: str, timeframe: str) -> str:
+def _cache_filename(symbols: list[str], start: str, end: str, timeframe: str) -> str:
     shash = _symbols_hash(symbols)
-    tf    = timeframe.replace("/", "-")
+    tf = timeframe.replace("/", "-")
     return f"prices_{shash}_{start}_{end}_{tf}.parquet"
 
 
-def _cache_path(symbols: List[str], start: str, end: str, timeframe: str) -> Path:
+def _cache_path(symbols: list[str], start: str, end: str, timeframe: str) -> Path:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return CACHE_DIR / _cache_filename(symbols, start, end, timeframe)
 
@@ -87,7 +86,7 @@ def _atomic_write(path: Path, df: pd.DataFrame):
     logger.debug(f"[PriceCache] Written {path.name} ({path.stat().st_size:,} bytes)")
 
 
-def _load_parquet(path: Path) -> Optional[pd.DataFrame]:
+def _load_parquet(path: Path) -> pd.DataFrame | None:
     try:
         return pd.read_parquet(path, engine="pyarrow")
     except Exception as e:
@@ -101,7 +100,7 @@ def _trading_days_ago(n: int) -> str:
 
 
 def _register_in_catalogue(
-    symbols: List[str],
+    symbols: list[str],
     start: str,
     end: str,
     timeframe: str,
@@ -112,24 +111,32 @@ def _register_in_catalogue(
     """Register this fetch in the DataCatalogue (best-effort, never crashes)."""
     try:
         import sys
+
         sys.path.insert(0, str(_REPO_ROOT))
         from src.market_data.catalogue import get_catalogue
+
         cat = get_catalogue()
-        tf_map = {"1Day": "1day", "1Hour": "1hour", "1Min": "1min",
-                  "day": "1day", "hour": "1hour", "minute": "1min"}
+        tf_map = {
+            "1Day": "1day",
+            "1Hour": "1hour",
+            "1Min": "1min",
+            "day": "1day",
+            "hour": "1hour",
+            "minute": "1min",
+        }
         freq = tf_map.get(timeframe, timeframe.lower())
         cat.record(
-            source    = source,
-            dataset   = source.upper(),
-            schema    = "ohlcv",
-            symbols   = symbols,
-            start     = start,
-            end       = end,
-            frequency = freq,
-            rows      = rows,
-            cache_path= str(cache_path),
-            notes     = f"price_cache.py — {len(symbols)} symbols",
-            tags      = ["prices", "ohlcv"],
+            source=source,
+            dataset=source.upper(),
+            schema="ohlcv",
+            symbols=symbols,
+            start=start,
+            end=end,
+            frequency=freq,
+            rows=rows,
+            cache_path=str(cache_path),
+            notes=f"price_cache.py — {len(symbols)} symbols",
+            tags=["prices", "ohlcv"],
         )
     except Exception as e:
         logger.debug(f"[PriceCache] Catalogue registration skipped: {e}")
@@ -138,6 +145,7 @@ def _register_in_catalogue(
 # ---------------------------------------------------------------------------
 # Main cache class
 # ---------------------------------------------------------------------------
+
 
 class PriceCache:
     """
@@ -156,13 +164,15 @@ class PriceCache:
 
     def __init__(
         self,
-        api_key:    Optional[str] = None,
-        api_secret: Optional[str] = None,
-        cache_dir:  Optional[Path] = None,
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        cache_dir: Path | None = None,
     ):
-        self._key    = api_key    or os.getenv("ALPACA_API_KEY",    "") or os.getenv("APCA_API_KEY_ID",     "")
-        self._secret = api_secret or os.getenv("ALPACA_API_SECRET", "") or os.getenv("APCA_API_SECRET_KEY", "")
-        self._cache  = cache_dir or CACHE_DIR
+        self._key = api_key or os.getenv("ALPACA_API_KEY", "") or os.getenv("APCA_API_KEY_ID", "")
+        self._secret = (
+            api_secret or os.getenv("ALPACA_API_SECRET", "") or os.getenv("APCA_API_SECRET_KEY", "")
+        )
+        self._cache = cache_dir or CACHE_DIR
         self._cache.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
@@ -171,10 +181,10 @@ class PriceCache:
 
     def get_daily(
         self,
-        symbols:   List[str],
-        start:     Union[str, date],
-        end:       Union[str, date, None] = None,
-        force:     bool = False,
+        symbols: list[str],
+        start: str | date,
+        end: str | date | None = None,
+        force: bool = False,
     ) -> pd.DataFrame:
         """
         Fetch daily OHLCV bars for *symbols* from *start* to *end*.
@@ -190,7 +200,7 @@ class PriceCache:
         the API even when cached, because bars may be revised.
         """
         start_s = _date_str(start)
-        end_s   = _date_str(end or datetime.now())
+        end_s = _date_str(end or datetime.now())
         symbols = [s.upper() for s in symbols]
 
         cache_path = _cache_path(symbols, start_s, end_s, "1Day")
@@ -238,26 +248,24 @@ class PriceCache:
         # Save to full-coverage cache path
         _atomic_write(cache_path, df)
         _register_in_catalogue(
-            symbols, start_s, end_s, "1Day",
-            rows=len(df), cache_path=cache_path,
-            source="alpaca"
+            symbols, start_s, end_s, "1Day", rows=len(df), cache_path=cache_path, source="alpaca"
         )
         return df
 
     def get_intraday(
         self,
-        symbols:    List[str],
-        start:      Union[str, date],
-        end:        Union[str, date, None] = None,
-        timeframe:  str = "1Hour",
-        force:      bool = False,
+        symbols: list[str],
+        start: str | date,
+        end: str | date | None = None,
+        timeframe: str = "1Hour",
+        force: bool = False,
     ) -> pd.DataFrame:
         """
         Fetch intraday OHLCV bars (default: 1-hour).
         Same caching logic as get_daily.
         """
         start_s = _date_str(start)
-        end_s   = _date_str(end or datetime.now())
+        end_s = _date_str(end or datetime.now())
         symbols = [s.upper() for s in symbols]
 
         cache_path = _cache_path(symbols, start_s, end_s, timeframe)
@@ -267,19 +275,21 @@ class PriceCache:
             if df is not None:
                 cached_syms = set(df.index.get_level_values(0).unique())
                 if set(symbols).issubset(cached_syms):
-                    logger.info(f"[PriceCache] HIT  {len(symbols)} syms {timeframe} {start_s}→{end_s}")
+                    logger.info(
+                        f"[PriceCache] HIT  {len(symbols)} syms {timeframe} {start_s}→{end_s}"
+                    )
                     return df
 
-        logger.info(f"[PriceCache] MISS — fetching {len(symbols)} syms {timeframe} {start_s}→{end_s}")
+        logger.info(
+            f"[PriceCache] MISS — fetching {len(symbols)} syms {timeframe} {start_s}→{end_s}"
+        )
         df = self._fetch_intraday(symbols, start_s, end_s, timeframe)
         if df is None or df.empty:
             return pd.DataFrame()
 
         _atomic_write(cache_path, df)
         _register_in_catalogue(
-            symbols, start_s, end_s, timeframe,
-            rows=len(df), cache_path=cache_path,
-            source="alpaca"
+            symbols, start_s, end_s, timeframe, rows=len(df), cache_path=cache_path, source="alpaca"
         )
         return df
 
@@ -287,34 +297,34 @@ class PriceCache:
     # Private: fetch from API sources
     # ------------------------------------------------------------------
 
-    def _fetch_daily(
-        self, symbols: List[str], start: str, end: str
-    ) -> Optional[pd.DataFrame]:
+    def _fetch_daily(self, symbols: list[str], start: str, end: str) -> pd.DataFrame | None:
         """Try Alpaca, then yfinance for daily bars."""
         df = self._alpaca_daily(symbols, start, end)
         if df is not None and not df.empty:
-            logger.info(f"[PriceCache] Alpaca daily: {df.index.get_level_values(0).nunique()}/{len(symbols)} syms")
+            logger.info(
+                f"[PriceCache] Alpaca daily: {df.index.get_level_values(0).nunique()}/{len(symbols)} syms"
+            )
             return df
 
         logger.info("[PriceCache] Alpaca returned nothing — trying yfinance...")
         df = self._yfinance_daily(symbols, start, end)
         if df is not None and not df.empty:
-            logger.info(f"[PriceCache] yfinance daily: {df.index.get_level_values(0).nunique()}/{len(symbols)} syms")
+            logger.info(
+                f"[PriceCache] yfinance daily: {df.index.get_level_values(0).nunique()}/{len(symbols)} syms"
+            )
             return df
 
         return None
 
     def _fetch_intraday(
-        self, symbols: List[str], start: str, end: str, timeframe: str
-    ) -> Optional[pd.DataFrame]:
+        self, symbols: list[str], start: str, end: str, timeframe: str
+    ) -> pd.DataFrame | None:
         df = self._alpaca_intraday(symbols, start, end, timeframe)
         if df is not None and not df.empty:
             return df
         return self._yfinance_intraday(symbols, start, end, timeframe)
 
-    def _alpaca_daily(
-        self, symbols: List[str], start: str, end: str
-    ) -> Optional[pd.DataFrame]:
+    def _alpaca_daily(self, symbols: list[str], start: str, end: str) -> pd.DataFrame | None:
         if not self._key:
             return None
         try:
@@ -322,9 +332,7 @@ class PriceCache:
             from alpaca.data.requests import StockBarsRequest
             from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
-            client = StockHistoricalDataClient(
-                api_key=self._key, secret_key=self._secret
-            )
+            client = StockHistoricalDataClient(api_key=self._key, secret_key=self._secret)
             req = StockBarsRequest(
                 symbol_or_symbols=symbols,
                 timeframe=TimeFrame(1, TimeFrameUnit.Day),
@@ -342,11 +350,13 @@ class PriceCache:
                     continue
                 rows = [
                     {
-                        "open":   bar.open,  "high":  bar.high,
-                        "low":    bar.low,   "close": bar.close,
+                        "open": bar.open,
+                        "high": bar.high,
+                        "low": bar.low,
+                        "close": bar.close,
                         "volume": bar.volume,
-                        "date":   pd.Timestamp(bar.timestamp).normalize(),
-                        "_sym":   sym,
+                        "date": pd.Timestamp(bar.timestamp).normalize(),
+                        "_sym": sym,
                     }
                     for bar in bars
                 ]
@@ -364,8 +374,8 @@ class PriceCache:
             return None
 
     def _alpaca_intraday(
-        self, symbols: List[str], start: str, end: str, timeframe: str
-    ) -> Optional[pd.DataFrame]:
+        self, symbols: list[str], start: str, end: str, timeframe: str
+    ) -> pd.DataFrame | None:
         if not self._key:
             return None
         try:
@@ -380,9 +390,7 @@ class PriceCache:
             }
             tf = tf_map.get(timeframe, TimeFrame(1, TimeFrameUnit.Hour))
 
-            client = StockHistoricalDataClient(
-                api_key=self._key, secret_key=self._secret
-            )
+            client = StockHistoricalDataClient(api_key=self._key, secret_key=self._secret)
             req = StockBarsRequest(
                 symbol_or_symbols=symbols,
                 timeframe=tf,
@@ -400,11 +408,13 @@ class PriceCache:
                     continue
                 rows = [
                     {
-                        "open":   bar.open,  "high": bar.high,
-                        "low":    bar.low,   "close": bar.close,
+                        "open": bar.open,
+                        "high": bar.high,
+                        "low": bar.low,
+                        "close": bar.close,
                         "volume": bar.volume,
-                        "ts":     pd.Timestamp(bar.timestamp),
-                        "_sym":   sym,
+                        "ts": pd.Timestamp(bar.timestamp),
+                        "_sym": sym,
                     }
                     for bar in bars
                 ]
@@ -421,11 +431,10 @@ class PriceCache:
             logger.debug(f"[PriceCache] Alpaca intraday error: {e}")
             return None
 
-    def _yfinance_daily(
-        self, symbols: List[str], start: str, end: str
-    ) -> Optional[pd.DataFrame]:
+    def _yfinance_daily(self, symbols: list[str], start: str, end: str) -> pd.DataFrame | None:
         try:
             import yfinance as yf
+
             raw = yf.download(
                 symbols,
                 start=start,
@@ -444,10 +453,11 @@ class PriceCache:
             return None
 
     def _yfinance_intraday(
-        self, symbols: List[str], start: str, end: str, timeframe: str
-    ) -> Optional[pd.DataFrame]:
+        self, symbols: list[str], start: str, end: str, timeframe: str
+    ) -> pd.DataFrame | None:
         try:
             import yfinance as yf
+
             tf_map = {"1Min": "1m", "5Min": "5m", "1Hour": "1h"}
             interval = tf_map.get(timeframe, "1h")
             raw = yf.download(
@@ -470,9 +480,9 @@ class PriceCache:
     @staticmethod
     def _yf_to_multiindex(
         raw: pd.DataFrame,
-        symbols: List[str],
+        symbols: list[str],
         idx_name: str,
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         frames = []
         for sym in symbols:
             try:
@@ -480,10 +490,15 @@ class PriceCache:
                 df = df.dropna(subset=["Close"])
                 if len(df) < 2:
                     continue
-                df = df.rename(columns={
-                    "Open": "open", "High": "high", "Low": "low",
-                    "Close": "close", "Volume": "volume",
-                })[["open", "high", "low", "close", "volume"]]
+                df = df.rename(
+                    columns={
+                        "Open": "open",
+                        "High": "high",
+                        "Low": "low",
+                        "Close": "close",
+                        "Volume": "volume",
+                    }
+                )[["open", "high", "low", "close", "volume"]]
                 df.index.name = idx_name
                 df["_sym"] = sym
                 frames.append(df.reset_index().set_index(["_sym", idx_name]))
@@ -503,7 +518,7 @@ class PriceCache:
     def _refresh_tail(
         self,
         df: pd.DataFrame,
-        symbols: List[str],
+        symbols: list[str],
         end: str,
         timeframe: str,
     ) -> pd.DataFrame:
@@ -514,7 +529,7 @@ class PriceCache:
             df_tail = self._fetch_daily(symbols, tail_start, end)
             if df_tail is not None and not df_tail.empty:
                 tail_ts = pd.Timestamp(tail_start)
-                df_old  = df[df.index.get_level_values(1) < tail_ts]
+                df_old = df[df.index.get_level_values(1) < tail_ts]
                 return pd.concat([df_old, df_tail]).sort_index()
         except Exception as e:
             logger.debug(f"[PriceCache] Tail refresh failed: {e}")
@@ -522,18 +537,18 @@ class PriceCache:
 
     def _find_partial_cache(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start: str,
         end: str,
         timeframe: str,
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """
         Search .cache/prices/ for any file that covers the requested symbols
         and starts at (or before) the requested start date.
         Returns the best matching DataFrame or None.
         """
         shash = _symbols_hash(symbols)
-        tf    = timeframe.replace("/", "-")
+        tf = timeframe.replace("/", "-")
         pattern = f"prices_{shash}_*_{tf}.parquet"
 
         candidates = list(self._cache.glob(pattern))
@@ -548,7 +563,7 @@ class PriceCache:
                 continue
             try:
                 cached_start = parts[2]
-                cached_end   = parts[3]
+                cached_end = parts[3]
                 if cached_start <= start and cached_end >= start:
                     df = _load_parquet(cpath)
                     if df is not None:
@@ -578,13 +593,13 @@ class PriceCache:
         print("  " + "─" * 78)
         total = 0
         for f in files:
-            sz  = f.stat().st_size
+            sz = f.stat().st_size
             total += sz
             mod = datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-            sz_s = f"{sz/1024:.0f} KB" if sz < 1_048_576 else f"{sz/1_048_576:.1f} MB"
+            sz_s = f"{sz / 1024:.0f} KB" if sz < 1_048_576 else f"{sz / 1_048_576:.1f} MB"
             print(f"  {f.name:<50}  {sz_s:>10}  {mod}")
         print("=" * 80)
-        total_s = f"{total/1024:.0f} KB" if total < 1_048_576 else f"{total/1_048_576:.1f} MB"
+        total_s = f"{total / 1024:.0f} KB" if total < 1_048_576 else f"{total / 1_048_576:.1f} MB"
         print(f"  Total: {len(files)} files, {total_s}")
         print(f"  Cache dir: {self._cache}")
         print()

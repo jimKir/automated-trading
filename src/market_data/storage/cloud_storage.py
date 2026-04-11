@@ -86,11 +86,7 @@ class LocalStorageBackend(StorageBackend):
         full_path = self._resolve(prefix)
         if not full_path.exists():
             return []
-        return [
-            str(p.relative_to(self.base_path))
-            for p in full_path.rglob("*")
-            if p.is_file()
-        ]
+        return [str(p.relative_to(self.base_path)) for p in full_path.rglob("*") if p.is_file()]
 
     def delete(self, path: str) -> None:
         """Delete a file from local filesystem."""
@@ -370,8 +366,7 @@ class CloudStorageFactory:
         backend_cls = cls._PROVIDERS.get(provider.lower())
         if backend_cls is None:
             raise ValueError(
-                f"Unknown storage provider: {provider}. "
-                f"Supported: {list(cls._PROVIDERS.keys())}"
+                f"Unknown storage provider: {provider}. Supported: {list(cls._PROVIDERS.keys())}"
             )
         logger.info("creating_storage_backend", provider=provider)
         return backend_cls(**kwargs)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import sys
 from datetime import date, timedelta
-from pathlib import Path
 
 import click
 import structlog
@@ -65,6 +64,7 @@ def backfill(
 
     try:
         from flows.backfill_flow import backfill_flow
+
         results = backfill_flow(
             symbols=symbol_list,
             start_date=start_date,
@@ -106,6 +106,7 @@ def update(
 
     try:
         from flows.incremental_flow import incremental_flow
+
         results = incremental_flow(
             symbols=symbol_list,
             vendors=vendors,
@@ -114,8 +115,7 @@ def update(
         )
         for v, summary in results.items():
             click.echo(
-                f"  {v}: {summary.symbols_updated} symbols, "
-                f"{summary.new_records} new records"
+                f"  {v}: {summary.symbols_updated} symbols, {summary.new_records} new records"
             )
     except Exception as exc:
         click.echo(f"Update failed: {exc}", err=True)
@@ -148,6 +148,7 @@ def generate_features(
 
     try:
         from flows.feature_flow import feature_flow
+
         count = feature_flow(
             symbols=symbol_list,
             year=year,
@@ -180,9 +181,7 @@ def validate(ctx: click.Context, check_date: str | None, symbols: tuple[str, ...
         local_path=settings.storage.local_path,
     )
     lake = AnalyticsLake(storage=storage)
-    symbol_master = SymbolMaster(
-        db_path=settings.storage.local_path + "/symbol_master.db"
-    )
+    symbol_master = SymbolMaster(db_path=settings.storage.local_path + "/symbol_master.db")
 
     checker = DataQualityChecker(
         analytics_lake=lake,
@@ -215,7 +214,7 @@ def validate(ctx: click.Context, check_date: str | None, symbols: tuple[str, ...
 @click.pass_context
 def serve(ctx: click.Context, host: str, port: int) -> None:
     """Start the HTTP health/metrics server."""
-    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from http.server import BaseHTTPRequestHandler, HTTPServer
 
     from market_data.monitoring.health import HealthChecker
     from market_data.monitoring.metrics import MetricsCollector
@@ -238,9 +237,7 @@ def serve(ctx: click.Context, host: str, port: int) -> None:
             else:
                 self._respond(404, '{"error": "not found"}')
 
-        def _respond(
-            self, code: int, body: str, content_type: str = "application/json"
-        ) -> None:
+        def _respond(self, code: int, body: str, content_type: str = "application/json") -> None:
             self.send_response(code)
             self.send_header("Content-Type", content_type)
             self.end_headers()
@@ -274,9 +271,7 @@ def status(ctx: click.Context) -> None:
     click.echo(f"  Data Path: {settings.storage.local_path}")
 
     try:
-        symbol_master = SymbolMaster(
-            db_path=settings.storage.local_path + "/symbol_master.db"
-        )
+        symbol_master = SymbolMaster(db_path=settings.storage.local_path + "/symbol_master.db")
         click.echo(f"  Symbols: {symbol_master.symbol_count}")
     except Exception:
         click.echo("  Symbols: N/A")

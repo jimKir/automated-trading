@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-import io
 from collections import OrderedDict
-from datetime import date, datetime, timezone
-from typing import Any
+from datetime import UTC, date, datetime
 
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 import structlog
 
 from market_data.storage.analytics_lake import AnalyticsLake
@@ -50,12 +46,9 @@ class LRUCache:
             self._current_bytes -= old_bytes
             del self._cache[key]
 
-        while (
-            self._cache
-            and (
-                len(self._cache) >= self._max_size
-                or self._current_bytes + df_bytes > self._max_memory_bytes
-            )
+        while self._cache and (
+            len(self._cache) >= self._max_size
+            or self._current_bytes + df_bytes > self._max_memory_bytes
         ):
             _, evicted = self._cache.popitem(last=False)
             self._current_bytes -= evicted.memory_usage(deep=True).sum()
@@ -181,7 +174,7 @@ class BacktestAPI:
 
             # Apply as-of filter
             if as_of_date:
-                as_of_dt = datetime.fromisoformat(as_of_date).replace(tzinfo=timezone.utc)
+                as_of_dt = datetime.fromisoformat(as_of_date).replace(tzinfo=UTC)
                 as_of_ns = int(as_of_dt.timestamp() * 1e9)
                 ingestion_col = "ingestion_time"
                 if ingestion_col in df.columns:
@@ -193,6 +186,7 @@ class BacktestAPI:
                 for col in price_cols:
                     if col in df.columns:
                         import numpy as np
+
                         dates_list = [
                             datetime.utcfromtimestamp(ts / 1e9).strftime("%Y-%m-%d")
                             for ts in df["timestamp_utc"].values

@@ -5,7 +5,6 @@ Advanced filters for momentum scanner.
 Apply constraints for volume, price, volatility, market cap, etc.
 """
 
-from typing import Dict, List, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +17,7 @@ class MomentumFilters:
         """Initialize filters."""
         self.applied_filters = []
 
-    def filter_by_volume(self, results: Dict, min_volume: int = 100000) -> Dict:
+    def filter_by_volume(self, results: dict, min_volume: int = 100000) -> dict:
         """
         Filter out low-volume stocks.
 
@@ -32,18 +31,18 @@ class MomentumFilters:
         filtered = {
             symbol: metrics
             for symbol, metrics in results.items()
-            if metrics.get('volume', 0) >= min_volume
+            if metrics.get("volume", 0) >= min_volume
         }
 
         removed = len(results) - len(filtered)
         logger.info(f"Volume filter: Removed {removed} symbols (min volume: {min_volume:,})")
-        self.applied_filters.append(f'volume >= {min_volume:,}')
+        self.applied_filters.append(f"volume >= {min_volume:,}")
 
         return filtered
 
-    def filter_by_price_range(self, results: Dict,
-                             min_price: float = 5.0,
-                             max_price: float = 1000.0) -> Dict:
+    def filter_by_price_range(
+        self, results: dict, min_price: float = 5.0, max_price: float = 1000.0
+    ) -> dict:
         """
         Filter by price range (avoid penny stocks, expensive stocks).
 
@@ -58,18 +57,16 @@ class MomentumFilters:
         filtered = {
             symbol: metrics
             for symbol, metrics in results.items()
-            if min_price <= metrics.get('price', 0) <= max_price
+            if min_price <= metrics.get("price", 0) <= max_price
         }
 
         removed = len(results) - len(filtered)
-        logger.info(f"Price filter: Removed {removed} symbols "
-                   f"(${min_price}-${max_price})")
-        self.applied_filters.append(f'price ${min_price}-${max_price}')
+        logger.info(f"Price filter: Removed {removed} symbols (${min_price}-${max_price})")
+        self.applied_filters.append(f"price ${min_price}-${max_price}")
 
         return filtered
 
-    def filter_by_momentum_magnitude(self, results: Dict,
-                                    min_magnitude: float = 0.005) -> Dict:
+    def filter_by_momentum_magnitude(self, results: dict, min_magnitude: float = 0.005) -> dict:
         """
         Filter out small momentum moves (noise).
 
@@ -83,17 +80,19 @@ class MomentumFilters:
         filtered = {
             symbol: metrics
             for symbol, metrics in results.items()
-            if abs(metrics.get('intra_momentum', 0)) >= min_magnitude
+            if abs(metrics.get("intra_momentum", 0)) >= min_magnitude
         }
 
         removed = len(results) - len(filtered)
-        logger.info(f"Magnitude filter: Removed {removed} symbols "
-                   f"(min momentum: {min_magnitude*100:.2f}%)")
-        self.applied_filters.append(f'momentum >= {min_magnitude*100:.2f}%')
+        logger.info(
+            f"Magnitude filter: Removed {removed} symbols "
+            f"(min momentum: {min_magnitude * 100:.2f}%)"
+        )
+        self.applied_filters.append(f"momentum >= {min_magnitude * 100:.2f}%")
 
         return filtered
 
-    def filter_by_direction(self, results: Dict, direction: str = 'up') -> Dict:
+    def filter_by_direction(self, results: dict, direction: str = "up") -> dict:
         """
         Filter by direction (up/down/both).
 
@@ -104,18 +103,18 @@ class MomentumFilters:
         Returns:
             Filtered results
         """
-        if direction == 'up':
+        if direction == "up":
             filtered = {
                 symbol: metrics
                 for symbol, metrics in results.items()
-                if metrics.get('intra_momentum', 0) > 0
+                if metrics.get("intra_momentum", 0) > 0
             }
             label = "positive momentum"
-        elif direction == 'down':
+        elif direction == "down":
             filtered = {
                 symbol: metrics
                 for symbol, metrics in results.items()
-                if metrics.get('intra_momentum', 0) < 0
+                if metrics.get("intra_momentum", 0) < 0
             }
             label = "negative momentum"
         else:
@@ -124,12 +123,11 @@ class MomentumFilters:
 
         removed = len(results) - len(filtered)
         logger.info(f"Direction filter: Removed {removed} symbols ({label})")
-        self.applied_filters.append(f'direction: {direction}')
+        self.applied_filters.append(f"direction: {direction}")
 
         return filtered
 
-    def filter_by_liquidity_score(self, results: Dict,
-                                 min_score: float = 100000.0) -> Dict:
+    def filter_by_liquidity_score(self, results: dict, min_score: float = 100000.0) -> dict:
         """
         Filter by liquidity score (price × volume).
 
@@ -143,18 +141,16 @@ class MomentumFilters:
         filtered = {
             symbol: metrics
             for symbol, metrics in results.items()
-            if (metrics.get('price', 0) * metrics.get('volume', 0)) >= min_score
+            if (metrics.get("price", 0) * metrics.get("volume", 0)) >= min_score
         }
 
         removed = len(results) - len(filtered)
-        logger.info(f"Liquidity filter: Removed {removed} symbols "
-                   f"(min score: {min_score:,.0f})")
-        self.applied_filters.append(f'liquidity >= {min_score:,.0f}')
+        logger.info(f"Liquidity filter: Removed {removed} symbols (min score: {min_score:,.0f})")
+        self.applied_filters.append(f"liquidity >= {min_score:,.0f}")
 
         return filtered
 
-    def filter_by_blacklist(self, results: Dict,
-                          blacklist: List[str] = None) -> Dict:
+    def filter_by_blacklist(self, results: dict, blacklist: list[str] = None) -> dict:
         """
         Filter out blacklisted symbols.
 
@@ -169,20 +165,17 @@ class MomentumFilters:
             blacklist = []
 
         filtered = {
-            symbol: metrics
-            for symbol, metrics in results.items()
-            if symbol not in blacklist
+            symbol: metrics for symbol, metrics in results.items() if symbol not in blacklist
         }
 
         removed = len(results) - len(filtered)
         logger.info(f"Blacklist filter: Removed {removed} symbols")
         if removed > 0:
-            self.applied_filters.append(f'blacklist: {removed} excluded')
+            self.applied_filters.append(f"blacklist: {removed} excluded")
 
         return filtered
 
-    def apply_all_filters(self, results: Dict,
-                         config: Dict = None) -> Dict:
+    def apply_all_filters(self, results: dict, config: dict = None) -> dict:
         """
         Apply all filters based on config.
 
@@ -195,13 +188,13 @@ class MomentumFilters:
         """
         if not config:
             config = {
-                'min_volume': 100000,
-                'min_price': 5.0,
-                'max_price': 1000.0,
-                'min_magnitude': 0.005,
-                'direction': 'both',
-                'min_liquidity_score': 100000.0,
-                'blacklist': []
+                "min_volume": 100000,
+                "min_price": 5.0,
+                "max_price": 1000.0,
+                "min_magnitude": 0.005,
+                "direction": "both",
+                "min_liquidity_score": 100000.0,
+                "blacklist": [],
             }
 
         logger.info("Applying filters...")
@@ -210,41 +203,32 @@ class MomentumFilters:
         # Apply filters in order
         filtered = results
 
-        if config.get('min_volume'):
-            filtered = self.filter_by_volume(filtered, config['min_volume'])
+        if config.get("min_volume"):
+            filtered = self.filter_by_volume(filtered, config["min_volume"])
 
-        if config.get('min_price') is not None:
+        if config.get("min_price") is not None:
             filtered = self.filter_by_price_range(
-                filtered,
-                config.get('min_price', 5.0),
-                config.get('max_price', 1000.0)
+                filtered, config.get("min_price", 5.0), config.get("max_price", 1000.0)
             )
 
-        if config.get('min_magnitude'):
-            filtered = self.filter_by_magnitude_threshold(
-                filtered,
-                config['min_magnitude']
-            )
+        if config.get("min_magnitude"):
+            filtered = self.filter_by_magnitude_threshold(filtered, config["min_magnitude"])
 
-        if config.get('direction') != 'both':
-            filtered = self.filter_by_direction(filtered, config['direction'])
+        if config.get("direction") != "both":
+            filtered = self.filter_by_direction(filtered, config["direction"])
 
-        if config.get('min_liquidity_score'):
-            filtered = self.filter_by_liquidity_score(
-                filtered,
-                config['min_liquidity_score']
-            )
+        if config.get("min_liquidity_score"):
+            filtered = self.filter_by_liquidity_score(filtered, config["min_liquidity_score"])
 
-        if config.get('blacklist'):
-            filtered = self.filter_by_blacklist(filtered, config['blacklist'])
+        if config.get("blacklist"):
+            filtered = self.filter_by_blacklist(filtered, config["blacklist"])
 
         logger.info(f"Output: {len(filtered)} symbols")
         logger.info(f"Filters applied: {', '.join(self.applied_filters)}")
 
         return filtered
 
-    def filter_by_magnitude_threshold(self, results: Dict,
-                                     min_magnitude: float) -> Dict:
+    def filter_by_magnitude_threshold(self, results: dict, min_magnitude: float) -> dict:
         """Helper method (same as filter_by_momentum_magnitude)."""
         return self.filter_by_momentum_magnitude(results, min_magnitude)
 
@@ -253,8 +237,9 @@ class RankingEngine:
     """Rank results by various metrics."""
 
     @staticmethod
-    def rank_by_metric(results: Dict, metric: str = 'intra_momentum',
-                      direction: str = 'desc') -> List[Tuple]:
+    def rank_by_metric(
+        results: dict, metric: str = "intra_momentum", direction: str = "desc"
+    ) -> list[tuple]:
         """
         Rank by any metric.
 
@@ -266,17 +251,12 @@ class RankingEngine:
         Returns:
             Sorted list of (symbol, metrics) tuples
         """
-        reverse = direction == 'desc'
-        ranked = sorted(
-            results.items(),
-            key=lambda x: x[1].get(metric, 0),
-            reverse=reverse
-        )
+        reverse = direction == "desc"
+        ranked = sorted(results.items(), key=lambda x: x[1].get(metric, 0), reverse=reverse)
         return ranked
 
     @staticmethod
-    def rank_by_volume_weighted_momentum(results: Dict,
-                                        volume_weight: float = 0.3) -> List[Tuple]:
+    def rank_by_volume_weighted_momentum(results: dict, volume_weight: float = 0.3) -> list[tuple]:
         """
         Rank by momentum weighted by volume.
 
@@ -290,8 +270,8 @@ class RankingEngine:
             Sorted list by weighted score
         """
         # Normalize metrics
-        volumes = [m['volume'] for m in results.values()]
-        momentums = [m['intra_momentum'] for m in results.values()]
+        volumes = [m["volume"] for m in results.values()]
+        momentums = [m["intra_momentum"] for m in results.values()]
 
         if not volumes or not momentums:
             return []
@@ -301,20 +281,17 @@ class RankingEngine:
 
         scores = {}
         for symbol, metrics in results.items():
-            vol_norm = (metrics['volume'] - min_vol) / (max_vol - min_vol + 1)
-            mom_norm = (metrics['intra_momentum'] - min_mom) / (max_mom - min_mom + 1)
+            vol_norm = (metrics["volume"] - min_vol) / (max_vol - min_vol + 1)
+            mom_norm = (metrics["intra_momentum"] - min_mom) / (max_mom - min_mom + 1)
 
-            weighted_score = (
-                (1 - volume_weight) * mom_norm +
-                volume_weight * vol_norm
-            )
+            weighted_score = (1 - volume_weight) * mom_norm + volume_weight * vol_norm
             scores[symbol] = weighted_score
 
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [(symbol, results[symbol]) for symbol, _ in ranked]
 
     @staticmethod
-    def rank_by_surprise_factor(results: Dict) -> List[Tuple]:
+    def rank_by_surprise_factor(results: dict) -> list[tuple]:
         """
         Rank by 'surprise' - big moves relative to volume/price.
 
@@ -330,9 +307,9 @@ class RankingEngine:
 
         for symbol, metrics in results.items():
             # High momentum + high volume = surprise
-            momentum = abs(metrics['intra_momentum'])
-            volume = metrics['volume']
-            price = metrics['price']
+            momentum = abs(metrics["intra_momentum"])
+            volume = metrics["volume"]
+            price = metrics["price"]
 
             if price > 0 and volume > 0:
                 # Normalize

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from market_data.transforms.features import FeatureEngineer
 
@@ -16,12 +15,23 @@ class TestFeatureEngineer:
 
         # Check that all expected columns are present
         expected = [
-            "return_1d", "return_5d", "return_20d",
-            "sma_20", "ema_50", "rsi_14",
-            "macd", "macd_signal", "macd_histogram",
-            "bb_upper", "bb_middle", "bb_lower",
-            "obv", "volume_ratio",
-            "realized_vol_20", "parkinson_vol_20", "atr_14",
+            "return_1d",
+            "return_5d",
+            "return_20d",
+            "sma_20",
+            "ema_50",
+            "rsi_14",
+            "macd",
+            "macd_signal",
+            "macd_histogram",
+            "bb_upper",
+            "bb_middle",
+            "bb_lower",
+            "obv",
+            "volume_ratio",
+            "realized_vol_20",
+            "parkinson_vol_20",
+            "atr_14",
         ]
         for col in expected:
             assert col in result.columns, f"Missing column: {col}"
@@ -84,12 +94,14 @@ class TestCorporateActions:
     def test_split_adjustment(self, corporate_actions) -> None:
         from market_data.transforms.corporate_actions import SplitRecord
 
-        corporate_actions.add_split(SplitRecord(
-            symbol_id=1,
-            ex_date="2024-06-15",
-            split_from=1,
-            split_to=4,
-        ))
+        corporate_actions.add_split(
+            SplitRecord(
+                symbol_id=1,
+                ex_date="2024-06-15",
+                split_from=1,
+                split_to=4,
+            )
+        )
 
         factor = corporate_actions.get_split_adjustment_factor(
             symbol_id=1,
@@ -101,16 +113,20 @@ class TestCorporateActions:
     def test_dividend_adjustment(self, corporate_actions) -> None:
         from market_data.transforms.corporate_actions import DividendRecord
 
-        corporate_actions.add_dividend(DividendRecord(
-            symbol_id=1,
-            ex_date="2024-03-15",
-            amount=0.50,
-        ))
-        corporate_actions.add_dividend(DividendRecord(
-            symbol_id=1,
-            ex_date="2024-06-15",
-            amount=0.50,
-        ))
+        corporate_actions.add_dividend(
+            DividendRecord(
+                symbol_id=1,
+                ex_date="2024-03-15",
+                amount=0.50,
+            )
+        )
+        corporate_actions.add_dividend(
+            DividendRecord(
+                symbol_id=1,
+                ex_date="2024-06-15",
+                amount=0.50,
+            )
+        )
 
         total = corporate_actions.get_dividend_adjustment(
             symbol_id=1,

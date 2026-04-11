@@ -45,21 +45,20 @@ Anti-lookahead:
   signals to avoid look-ahead in weekly aggregation. A 1-day shift is applied
   internally before weekly aggregation.
 """
+
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import os
-import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+
 try:
     from src.market_data.catalogue import get_catalogue as _get_catalogue
+
     _CATALOGUE_AVAILABLE = True
 except ImportError:
     _CATALOGUE_AVAILABLE = False
@@ -80,48 +79,92 @@ CACHE_TTL_HOURS = 24 * 365  # historical data — cache permanently
 # NASDAQ cross time windows in Eastern Time.
 # UTC conversion done at runtime via _et_to_utc() to handle DST.
 _OPEN_CROSS_START_ET = (9, 0)
-_OPEN_CROSS_END_ET   = (9, 35)
+_OPEN_CROSS_END_ET = (9, 35)
 _CLOSE_CROSS_START_ET = (15, 55)
-_CLOSE_CROSS_END_ET   = (16, 5)
+_CLOSE_CROSS_END_ET = (16, 5)
 
 
-def _et_to_utc(et_hour: int, et_minute: int, d: "date") -> tuple:
+def _et_to_utc(et_hour: int, et_minute: int, d: date) -> tuple:
     """Convert ET (hour, minute) to UTC (hour, minute) for a given date, respecting DST."""
-    from zoneinfo import ZoneInfo
     from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo
+
     et = ZoneInfo("America/New_York")
     utc = ZoneInfo("UTC")
     local = _dt(d.year, d.month, d.day, et_hour, et_minute, tzinfo=et)
     utc_dt = local.astimezone(utc)
     return (utc_dt.hour, utc_dt.minute)
 
+
 # Rough list of US equity market holidays (NYSE/NASDAQ) for busday calculations.
-_US_HOLIDAYS: List[str] = [
+_US_HOLIDAYS: list[str] = [
     # 2022
-    "2022-01-17", "2022-02-21", "2022-04-15", "2022-05-30",
-    "2022-06-19", "2022-06-20", "2022-07-04", "2022-09-05",
-    "2022-11-24", "2022-11-25", "2022-12-26",
+    "2022-01-17",
+    "2022-02-21",
+    "2022-04-15",
+    "2022-05-30",
+    "2022-06-19",
+    "2022-06-20",
+    "2022-07-04",
+    "2022-09-05",
+    "2022-11-24",
+    "2022-11-25",
+    "2022-12-26",
     # 2023
-    "2023-01-02", "2023-01-16", "2023-02-20", "2023-04-07",
-    "2023-05-29", "2023-06-19", "2023-07-04", "2023-09-04",
-    "2023-11-23", "2023-11-24", "2023-12-25",
+    "2023-01-02",
+    "2023-01-16",
+    "2023-02-20",
+    "2023-04-07",
+    "2023-05-29",
+    "2023-06-19",
+    "2023-07-04",
+    "2023-09-04",
+    "2023-11-23",
+    "2023-11-24",
+    "2023-12-25",
     # 2024
-    "2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29",
-    "2024-05-27", "2024-06-19", "2024-07-04", "2024-09-02",
-    "2024-11-28", "2024-11-29", "2024-12-25",
+    "2024-01-01",
+    "2024-01-15",
+    "2024-02-19",
+    "2024-03-29",
+    "2024-05-27",
+    "2024-06-19",
+    "2024-07-04",
+    "2024-09-02",
+    "2024-11-28",
+    "2024-11-29",
+    "2024-12-25",
     # 2025
-    "2025-01-01", "2025-01-09", "2025-01-20", "2025-02-17",
-    "2025-04-18", "2025-05-26", "2025-06-19", "2025-07-04",
-    "2025-09-01", "2025-11-27", "2025-11-28", "2025-12-25",
+    "2025-01-01",
+    "2025-01-09",
+    "2025-01-20",
+    "2025-02-17",
+    "2025-04-18",
+    "2025-05-26",
+    "2025-06-19",
+    "2025-07-04",
+    "2025-09-01",
+    "2025-11-27",
+    "2025-11-28",
+    "2025-12-25",
     # 2026
-    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03",
-    "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07",
-    "2026-11-26", "2026-11-27", "2026-12-25",
+    "2026-01-01",
+    "2026-01-19",
+    "2026-02-16",
+    "2026-04-03",
+    "2026-05-25",
+    "2026-06-19",
+    "2026-07-03",
+    "2026-09-07",
+    "2026-11-26",
+    "2026-11-27",
+    "2026-12-25",
 ]
 _HOLIDAY_DATES = np.array(_US_HOLIDAYS, dtype="datetime64[D]")
 
 
 # ── TRADING CALENDAR HELPERS ──────────────────────────────────────────────────
+
 
 def _is_trading_day(d: date) -> bool:
     """Return True if d is a US equity market trading day."""
@@ -136,27 +179,27 @@ def _prev_trading_day(d: date) -> date:
     return pd.Timestamp(result).date()
 
 
-def _get_trading_days(start: date, end: date) -> List[date]:
+def _get_trading_days(start: date, end: date) -> list[date]:
     """Return all trading days in [start, end] inclusive, oldest first."""
     np_start = np.datetime64(start, "D")
-    np_end   = np.datetime64(end,   "D")
-    bdays    = np.busdaycalendar(weekmask="Mon Tue Wed Thu Fri", holidays=_HOLIDAY_DATES)
+    np_end = np.datetime64(end, "D")
+    bdays = np.busdaycalendar(weekmask="Mon Tue Wed Thu Fri", holidays=_HOLIDAY_DATES)
     all_days = np.arange(np_start, np_end + np.timedelta64(1, "D"), dtype="datetime64[D]")
-    mask     = np.is_busday(all_days, busdaycal=bdays)
+    mask = np.is_busday(all_days, busdaycal=bdays)
     return [pd.Timestamp(d).date() for d in all_days[mask]]
 
 
-def _lookback_trading_days(as_of: date, n: int) -> List[date]:
+def _lookback_trading_days(as_of: date, n: int) -> list[date]:
     """Return n trading days ending strictly before as_of (oldest first)."""
-    start       = as_of - timedelta(days=n * 2 + 20)
+    start = as_of - timedelta(days=n * 2 + 20)
     days_before = _get_trading_days(start, as_of - timedelta(days=1))
     return days_before[-n:]
 
 
-def _weekly_rebalance_dates(start: date, end: date) -> List[date]:
+def _weekly_rebalance_dates(start: date, end: date) -> list[date]:
     """Return the last trading day of each calendar week between start and end."""
     all_days = _get_trading_days(start, end)
-    seen: Dict[tuple, date] = {}
+    seen: dict[tuple, date] = {}
     for d in all_days:
         iso = (d.isocalendar()[0], d.isocalendar()[1])
         seen[iso] = d  # overwrite → keeps last day of each week
@@ -164,6 +207,7 @@ def _weekly_rebalance_dates(start: date, end: date) -> List[date]:
 
 
 # ── CACHE HELPERS ─────────────────────────────────────────────────────────────
+
 
 def _cache_path(*parts) -> Path:
     """
@@ -173,15 +217,17 @@ def _cache_path(*parts) -> Path:
       opra-trades_2025-03-20_AAPL_e5f6g7h8.json
     The hash ensures uniqueness even if the description collides.
     """
-    import hashlib as _hl, re
+    import hashlib as _hl
+    import re
+
     raw = "|".join(str(p) for p in parts)
-    h8  = _hl.md5(raw.encode()).hexdigest()[:8]
+    h8 = _hl.md5(raw.encode()).hexdigest()[:8]
 
     # Build readable prefix from parts
     readable_parts = []
     for p in parts:
         s = str(p)
-        if s.startswith("["):          # symbol list like "['AAPL', 'MSFT', ...]"
+        if s.startswith("["):  # symbol list like "['AAPL', 'MSFT', ...]"
             syms = [x.strip().strip("'") for x in s.strip("[]").split(",")]
             if len(syms) <= 3:
                 readable_parts.append("-".join(syms))
@@ -206,7 +252,7 @@ def get_cache_path_for(*parts) -> Path:
     return _cache_path(*parts)
 
 
-def build_signal(config: Optional[dict] = None) -> OpeningCrossSignal:
+def build_signal(config: dict | None = None) -> OpeningCrossSignal:
     """
     Factory function for OpeningCrossSignal.
 
@@ -236,6 +282,7 @@ def build_signal(config: Optional[dict] = None) -> OpeningCrossSignal:
 
 # ── OPENING CROSS SIGNAL CLASS ────────────────────────────────────────────────
 
+
 class OpeningCrossSignal:
     """
     NASDAQ Opening Cross Volume Anomaly Signal.
@@ -257,16 +304,16 @@ class OpeningCrossSignal:
 
     def __init__(
         self,
-        config: Optional[dict] = None,
+        config: dict | None = None,
         key: str = DATABENTO_KEY,
     ) -> None:
         cfg = (config or {}).get("opening_cross_signal", {})
-        self.enabled:              bool  = cfg.get("enabled",              True)
-        self.weight:               float = cfg.get("weight",               0.25)
-        self.lookback_days:        int   = cfg.get("lookback_days",        5)
-        self.decay_halflife:       float = cfg.get("decay_halflife",       2.0)
-        self.high_vol_threshold:   float = cfg.get("high_volume_threshold", 1.5)
-        self.vol_baseline_days:    int   = cfg.get("volume_baseline_days", 20)
+        self.enabled: bool = cfg.get("enabled", True)
+        self.weight: float = cfg.get("weight", 0.25)
+        self.lookback_days: int = cfg.get("lookback_days", 5)
+        self.decay_halflife: float = cfg.get("decay_halflife", 2.0)
+        self.high_vol_threshold: float = cfg.get("high_volume_threshold", 1.5)
+        self.vol_baseline_days: int = cfg.get("volume_baseline_days", 20)
 
         self._key = key
         self._client = None
@@ -281,6 +328,7 @@ class OpeningCrossSignal:
     def _init_client(self) -> None:
         try:
             import databento
+
             self._client = databento.Historical(key=self._key)
             log.info("Databento Historical client initialised (OpeningCross)")
         except Exception as e:
@@ -290,9 +338,9 @@ class OpeningCrossSignal:
 
     def compute_daily(
         self,
-        symbols: List[str],
+        symbols: list[str],
         trading_date: date,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Compute the opening cross anomaly signal for each symbol on a single day.
 
@@ -318,20 +366,28 @@ class OpeningCrossSignal:
 
         if self._client is None:
             log.debug("Databento client not available; returning neutral")
-            return {s: 0.0 for s in symbols}
+            return dict.fromkeys(symbols, 0.0)
 
         open_start_utc = _et_to_utc(*_OPEN_CROSS_START_ET, trading_date)
         open_end_utc = _et_to_utc(*_OPEN_CROSS_END_ET, trading_date)
         start_dt = datetime(
-            trading_date.year, trading_date.month, trading_date.day,
-            open_start_utc[0], open_start_utc[1], 0,
+            trading_date.year,
+            trading_date.month,
+            trading_date.day,
+            open_start_utc[0],
+            open_start_utc[1],
+            0,
         )
         end_dt = datetime(
-            trading_date.year, trading_date.month, trading_date.day,
-            open_end_utc[0], open_end_utc[1], 59,
+            trading_date.year,
+            trading_date.month,
+            trading_date.day,
+            open_end_utc[0],
+            open_end_utc[1],
+            59,
         )
 
-        result: Dict[str, float] = {s: 0.0 for s in symbols}
+        result: dict[str, float] = dict.fromkeys(symbols, 0.0)
 
         try:
             store = self._client.timeseries.get_range(
@@ -370,7 +426,7 @@ class OpeningCrossSignal:
                     row = sym_df.iloc[0]
 
                     # Opening cross volume and price
-                    open_vol   = float(row.get("quantity",  row.get("size",       0)) or 0)
+                    open_vol = float(row.get("quantity", row.get("size", 0)) or 0)
                     open_price = float(row.get("ref_price", row.get("stat_value", 0)) or 0)
 
                     if open_vol <= 0 or open_price <= 0:
@@ -394,10 +450,10 @@ class OpeningCrossSignal:
 
     def compute_weekly(
         self,
-        symbols: List[str],
+        symbols: list[str],
         as_of_date: date,
-        lookback_days: Optional[int] = None,
-    ) -> Dict[str, float]:
+        lookback_days: int | None = None,
+    ) -> dict[str, float]:
         """
         Compute the weekly opening cross anomaly signal for each symbol.
 
@@ -418,18 +474,16 @@ class OpeningCrossSignal:
         # Extend lookback to compute rolling baseline (need vol_baseline_days extra)
         total_lookback = n + self.vol_baseline_days
 
-        lookback_end  = _prev_trading_day(as_of_date)
-        trading_days  = _lookback_trading_days(
-            lookback_end + timedelta(days=1), total_lookback
-        )
+        lookback_end = _prev_trading_day(as_of_date)
+        trading_days = _lookback_trading_days(lookback_end + timedelta(days=1), total_lookback)
 
         if not trading_days:
             log.warning(f"No trading days found before {as_of_date}")
-            return {s: 0.0 for s in symbols}
+            return dict.fromkeys(symbols, 0.0)
 
         # Collect raw volumes for each day
-        raw_vols: List[Dict[str, float]] = []
-        valid_dates: List[date] = []
+        raw_vols: list[dict[str, float]] = []
+        valid_dates: list[date] = []
 
         for td in trading_days:
             try:
@@ -438,29 +492,29 @@ class OpeningCrossSignal:
                 valid_dates.append(td)
             except Exception as e:
                 log.debug(f"compute_daily error {td}: {e}")
-                raw_vols.append({s: 0.0 for s in symbols})
+                raw_vols.append(dict.fromkeys(symbols, 0.0))
                 valid_dates.append(td)
 
         if not raw_vols:
-            return {s: 0.0 for s in symbols}
+            return dict.fromkeys(symbols, 0.0)
 
         # Build volume DataFrame: rows=dates, cols=symbols
         vol_df = pd.DataFrame(raw_vols, index=valid_dates, columns=symbols).fillna(0.0)
 
         # Rolling baseline normalisation: anomaly = vol / 20-day average
         baseline = vol_df.rolling(self.vol_baseline_days, min_periods=5).mean()
-        anomaly  = vol_df / (baseline + 1e-9)
+        anomaly = vol_df / (baseline + 1e-9)
 
         # Use only the last `n` days (the genuine signal window)
         signal_anomaly = anomaly.iloc[-n:].copy()
-        signal_dates   = valid_dates[-n:]
+        signal_dates = valid_dates[-n:]
 
         # Gap direction: we don't have prev_close here, so use sign of anomaly - 1.
         # Positive anomaly > 1 = above-average volume = institutional interest.
         # We proxy direction as +1 (bullish) when anomaly > threshold (net buyer pressure).
         # This is conservative; real implementation should confirm with gap from prev_close.
         conviction = np.where(signal_anomaly >= self.high_vol_threshold, 1.0, 0.3)
-        direction  = np.sign(signal_anomaly - 1.0)  # +1 above average, -1 below
+        direction = np.sign(signal_anomaly - 1.0)  # +1 above average, -1 below
         day_signals = pd.DataFrame(
             direction.values * conviction * np.clip(signal_anomaly.values / 2.0, 0, 1),
             index=signal_anomaly.index,
@@ -469,25 +523,25 @@ class OpeningCrossSignal:
 
         # Exponential decay: more recent days weighted higher
         n_days = len(day_signals)
-        lags   = np.arange(n_days - 1, -1, -1, dtype=float)
+        lags = np.arange(n_days - 1, -1, -1, dtype=float)
         weights = np.power(2.0, -lags / self.decay_halflife)
         weights /= weights.sum()
 
-        weighted   = day_signals.values * weights[:, np.newaxis]
+        weighted = day_signals.values * weights[:, np.newaxis]
         raw_scores = pd.Series(weighted.sum(axis=0), index=symbols)
 
         # Cross-sectional z-score, clip to [-1, +1]
         mu, std = raw_scores.mean(), raw_scores.std(ddof=1)
         normalised = ((raw_scores - mu) / std) if std > 0 else raw_scores * 0.0
-        clipped    = normalised.clip(-1.0, 1.0)
+        clipped = normalised.clip(-1.0, 1.0)
 
         return {sym: float(clipped.get(sym, 0.0)) for sym in symbols}
 
     def _compute_daily_safe(
         self,
-        symbols: List[str],
+        symbols: list[str],
         trading_date: date,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """compute_daily with guaranteed fallback to 0.0."""
         try:
             result = self.compute_daily(symbols, trading_date)
@@ -497,4 +551,4 @@ class OpeningCrossSignal:
             return result
         except Exception as e:
             log.debug(f"compute_daily_safe error {trading_date}: {e}")
-            return {s: 0.0 for s in symbols}
+            return dict.fromkeys(symbols, 0.0)

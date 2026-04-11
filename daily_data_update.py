@@ -16,7 +16,14 @@ Usage:
   python3 daily_data_update.py --dry-run      # Check what would be updated
   python3 daily_data_update.py --key-only     # Update only key/liquid symbols
 """
-import os, sys, json, logging, argparse
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -24,6 +31,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(ROOT / ".env")
 
 logging.basicConfig(
@@ -38,9 +46,22 @@ logger = logging.getLogger("daily_update")
 
 # Key symbols that MUST be up to date (alert if stale)
 KEY_SYMBOLS = [
-    "SPY", "QQQ", "IWM", "DIA",                      # Major ETFs
-    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", # Big tech
-    "TSLA", "AMD", "NFLX", "JPM", "GS", "BA",        # Core holdings
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",  # Major ETFs
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "GOOGL",
+    "AMZN",
+    "META",  # Big tech
+    "TSLA",
+    "AMD",
+    "NFLX",
+    "JPM",
+    "GS",
+    "BA",  # Core holdings
 ]
 KEY_CRYPTO = ["BTC-USD", "ETH-USD", "SOL-USD"]
 
@@ -49,11 +70,20 @@ MAX_STALE_DAYS = 3  # Trading days — alert if data is older than this
 
 def run_daily_update(dry_run=False, key_only=False):
     import pandas as pd
+
     from fetch_all import (
-        load_cached, get_cached_end_date,
-        _canonical_path, _atomic_write, _get_catalogue,
-        _register, validate_dataframe, OHLCV_DIR, CRYPTO_DIR,
-        CACHE_DIR, REFRESH_TAIL,
+        CACHE_DIR,
+        CRYPTO_DIR,
+        OHLCV_DIR,
+        REFRESH_TAIL,
+        _atomic_write,
+        _canonical_path,
+        _get_catalogue,
+        _register,
+        get_cached_end_date,
+        load_cached,
+        tz_aware_cutoff,
+        validate_dataframe,
     )
     from fetch_with_retry import FetchWithRetry
 
@@ -82,7 +112,8 @@ def run_daily_update(dry_run=False, key_only=False):
         if CRYPTO_DIR.exists():
             all_symbols += [
                 (d.name.replace("-", "/", 1) if "/" not in d.name else d.name, True)
-                for d in CRYPTO_DIR.iterdir() if d.is_dir()
+                for d in CRYPTO_DIR.iterdir()
+                if d.is_dir()
             ]
         # Always include key crypto symbols even if they don't exist yet (ensures fresh daily fetch)
         for sym in KEY_CRYPTO:
@@ -117,7 +148,7 @@ def run_daily_update(dry_run=False, key_only=False):
             continue
 
         # Fetch delta
-        fetch_start = cached_end or (datetime.now() - timedelta(days=5*365)).strftime("%Y-%m-%d")
+        fetch_start = cached_end or (datetime.now() - timedelta(days=5 * 365)).strftime("%Y-%m-%d")
         # Go back REFRESH_TAIL days from cached end to catch revisions
         if cached_end:
             fetch_start = (
@@ -131,14 +162,7 @@ def run_daily_update(dry_run=False, key_only=False):
             # Merge with existing
             df_old = load_cached(sym, is_crypto)
             if df_old is not None:
-                # Fix: ensure cutoff timestamp matches index timezone (handle both naive and aware)
-                cutoff = pd.Timestamp(fetch_start, tz="UTC")
-                if df_old.index.tz is None:
-                    # If index is naive, use naive cutoff
-                    cutoff = pd.Timestamp(fetch_start)
-                else:
-                    # If index is aware, ensure cutoff is in same timezone
-                    cutoff = pd.Timestamp(fetch_start, tz="UTC").tz_convert(df_old.index.tz)
+                cutoff = tz_aware_cutoff(fetch_start, df_old.index)
                 df_old = df_old[df_old.index < cutoff]
                 df_merged = pd.concat([df_old, df_new]).sort_index()
                 df_merged = df_merged[~df_merged.index.duplicated(keep="last")]
@@ -153,8 +177,15 @@ def run_daily_update(dry_run=False, key_only=False):
             if _atomic_write(_canonical_path(sym, is_crypto), df_merged):
                 report["updated"].append(sym)
                 updated += 1
-                _register(cat, sym, is_crypto, fetch_start, today,
-                          len(df_merged), _canonical_path(sym, is_crypto))
+                _register(
+                    cat,
+                    sym,
+                    is_crypto,
+                    fetch_start,
+                    today,
+                    len(df_merged),
+                    _canonical_path(sym, is_crypto),
+                )
             else:
                 report["failed"].append(sym)
                 failed += 1
@@ -164,16 +195,20 @@ def run_daily_update(dry_run=False, key_only=False):
 
         # Progress
         if (i + 1) % 100 == 0:
-            logger.info(f"Progress: {i+1}/{len(all_symbols)} | updated:{updated} failed:{failed}")
+            logger.info(f"Progress: {i + 1}/{len(all_symbols)} | updated:{updated} failed:{failed}")
 
     # ── Retry previously failed symbols ──
     if report["failed"]:
         logger.info(f"Retrying {len(report['failed'])} failed symbols...")
         retry_count = 0
+        # Build a set of known crypto symbols for fast, reliable detection
+        crypto_set = {s for s, c in all_symbols if c}
         for sym in report["failed"][:50]:  # Retry up to 50 failed symbols
-            is_crypto = (sym, True) in [(s, c) for s, c in all_symbols if c]
+            is_crypto = sym in crypto_set or sym in KEY_CRYPTO
             cached_end = get_cached_end_date(sym, is_crypto)
-            fetch_start = cached_end or (datetime.now() - timedelta(days=5*365)).strftime("%Y-%m-%d")
+            fetch_start = cached_end or (datetime.now() - timedelta(days=5 * 365)).strftime(
+                "%Y-%m-%d"
+            )
             if cached_end:
                 fetch_start = (
                     datetime.strptime(cached_end, "%Y-%m-%d") - timedelta(days=REFRESH_TAIL)
@@ -183,11 +218,7 @@ def run_daily_update(dry_run=False, key_only=False):
             if df_retry is not None and not df_retry.empty:
                 df_old = load_cached(sym, is_crypto)
                 if df_old is not None:
-                    cutoff = pd.Timestamp(fetch_start, tz="UTC")
-                    if df_old.index.tz is None:
-                        cutoff = pd.Timestamp(fetch_start)
-                    else:
-                        cutoff = pd.Timestamp(fetch_start, tz="UTC").tz_convert(df_old.index.tz)
+                    cutoff = tz_aware_cutoff(fetch_start, df_old.index)
                     df_old = df_old[df_old.index < cutoff]
                     df_merged = pd.concat([df_old, df_retry]).sort_index()
                     df_merged = df_merged[~df_merged.index.duplicated(keep="last")]
@@ -224,7 +255,11 @@ def run_daily_update(dry_run=False, key_only=False):
     # ── Fire alerts if configured ──
     if report["stale_alerts"]:
         try:
-            from src.market_data.monitoring.alerts import AlertManager, SlackChannel, Alert, AlertSeverity
+            from src.market_data.monitoring.alerts import (
+                AlertManager,
+                SlackChannel,
+            )
+
             webhook_url = os.getenv("SLACK_WEBHOOK_URL")
             if webhook_url:
                 mgr = AlertManager(channels=[SlackChannel(webhook_url)])
@@ -242,19 +277,20 @@ def run_daily_update(dry_run=False, key_only=False):
     # ── Save report ──
     report["finished"] = datetime.now().isoformat()
     report_path = CACHE_DIR / "daily_update_report.json"
-    json.dump(report, open(report_path, "w"), indent=2, default=str)
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2, default=str)
 
     print(f"""
-{'='*60}
+{"=" * 60}
   DAILY UPDATE COMPLETE — {today}
-{'='*60}
-  Updated:          {len(report['updated']):,}
-  Skipped (fresh):  {len(report['skipped']):,}
-  Failed:           {len(report['failed']):,}
-  Quality warnings: {len(report['quality_warnings'])}
-  Stale alerts:     {len(report['stale_alerts'])}
+{"=" * 60}
+  Updated:          {len(report["updated"]):,}
+  Skipped (fresh):  {len(report["skipped"]):,}
+  Failed:           {len(report["failed"]):,}
+  Quality warnings: {len(report["quality_warnings"])}
+  Stale alerts:     {len(report["stale_alerts"])}
   Report:           {report_path}
-{'='*60}
+{"=" * 60}
 """)
 
     if report["stale_alerts"]:

@@ -13,11 +13,14 @@ Usage:
   python3 migrate_to_canonical.py --dry-run     # Preview without writing
   python3 migrate_to_canonical.py --symbol SPY  # Migrate single symbol
 """
-import sys
-import logging
+
+from __future__ import annotations
+
 import argparse
+import logging
+import sys
 from pathlib import Path
-from datetime import datetime
+
 import pandas as pd
 
 ROOT = Path(__file__).parent
@@ -30,8 +33,13 @@ logging.basicConfig(
 logger = logging.getLogger("migrate_canonical")
 
 from fetch_all import (
-    CACHE_DIR, OHLCV_DIR, CRYPTO_DIR, _atomic_write, _canonical_path,
-    _sym_dir, _register, _get_catalogue
+    CRYPTO_DIR,
+    OHLCV_DIR,
+    _atomic_write,
+    _canonical_path,
+    _get_catalogue,
+    _register,
+    _sym_dir,
 )
 
 
@@ -45,8 +53,7 @@ def get_all_symbols(is_crypto: bool = False):
     for sym_dir in d.iterdir():
         if not sym_dir.is_dir():
             continue
-        legacy_files = [f for f in sym_dir.glob("*.parquet")
-                       if f.name != "daily.parquet"]
+        legacy_files = [f for f in sym_dir.glob("*.parquet") if f.name != "daily.parquet"]
         if legacy_files:
             symbols.append(sym_dir.name)
     return symbols
@@ -67,8 +74,7 @@ def migrate_symbol(sym: str, is_crypto: bool, dry_run: bool = False) -> dict:
     }
 
     sym_dir = _sym_dir(sym, is_crypto)
-    legacy_files = sorted([f for f in sym_dir.glob("*.parquet")
-                          if f.name != "daily.parquet"])
+    legacy_files = sorted([f for f in sym_dir.glob("*.parquet") if f.name != "daily.parquet"])
 
     if not legacy_files:
         result["status"] = "skipped"
@@ -96,7 +102,9 @@ def migrate_symbol(sym: str, is_crypto: bool, dry_run: bool = False) -> dict:
 
         result["total_rows"] = len(df_merged)
         result["files_merged"] = len(dfs)
-        result["date_range"] = f"{str(df_merged.index.min())[:10]} to {str(df_merged.index.max())[:10]}"
+        result["date_range"] = (
+            f"{str(df_merged.index.min())[:10]} to {str(df_merged.index.max())[:10]}"
+        )
 
         if dry_run:
             result["status"] = "dry_run_ok"
@@ -109,10 +117,15 @@ def migrate_symbol(sym: str, is_crypto: bool, dry_run: bool = False) -> dict:
             # Register in catalogue
             cat = _get_catalogue()
             if cat:
-                _register(cat, sym, is_crypto,
-                         str(df_merged.index.min())[:10],
-                         str(df_merged.index.max())[:10],
-                         len(df_merged), str(canon_path))
+                _register(
+                    cat,
+                    sym,
+                    is_crypto,
+                    str(df_merged.index.min())[:10],
+                    str(df_merged.index.max())[:10],
+                    len(df_merged),
+                    str(canon_path),
+                )
         else:
             result["status"] = "write_failed"
             result["error"] = "Atomic write failed"
@@ -127,15 +140,19 @@ def migrate_symbol(sym: str, is_crypto: bool, dry_run: bool = False) -> dict:
 
 def run_migration(dry_run: bool = False, single_symbol: str = None):
     """Run migration for all symbols."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  MIGRATE TO CANONICAL FORMAT  {('(DRY RUN)' if dry_run else '')}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     results = []
 
     # Migrate equities
     print("Scanning STOCKS/ETFs...")
-    symbols_eq = [single_symbol] if single_symbol and not single_symbol.startswith("BTC") else get_all_symbols(is_crypto=False)
+    symbols_eq = (
+        [single_symbol]
+        if single_symbol and not single_symbol.startswith("BTC")
+        else get_all_symbols(is_crypto=False)
+    )
 
     if symbols_eq:
         print(f"Found {len(symbols_eq)} symbols with legacy files\n")
@@ -158,7 +175,11 @@ def run_migration(dry_run: bool = False, single_symbol: str = None):
 
     # Migrate crypto
     print("\nScanning CRYPTO...")
-    symbols_cr = [single_symbol] if single_symbol and single_symbol.startswith(("BTC", "ETH", "SOL")) else get_all_symbols(is_crypto=True)
+    symbols_cr = (
+        [single_symbol]
+        if single_symbol and single_symbol.startswith(("BTC", "ETH", "SOL"))
+        else get_all_symbols(is_crypto=True)
+    )
 
     if symbols_cr:
         print(f"Found {len(symbols_cr)} crypto symbols with legacy files\n")
@@ -185,16 +206,16 @@ def run_migration(dry_run: bool = False, single_symbol: str = None):
     skipped = sum(1 for r in results if r["status"] == "skipped")
     failed = sum(1 for r in results if r["status"] in ("failed", "error", "write_failed"))
 
-    print(f"\n{'='*70}")
-    print(f"  MIGRATION SUMMARY")
-    print(f"{'='*70}")
+    print(f"\n{'=' * 70}")
+    print("  MIGRATION SUMMARY")
+    print(f"{'=' * 70}")
     print(f"  Successful:    {success}")
     if dry_run:
         print(f"  Ready to go:   {dry_ok}")
     print(f"  Skipped:       {skipped}")
     print(f"  Failed:        {failed}")
     print(f"  Mode:          {'DRY RUN' if dry_run else 'ACTIVE'}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     return results
 

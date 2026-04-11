@@ -6,9 +6,10 @@ import hashlib
 import json
 import os
 import time
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import structlog
 
@@ -18,7 +19,6 @@ from market_data.ingestion.base import (
     IngestionError,
     IngestionRequest,
     IngestionResult,
-    RateLimitError,
     Schema,
     VendorAPIError,
 )
@@ -70,9 +70,7 @@ class AlpacaClient(BaseIngestionClient):
             rate_per_minute=rate_limit_per_min,
             vendor_name=self.VENDOR_NAME,
         )
-        self.cost_tracker = CostTracker(
-            vendor_name=self.VENDOR_NAME, monthly_budget=500.0
-        )
+        self.cost_tracker = CostTracker(vendor_name=self.VENDOR_NAME, monthly_budget=500.0)
         self.checkpoint_mgr = checkpoint_manager
         self._stock_client: Any = None
         self._crypto_client: Any = None
@@ -169,7 +167,7 @@ class AlpacaClient(BaseIngestionClient):
         adjustment: str = "raw",
     ) -> IngestionResult:
         """Fetch bars for a single symbol with pagination."""
-        from alpaca.data.requests import StockBarsRequest, CryptoBarsRequest
+        from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
         from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
         start_time = time.monotonic()
@@ -205,26 +203,32 @@ class AlpacaClient(BaseIngestionClient):
 
         if hasattr(bars_response, "data") and symbol in bars_response.data:
             for bar in bars_response.data[symbol]:
-                all_bars.append({
-                    "timestamp": bar.timestamp.isoformat(),
-                    "open": float(bar.open),
-                    "high": float(bar.high),
-                    "low": float(bar.low),
-                    "close": float(bar.close),
-                    "volume": int(bar.volume),
-                    "vwap": float(bar.vwap) if hasattr(bar, "vwap") and bar.vwap else None,
-                    "trade_count": int(bar.trade_count) if hasattr(bar, "trade_count") and bar.trade_count else None,
-                })
+                all_bars.append(
+                    {
+                        "timestamp": bar.timestamp.isoformat(),
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": int(bar.volume),
+                        "vwap": float(bar.vwap) if hasattr(bar, "vwap") and bar.vwap else None,
+                        "trade_count": int(bar.trade_count)
+                        if hasattr(bar, "trade_count") and bar.trade_count
+                        else None,
+                    }
+                )
         elif isinstance(bars_response, dict) and symbol in bars_response:
             for bar in bars_response[symbol]:
-                all_bars.append({
-                    "timestamp": bar.timestamp.isoformat(),
-                    "open": float(bar.open),
-                    "high": float(bar.high),
-                    "low": float(bar.low),
-                    "close": float(bar.close),
-                    "volume": int(bar.volume),
-                })
+                all_bars.append(
+                    {
+                        "timestamp": bar.timestamp.isoformat(),
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": int(bar.volume),
+                    }
+                )
 
         # Write to output
         output_path = self._build_output_path(
@@ -273,9 +277,7 @@ class AlpacaClient(BaseIngestionClient):
             / f"{symbol}.json"
         )
 
-    def _load_checkpoint(
-        self, request: IngestionRequest, symbol: str
-    ) -> CheckpointState | None:
+    def _load_checkpoint(self, request: IngestionRequest, symbol: str) -> CheckpointState | None:
         """Load checkpoint for a symbol."""
         if self.checkpoint_mgr is None:
             return None
@@ -293,12 +295,10 @@ class AlpacaClient(BaseIngestionClient):
             return []
         try:
             from alpaca.trading.client import TradingClient
+
             trading = TradingClient(api_key=self.api_key, secret_key=self.api_secret)
             assets = trading.get_all_assets()
-            return [
-                a.symbol for a in assets
-                if a.tradable and a.status == "active"
-            ]
+            return [a.symbol for a in assets if a.tradable and a.status == "active"]
         except Exception as e:
             self.logger.error("get_symbols_error", error=str(e))
             return []

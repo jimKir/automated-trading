@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import abc
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Iterator
+from typing import Any
 
 import structlog
 from tenacity import (
@@ -175,9 +176,7 @@ class BaseIngestionClient(abc.ABC):
                 max_retries=self.MAX_RETRIES,
                 symbols=request.symbols,
             )
-            raise IngestionError(
-                f"Failed to fetch data after {self.MAX_RETRIES} retries"
-            )
+            raise IngestionError(f"Failed to fetch data after {self.MAX_RETRIES} retries")
 
     def __enter__(self) -> BaseIngestionClient:
         self.connect()

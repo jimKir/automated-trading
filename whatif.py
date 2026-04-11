@@ -42,22 +42,20 @@ Available parameter paths (use dot notation):
   assets.crypto.enabled             true | false
   assets.futures.enabled            true | false
 """
+
 from __future__ import annotations
 
 import argparse
 import copy
-import json
 import sys
-import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import pandas as pd
 import matplotlib
+import pandas as pd
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -71,105 +69,165 @@ log = get_logger("WhatIf")
 # Scenario definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-SUITES: Dict[str, List[Dict]] = {
-
+SUITES: dict[str, list[dict]] = {
     # ── Capital sizing ────────────────────────────────────────────────────────
     "capital": [
-        {"name": "€10k Capital",   "capital.initial_equity": 10000},
+        {"name": "€10k Capital", "capital.initial_equity": 10000},
         {"name": "€25k Capital (base)", "capital.initial_equity": 25000},
-        {"name": "€50k Capital",   "capital.initial_equity": 50000},
-        {"name": "€100k Capital",  "capital.initial_equity": 100000},
-        {"name": "€200k Capital",  "capital.initial_equity": 200000},
+        {"name": "€50k Capital", "capital.initial_equity": 50000},
+        {"name": "€100k Capital", "capital.initial_equity": 100000},
+        {"name": "€200k Capital", "capital.initial_equity": 200000},
     ],
-
     # ── Risk parameters ───────────────────────────────────────────────────────
     "risk": [
-        {"name": "Conservative (5% pos, 10% DD)",
-         "risk.max_position_pct": 0.05, "risk.max_drawdown_halt": 0.10,
-         "capital.max_portfolio_heat": 0.15},
-        {"name": "Base (10% pos, 15% DD)",
-         "risk.max_position_pct": 0.10, "risk.max_drawdown_halt": 0.15,
-         "capital.max_portfolio_heat": 0.20},
-        {"name": "Moderate (15% pos, 20% DD)",
-         "risk.max_position_pct": 0.15, "risk.max_drawdown_halt": 0.20,
-         "capital.max_portfolio_heat": 0.30},
-        {"name": "Aggressive (20% pos, 25% DD)",
-         "risk.max_position_pct": 0.20, "risk.max_drawdown_halt": 0.25,
-         "capital.max_portfolio_heat": 0.40},
+        {
+            "name": "Conservative (5% pos, 10% DD)",
+            "risk.max_position_pct": 0.05,
+            "risk.max_drawdown_halt": 0.10,
+            "capital.max_portfolio_heat": 0.15,
+        },
+        {
+            "name": "Base (10% pos, 15% DD)",
+            "risk.max_position_pct": 0.10,
+            "risk.max_drawdown_halt": 0.15,
+            "capital.max_portfolio_heat": 0.20,
+        },
+        {
+            "name": "Moderate (15% pos, 20% DD)",
+            "risk.max_position_pct": 0.15,
+            "risk.max_drawdown_halt": 0.20,
+            "capital.max_portfolio_heat": 0.30,
+        },
+        {
+            "name": "Aggressive (20% pos, 25% DD)",
+            "risk.max_position_pct": 0.20,
+            "risk.max_drawdown_halt": 0.25,
+            "capital.max_portfolio_heat": 0.40,
+        },
     ],
-
     # ── Strategy tuning ───────────────────────────────────────────────────────
     "strategy": [
-        {"name": "Fast (10/30 momentum)",
-         "strategy.lookback_fast": 10, "strategy.lookback_slow": 30},
-        {"name": "Base (20/60 momentum)",
-         "strategy.lookback_fast": 20, "strategy.lookback_slow": 60},
-        {"name": "Slow (40/120 momentum)",
-         "strategy.lookback_fast": 40, "strategy.lookback_slow": 120},
-        {"name": "Tight MR (z=1.5)",
-         "strategy.zscore_entry": 1.5, "strategy.zscore_exit": 0.3},
-        {"name": "Wide MR (z=2.5)",
-         "strategy.zscore_entry": 2.5, "strategy.zscore_exit": 0.8},
-        {"name": "Daily rebalance",
-         "strategy.rebalance_frequency": "daily"},
-        {"name": "Monthly rebalance",
-         "strategy.rebalance_frequency": "monthly"},
+        {
+            "name": "Fast (10/30 momentum)",
+            "strategy.lookback_fast": 10,
+            "strategy.lookback_slow": 30,
+        },
+        {
+            "name": "Base (20/60 momentum)",
+            "strategy.lookback_fast": 20,
+            "strategy.lookback_slow": 60,
+        },
+        {
+            "name": "Slow (40/120 momentum)",
+            "strategy.lookback_fast": 40,
+            "strategy.lookback_slow": 120,
+        },
+        {"name": "Tight MR (z=1.5)", "strategy.zscore_entry": 1.5, "strategy.zscore_exit": 0.3},
+        {"name": "Wide MR (z=2.5)", "strategy.zscore_entry": 2.5, "strategy.zscore_exit": 0.8},
+        {"name": "Daily rebalance", "strategy.rebalance_frequency": "daily"},
+        {"name": "Monthly rebalance", "strategy.rebalance_frequency": "monthly"},
     ],
-
     # ── Universe composition ──────────────────────────────────────────────────
     "universe": [
-        {"name": "Equities only",
-         "assets.crypto.enabled": False, "assets.futures.enabled": False},
-        {"name": "Equities + Futures",
-         "assets.crypto.enabled": False, "assets.futures.enabled": True},
-        {"name": "Equities + Crypto",
-         "assets.crypto.enabled": True, "assets.futures.enabled": False},
-        {"name": "Full universe (base)",
-         "assets.crypto.enabled": True, "assets.futures.enabled": True},
+        {"name": "Equities only", "assets.crypto.enabled": False, "assets.futures.enabled": False},
+        {
+            "name": "Equities + Futures",
+            "assets.crypto.enabled": False,
+            "assets.futures.enabled": True,
+        },
+        {
+            "name": "Equities + Crypto",
+            "assets.crypto.enabled": True,
+            "assets.futures.enabled": False,
+        },
+        {
+            "name": "Full universe (base)",
+            "assets.crypto.enabled": True,
+            "assets.futures.enabled": True,
+        },
     ],
-
     # ── Cost sensitivity ──────────────────────────────────────────────────────
     "costs": [
-        {"name": "Zero costs (theoretical)",
-         "costs.impact_scale": 0.0,
-         "backtest.commission_pct": 0.0, "backtest.slippage_pct": 0.0},
-        {"name": "Low costs (IBKR Pro tier)",
-         "costs.impact_scale": 0.5,
-         "backtest.commission_pct": 0.0001, "backtest.slippage_pct": 0.0002},
-        {"name": "Base costs (realistic)",
-         "costs.impact_scale": 1.0,
-         "backtest.commission_pct": 0.001, "backtest.slippage_pct": 0.0005},
-        {"name": "High costs (retail broker)",
-         "costs.impact_scale": 2.0,
-         "backtest.commission_pct": 0.002, "backtest.slippage_pct": 0.001},
-        {"name": "Base + Greek CGT (15%)",
-         "costs.impact_scale": 1.0, "costs.capital_gains_tax_rate": 0.15},
+        {
+            "name": "Zero costs (theoretical)",
+            "costs.impact_scale": 0.0,
+            "backtest.commission_pct": 0.0,
+            "backtest.slippage_pct": 0.0,
+        },
+        {
+            "name": "Low costs (IBKR Pro tier)",
+            "costs.impact_scale": 0.5,
+            "backtest.commission_pct": 0.0001,
+            "backtest.slippage_pct": 0.0002,
+        },
+        {
+            "name": "Base costs (realistic)",
+            "costs.impact_scale": 1.0,
+            "backtest.commission_pct": 0.001,
+            "backtest.slippage_pct": 0.0005,
+        },
+        {
+            "name": "High costs (retail broker)",
+            "costs.impact_scale": 2.0,
+            "backtest.commission_pct": 0.002,
+            "backtest.slippage_pct": 0.001,
+        },
+        {
+            "name": "Base + Greek CGT (15%)",
+            "costs.impact_scale": 1.0,
+            "costs.capital_gains_tax_rate": 0.15,
+        },
     ],
-
     # ── Historical periods / crisis windows ───────────────────────────────────
     "crisis": [
-        {"name": "COVID crash (2020)",
-         "backtest.start_date": "2020-01-01", "backtest.end_date": "2020-12-31"},
-        {"name": "2022 Bear Market",
-         "backtest.start_date": "2022-01-01", "backtest.end_date": "2022-12-31"},
-        {"name": "Bull run 2019-2021",
-         "backtest.start_date": "2019-01-01", "backtest.end_date": "2021-12-31"},
-        {"name": "Crypto winter 2022",
-         "backtest.start_date": "2022-01-01", "backtest.end_date": "2023-06-30"},
-        {"name": "Full backtest 2018-2025",
-         "backtest.start_date": "2018-01-01", "backtest.end_date": "2025-12-31"},
+        {
+            "name": "COVID crash (2020)",
+            "backtest.start_date": "2020-01-01",
+            "backtest.end_date": "2020-12-31",
+        },
+        {
+            "name": "2022 Bear Market",
+            "backtest.start_date": "2022-01-01",
+            "backtest.end_date": "2022-12-31",
+        },
+        {
+            "name": "Bull run 2019-2021",
+            "backtest.start_date": "2019-01-01",
+            "backtest.end_date": "2021-12-31",
+        },
+        {
+            "name": "Crypto winter 2022",
+            "backtest.start_date": "2022-01-01",
+            "backtest.end_date": "2023-06-30",
+        },
+        {
+            "name": "Full backtest 2018-2025",
+            "backtest.start_date": "2018-01-01",
+            "backtest.end_date": "2025-12-31",
+        },
     ],
-
     # ── Market regimes / rolling periods ─────────────────────────────────────
     "periods": [
-        {"name": "2018-2019 (late cycle)",
-         "backtest.start_date": "2018-01-01", "backtest.end_date": "2019-12-31"},
-        {"name": "2020-2021 (pandemic + bull)",
-         "backtest.start_date": "2020-01-01", "backtest.end_date": "2021-12-31"},
-        {"name": "2022-2023 (bear + recovery)",
-         "backtest.start_date": "2022-01-01", "backtest.end_date": "2023-12-31"},
-        {"name": "2024-2025 (AI bull run)",
-         "backtest.start_date": "2024-01-01", "backtest.end_date": "2025-12-31"},
+        {
+            "name": "2018-2019 (late cycle)",
+            "backtest.start_date": "2018-01-01",
+            "backtest.end_date": "2019-12-31",
+        },
+        {
+            "name": "2020-2021 (pandemic + bull)",
+            "backtest.start_date": "2020-01-01",
+            "backtest.end_date": "2021-12-31",
+        },
+        {
+            "name": "2022-2023 (bear + recovery)",
+            "backtest.start_date": "2022-01-01",
+            "backtest.end_date": "2023-12-31",
+        },
+        {
+            "name": "2024-2025 (AI bull run)",
+            "backtest.start_date": "2024-01-01",
+            "backtest.end_date": "2025-12-31",
+        },
     ],
 }
 
@@ -181,7 +239,8 @@ SUITES["all"] = [s for suite in SUITES.values() for s in suite]
 # Parameter override engine
 # ─────────────────────────────────────────────────────────────────────────────
 
-def apply_overrides(config: dict, overrides: Dict[str, Any]) -> dict:
+
+def apply_overrides(config: dict, overrides: dict[str, Any]) -> dict:
     """
     Apply dot-notation overrides to a config dict.
     e.g. "capital.initial_equity" = 50000
@@ -215,6 +274,7 @@ def apply_overrides(config: dict, overrides: Dict[str, Any]) -> dict:
 # Single scenario runner (runs in subprocess for parallelism)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _run_scenario(args_tuple) -> dict:
     """
     Worker function: runs one backtest scenario and returns metrics dict.
@@ -222,12 +282,12 @@ def _run_scenario(args_tuple) -> dict:
     """
     scenario, base_config_path = args_tuple
     import logging
+
     logging.disable(logging.CRITICAL)  # silence in workers
 
     sys.path.insert(0, str(Path(base_config_path).parent.parent))
-    from utils.config_loader import load_config
-    from data.feed import DataFeed
     from backtest.engine import BacktestEngine
+    from data.feed import DataFeed
 
     try:
         config = load_config(base_config_path)
@@ -240,8 +300,7 @@ def _run_scenario(args_tuple) -> dict:
         feed = DataFeed(config)
         all_data = feed.load_all(start=start, end=end)
         bench = feed.load(
-            [config["backtest"].get("benchmark", "SPY")],
-            start=start, end=end, source="yfinance"
+            [config["backtest"].get("benchmark", "SPY")], start=start, end=end, source="yfinance"
         )
         benchmark = bench.get(config["backtest"].get("benchmark", "SPY"))
 
@@ -249,8 +308,11 @@ def _run_scenario(args_tuple) -> dict:
         metrics = engine.run(all_data, benchmark_data=benchmark)
 
         # Strip non-serialisable objects
-        result = {k: v for k, v in metrics.items()
-                  if not isinstance(v, (pd.Series, pd.DataFrame, dict)) or k == "stress_scenarios"}
+        result = {
+            k: v
+            for k, v in metrics.items()
+            if not isinstance(v, (pd.Series, pd.DataFrame, dict)) or k == "stress_scenarios"
+        }
         result["scenario_name"] = scenario.get("name", "unnamed")
         result["overrides"] = overrides
         return result
@@ -268,25 +330,25 @@ def _run_scenario(args_tuple) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 COMPARISON_METRICS = [
-    ("Total Return (%)",        "total_return_pct",        True),
-    ("Ann. Return (%)",         "ann_return_pct",          True),
-    ("Ann. Volatility (%)",     "ann_volatility_pct",      False),
-    ("Sharpe Ratio",            "sharpe_ratio",            True),
-    ("Sortino Ratio",           "sortino_ratio",           True),
-    ("Calmar Ratio",            "calmar_ratio",            True),
-    ("Max Drawdown (%)",        "max_drawdown_pct",        False),  # less negative = better
-    ("MDD Duration (days)",     "max_drawdown_duration_days", False),
-    ("Win Rate (%)",            "win_rate_pct",            True),
-    ("VaR 99% (%/day)",        "var_hist_99_pct",         False),
-    ("CVaR 99% (%/day)",       "cvar_hist_99_pct",        False),
-    ("Omega Ratio",             "omega_ratio",             True),
-    ("Tail Ratio",              "tail_ratio",              True),
-    ("Skewness",                "skewness",                True),
-    ("Excess Kurtosis",         "excess_kurtosis",         False),
-    ("Alpha Ann. (%)",          "alpha_ann_pct",           True),
-    ("Beta",                    "beta",                    False),
-    ("Total Cost ($)",          "cost_total",              False),
-    ("Final Equity ($)",        "final_equity",            True),
+    ("Total Return (%)", "total_return_pct", True),
+    ("Ann. Return (%)", "ann_return_pct", True),
+    ("Ann. Volatility (%)", "ann_volatility_pct", False),
+    ("Sharpe Ratio", "sharpe_ratio", True),
+    ("Sortino Ratio", "sortino_ratio", True),
+    ("Calmar Ratio", "calmar_ratio", True),
+    ("Max Drawdown (%)", "max_drawdown_pct", False),  # less negative = better
+    ("MDD Duration (days)", "max_drawdown_duration_days", False),
+    ("Win Rate (%)", "win_rate_pct", True),
+    ("VaR 99% (%/day)", "var_hist_99_pct", False),
+    ("CVaR 99% (%/day)", "cvar_hist_99_pct", False),
+    ("Omega Ratio", "omega_ratio", True),
+    ("Tail Ratio", "tail_ratio", True),
+    ("Skewness", "skewness", True),
+    ("Excess Kurtosis", "excess_kurtosis", False),
+    ("Alpha Ann. (%)", "alpha_ann_pct", True),
+    ("Beta", "beta", False),
+    ("Total Cost ($)", "cost_total", False),
+    ("Final Equity ($)", "final_equity", True),
 ]
 
 
@@ -305,7 +367,7 @@ def _fmt(v, key: str) -> str:
 
 
 def generate_comparison_report(
-    results: List[dict],
+    results: list[dict],
     suite_name: str,
     output_dir: str = "results",
 ) -> str:
@@ -349,7 +411,9 @@ def generate_comparison_report(
     override_row = "<tr><td><em>Overrides</em></td>"
     for r in good:
         ov = r.get("overrides", {})
-        formatted = "<br>".join(f"<code>{k}={v}</code>" for k, v in ov.items()) if ov else "<em>base</em>"
+        formatted = (
+            "<br>".join(f"<code>{k}={v}</code>" for k, v in ov.items()) if ov else "<em>base</em>"
+        )
         override_row += f"<td style='font-size:10px;color:#8b949e'>{formatted}</td>"
     override_row += "</tr>"
 
@@ -383,10 +447,15 @@ def generate_comparison_report(
         # Value labels
         for bar, val in zip(bars, values):
             ax.text(
-                val + (max(values) - min(values)) * 0.02 if val >= 0 else val - (max(values) - min(values)) * 0.02,
+                val + (max(values) - min(values)) * 0.02
+                if val >= 0
+                else val - (max(values) - min(values)) * 0.02,
                 bar.get_y() + bar.get_height() / 2,
-                f"{val:.3f}", va="center", ha="left" if val >= 0 else "right",
-                color="white", fontsize=7,
+                f"{val:.3f}",
+                va="center",
+                ha="left" if val >= 0 else "right",
+                color="white",
+                fontsize=7,
             )
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
@@ -395,15 +464,14 @@ def generate_comparison_report(
     plt.close(fig)
 
     import base64
+
     chart_b64 = ""
     if chart_path.exists():
         with open(chart_path, "rb") as f:
             chart_b64 = base64.b64encode(f.read()).decode()
 
     # ── Header row ────────────────────────────────────────────────────────────
-    header = "<th>Metric</th>" + "".join(
-        f"<th>{r['scenario_name']}</th>" for r in good
-    )
+    header = "<th>Metric</th>" + "".join(f"<th>{r['scenario_name']}</th>" for r in good)
 
     # ── Error section ─────────────────────────────────────────────────────────
     error_section = ""
@@ -466,7 +534,7 @@ def generate_comparison_report(
     return str(out)
 
 
-def save_comparison_csv(results: List[dict], suite_name: str, output_dir: str = "results") -> str:
+def save_comparison_csv(results: list[dict], suite_name: str, output_dir: str = "results") -> str:
     """Save scenario comparison as CSV for further analysis in Excel/Pandas."""
     good = [r for r in results if "error" not in r]
     if not good:
@@ -488,20 +556,23 @@ def save_comparison_csv(results: List[dict], suite_name: str, output_dir: str = 
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="What-If Scenario Analyser")
-    parser.add_argument("--suite", default="risk",
-                        choices=list(SUITES.keys()),
-                        help="Named scenario suite to run")
-    parser.add_argument("--config", default="config/settings.yaml",
-                        help="Base config file")
-    parser.add_argument("--param", action="append", dest="params", default=[],
-                        metavar="key=value",
-                        help="Override a single parameter (repeatable). e.g. --param capital.initial_equity=50000")
-    parser.add_argument("--workers", type=int, default=4,
-                        help="Parallel workers (default: 4)")
-    parser.add_argument("--output", default="results",
-                        help="Output directory")
+    parser.add_argument(
+        "--suite", default="risk", choices=list(SUITES.keys()), help="Named scenario suite to run"
+    )
+    parser.add_argument("--config", default="config/settings.yaml", help="Base config file")
+    parser.add_argument(
+        "--param",
+        action="append",
+        dest="params",
+        default=[],
+        metavar="key=value",
+        help="Override a single parameter (repeatable). e.g. --param capital.initial_equity=50000",
+    )
+    parser.add_argument("--workers", type=int, default=4, help="Parallel workers (default: 4)")
+    parser.add_argument("--output", default="results", help="Output directory")
     args = parser.parse_args()
 
     # If custom params provided, build a single-scenario suite
@@ -527,9 +598,9 @@ def main():
     config_path = str(Path(args.config).resolve())
 
     log.info(f"Running {len(scenarios)} scenarios [{suite_name}] with {args.workers} workers...")
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  What-If Suite: {suite_name.upper()} — {len(scenarios)} scenarios")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Run scenarios in parallel
     results = []
@@ -537,8 +608,8 @@ def main():
 
     # Use sequential execution to avoid multiprocessing issues in some envs
     for i, wa in enumerate(worker_args):
-        scenario_name = wa[0].get("name", f"scenario_{i+1}")
-        print(f"  [{i+1}/{len(scenarios)}] Running: {scenario_name} ...", flush=True)
+        scenario_name = wa[0].get("name", f"scenario_{i + 1}")
+        print(f"  [{i + 1}/{len(scenarios)}] Running: {scenario_name} ...", flush=True)
         result = _run_scenario(wa)
         if "error" in result:
             print(f"    ERROR: {result['error']}")
@@ -549,8 +620,8 @@ def main():
             print(f"    Return={tr:.2f}%  Sharpe={sh:.3f}  MaxDD={dd:.2f}%")
         results.append(result)
 
-    print(f"\n{'='*60}")
-    print(f"  Generating comparison report...")
+    print(f"\n{'=' * 60}")
+    print("  Generating comparison report...")
 
     html_path = generate_comparison_report(results, suite_name, args.output)
     csv_path = save_comparison_csv(results, suite_name, args.output)
@@ -558,8 +629,10 @@ def main():
     # Console summary table
     good = [r for r in results if "error" not in r]
     if good:
-        print(f"\n  {'Scenario':<40} {'Return':>9} {'Sharpe':>8} {'MaxDD':>9} {'Calmar':>8} {'Final $':>12}")
-        print(f"  {'-'*40} {'-'*9} {'-'*8} {'-'*9} {'-'*8} {'-'*12}")
+        print(
+            f"\n  {'Scenario':<40} {'Return':>9} {'Sharpe':>8} {'MaxDD':>9} {'Calmar':>8} {'Final $':>12}"
+        )
+        print(f"  {'-' * 40} {'-' * 9} {'-' * 8} {'-' * 9} {'-' * 8} {'-' * 12}")
         for r in good:
             print(
                 f"  {r['scenario_name']:<40} "
@@ -572,7 +645,7 @@ def main():
 
     print(f"\n  HTML Report: {html_path}")
     print(f"  CSV Export:  {csv_path}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

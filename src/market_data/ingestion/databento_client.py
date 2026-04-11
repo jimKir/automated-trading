@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import structlog
 
@@ -17,7 +18,6 @@ from market_data.ingestion.base import (
     IngestionError,
     IngestionRequest,
     IngestionResult,
-    RateLimitError,
     Schema,
     VendorAPIError,
 )
@@ -358,9 +358,7 @@ class DatabentoClient(BaseIngestionClient):
             / f"{symbol}.dbn"
         )
 
-    def _load_checkpoint(
-        self, request: IngestionRequest, symbol: str
-    ) -> CheckpointState | None:
+    def _load_checkpoint(self, request: IngestionRequest, symbol: str) -> CheckpointState | None:
         """Load checkpoint for a symbol if checkpoint manager exists."""
         if self.checkpoint_mgr is None:
             return None

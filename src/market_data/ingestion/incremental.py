@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -65,7 +65,7 @@ class IncrementalUpdater:
         Returns:
             IncrementalSummary with results and statistics.
         """
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         results: list[IngestionResult] = []
         skipped: list[str] = []
         failed: list[dict[str, Any]] = []
@@ -117,11 +117,13 @@ class IncrementalUpdater:
                             records=results[-1].record_count if results else 0,
                         )
                     except Exception as e:
-                        failed.append({
-                            "symbol": symbol,
-                            "schema": schema.value,
-                            "error": str(e),
-                        })
+                        failed.append(
+                            {
+                                "symbol": symbol,
+                                "schema": schema.value,
+                                "error": str(e),
+                            }
+                        )
                         self.logger.error(
                             "symbol_update_failed",
                             symbol=symbol,

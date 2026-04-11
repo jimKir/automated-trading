@@ -15,10 +15,9 @@ Usage:
 """
 
 import json
-from datetime import datetime
-from typing import Dict, List, Optional
-import sys
 import os
+import sys
+from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,19 +30,20 @@ class AnalysisDashboard:
         self.reports = {}
         self.analysis_time = datetime.now().isoformat()
 
-    def load_reports(self, report_files: Dict[str, str]) -> None:
+    def load_reports(self, report_files: dict[str, str]) -> None:
         """Load analysis reports from files."""
         for report_type, filepath in report_files.items():
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath) as f:
                     self.reports[report_type] = json.load(f)
                 print(f"✅ Loaded {report_type}: {filepath}")
             except Exception as e:
-                print(f"⚠️  Could not load {report_type}: {str(e)}")
+                print(f"⚠️  Could not load {report_type}: {e!s}")
 
-    def generate_html_dashboard(self, output_file: str = 'momentum_analysis_dashboard.html') -> str:
+    def generate_html_dashboard(self, output_file: str = "momentum_analysis_dashboard.html") -> str:
         """Generate interactive HTML dashboard."""
-        html = """
+        html = (
+            """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -89,7 +89,9 @@ class AnalysisDashboard:
     <div class="container">
         <div class="header">
             <h1>📊 Momentum Signals Analysis Dashboard</h1>
-            <p class="timestamp">Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC") + """</p>
+            <p class="timestamp">Generated: """
+            + datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+            + """</p>
         </div>
 
         <div class="grid">
@@ -290,115 +292,111 @@ class AnalysisDashboard:
 </body>
 </html>
 """
+        )
 
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             f.write(html)
 
         print(f"✅ HTML dashboard saved to {output_file}")
         return output_file
 
-    def consolidate_reports(self, output_file: str = 'consolidated_analysis_report.json') -> str:
+    def consolidate_reports(self, output_file: str = "consolidated_analysis_report.json") -> str:
         """Consolidate all analysis reports into single JSON."""
         consolidated = {
-            'metadata': {
-                'generated_at': self.analysis_time,
-                'reports_included': list(self.reports.keys())
+            "metadata": {
+                "generated_at": self.analysis_time,
+                "reports_included": list(self.reports.keys()),
             },
-            'data': self.reports,
-            'executive_summary': self._generate_executive_summary()
+            "data": self.reports,
+            "executive_summary": self._generate_executive_summary(),
         }
 
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(consolidated, f, indent=2)
 
         print(f"✅ Consolidated report saved to {output_file}")
         return output_file
 
-    def _generate_executive_summary(self) -> Dict:
+    def _generate_executive_summary(self) -> dict:
         """Generate executive summary from all reports."""
-        summary = {
-            'key_findings': [],
-            'recommendations': [],
-            'risks': []
-        }
+        summary = {"key_findings": [], "recommendations": [], "risks": []}
 
-        if 'ranking_comparison' in self.reports:
-            rep = self.reports['ranking_comparison']
-            if rep.get('overlap_analysis', {}).get('all_three_overlap'):
-                summary['key_findings'].append(
+        if "ranking_comparison" in self.reports:
+            rep = self.reports["ranking_comparison"]
+            if rep.get("overlap_analysis", {}).get("all_three_overlap"):
+                summary["key_findings"].append(
                     f"{rep['overlap_analysis']['all_three_overlap']} high-confidence signals where all 3 ranking methods agree"
                 )
 
-        if 'backtest' in self.reports:
-            rep = self.reports['backtest']
-            if rep.get('comparison', {}).get('ranking'):
-                best = rep['comparison']['ranking'][0]
-                summary['recommendations'].append(
+        if "backtest" in self.reports:
+            rep = self.reports["backtest"]
+            if rep.get("comparison", {}).get("ranking"):
+                best = rep["comparison"]["ranking"][0]
+                summary["recommendations"].append(
                     f"Deploy {best['method']} ranking method (best backtest performance: {best['win_rate']} win rate)"
                 )
 
-        if 'databento_integration' in self.reports:
-            rep = self.reports['databento_integration']
-            summary['recommendations'].append(
+        if "databento_integration" in self.reports:
+            rep = self.reports["databento_integration"]
+            summary["recommendations"].append(
                 "Use Alpaca for live S&P 500 (zero cost, low latency), DataBento for extended universe"
             )
 
-        summary['risks'].append("Backtest performance may not match live trading due to slippage and execution delays")
-        summary['risks'].append("Monitor win rate daily; revert if it drops below 45%")
+        summary["risks"].append(
+            "Backtest performance may not match live trading due to slippage and execution delays"
+        )
+        summary["risks"].append("Monitor win rate daily; revert if it drops below 45%")
 
         return summary
 
-    def generate_production_checklist(self, output_file: str = 'production_checklist.json') -> str:
+    def generate_production_checklist(self, output_file: str = "production_checklist.json") -> str:
         """Generate production deployment checklist."""
         checklist = {
-            'metadata': {
-                'generated_at': self.analysis_time,
-                'status': 'Ready for review'
-            },
-            'pre_deployment': [
+            "metadata": {"generated_at": self.analysis_time, "status": "Ready for review"},
+            "pre_deployment": [
                 {
-                    'task': 'Set Alpaca API credentials',
-                    'command': 'export APCA_API_KEY_ID=... && export APCA_API_SECRET_KEY=...',
-                    'status': 'pending'
+                    "task": "Set Alpaca API credentials",
+                    "command": "export APCA_API_KEY_ID=... && export APCA_API_SECRET_KEY=...",
+                    "status": "pending",
                 },
                 {
-                    'task': 'Configure Slack webhook (optional)',
-                    'command': 'Update config.json slack_webhook',
-                    'status': 'pending'
+                    "task": "Configure Slack webhook (optional)",
+                    "command": "Update config.json slack_webhook",
+                    "status": "pending",
                 },
                 {
-                    'task': 'Test scanner with 100 symbols',
-                    'command': 'python main.py --universe sp500 --action scan',
-                    'status': 'pending'
-                }
+                    "task": "Test scanner with 100 symbols",
+                    "command": "python main.py --universe sp500 --action scan",
+                    "status": "pending",
+                },
             ],
-            'deployment': [
+            "deployment": [
                 {
-                    'task': 'Deploy to production server',
-                    'command': 'git push && docker build && docker run',
-                    'status': 'pending'
+                    "task": "Deploy to production server",
+                    "command": "git push && docker build && docker run",
+                    "status": "pending",
                 },
                 {
-                    'task': 'Set up hourly cron job',
-                    'command': '0 * * * * cd /path && python main.py --schedule-hourly',
-                    'status': 'pending'
-                }
+                    "task": "Set up hourly cron job",
+                    "command": "0 * * * * cd /path && python main.py --schedule-hourly",
+                    "status": "pending",
+                },
             ],
-            'post_deployment': [
+            "post_deployment": [
                 {
-                    'task': 'Monitor first 24 hours',
-                    'command': 'Check logs and Slack alerts',
-                    'status': 'pending'
+                    "task": "Monitor first 24 hours",
+                    "command": "Check logs and Slack alerts",
+                    "status": "pending",
                 },
                 {
-                    'task': 'Compare live win rate to backtest (target: 55%+)',
-                    'command': 'python analysis/backtest_ranking_methods.py',
-                    'status': 'pending'
-                }
-            ]
+                    "task": "Compare live win rate to backtest (target: 55%+)",
+                    "command": "python analysis/backtest_ranking_methods.py",
+                    "status": "pending",
+                },
+            ],
         }
 
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(checklist, f, indent=2)
 
         print(f"✅ Production checklist saved to {output_file}")
@@ -408,11 +406,11 @@ class AnalysisDashboard:
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description='Generate analysis dashboards and reports')
-    parser.add_argument('--generate-html', action='store_true', help='Generate HTML dashboard')
-    parser.add_argument('--consolidate', action='store_true', help='Consolidate all reports')
-    parser.add_argument('--checklist', action='store_true', help='Generate production checklist')
-    parser.add_argument('--report-dir', default='.', help='Directory with analysis reports')
+    parser = argparse.ArgumentParser(description="Generate analysis dashboards and reports")
+    parser.add_argument("--generate-html", action="store_true", help="Generate HTML dashboard")
+    parser.add_argument("--consolidate", action="store_true", help="Consolidate all reports")
+    parser.add_argument("--checklist", action="store_true", help="Generate production checklist")
+    parser.add_argument("--report-dir", default=".", help="Directory with analysis reports")
 
     args = parser.parse_args()
 
@@ -421,9 +419,9 @@ def main():
     # Try to load available reports
     report_files = {}
     for name, file in [
-        ('ranking_comparison', 'ranking_comparison_report.json'),
-        ('databento_integration', 'databento_integration_report.json'),
-        ('backtest', 'ranking_backtest_report.json')
+        ("ranking_comparison", "ranking_comparison_report.json"),
+        ("databento_integration", "databento_integration_report.json"),
+        ("backtest", "ranking_backtest_report.json"),
     ]:
         filepath = os.path.join(args.report_dir, file)
         if os.path.exists(filepath):
@@ -446,5 +444,5 @@ def main():
         print("\n✅ All dashboards and reports generated")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

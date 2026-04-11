@@ -3,11 +3,11 @@ Broker-Agnostic Execution Layer
 ================================
 Abstract base class all broker adapters must implement.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 from enum import Enum
 
 
@@ -37,9 +37,9 @@ class Order:
     side: OrderSide
     quantity: float
     order_type: OrderType = OrderType.MARKET
-    limit_price: Optional[float] = None
-    stop_price: Optional[float] = None
-    order_id: Optional[str] = None
+    limit_price: float | None = None
+    stop_price: float | None = None
+    order_id: str | None = None
     status: OrderStatus = OrderStatus.PENDING
     filled_qty: float = 0.0
     avg_fill_price: float = 0.0
@@ -58,7 +58,7 @@ class AccountInfo:
     cash: float
     buying_power: float
     currency: str = "USD"
-    positions: Dict[str, dict] = None
+    positions: dict[str, dict] = None
 
     def __post_init__(self):
         if self.positions is None:
@@ -74,20 +74,16 @@ class BrokerBase(ABC):
         ...
 
     @abstractmethod
-    def disconnect(self) -> None:
-        ...
+    def disconnect(self) -> None: ...
 
     @abstractmethod
-    def get_account(self) -> AccountInfo:
-        ...
+    def get_account(self) -> AccountInfo: ...
 
     @abstractmethod
-    def get_position(self, symbol: str) -> Optional[dict]:
-        ...
+    def get_position(self, symbol: str) -> dict | None: ...
 
     @abstractmethod
-    def get_positions(self) -> Dict[str, dict]:
-        ...
+    def get_positions(self) -> dict[str, dict]: ...
 
     @abstractmethod
     def place_order(self, order: Order) -> Order:
@@ -95,20 +91,16 @@ class BrokerBase(ABC):
         ...
 
     @abstractmethod
-    def cancel_order(self, order_id: str) -> bool:
-        ...
+    def cancel_order(self, order_id: str) -> bool: ...
 
     @abstractmethod
-    def get_order_status(self, order_id: str) -> Order:
-        ...
+    def get_order_status(self, order_id: str) -> Order: ...
 
     @abstractmethod
-    def get_latest_price(self, symbol: str) -> float:
-        ...
+    def get_latest_price(self, symbol: str) -> float: ...
 
     @abstractmethod
-    def get_latest_prices(self, symbols: List[str]) -> Dict[str, float]:
-        ...
+    def get_latest_prices(self, symbols: list[str]) -> dict[str, float]: ...
 
     def is_market_open(self) -> bool:
         """Override per broker. Default: assume open."""

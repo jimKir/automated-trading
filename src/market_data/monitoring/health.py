@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import structlog
 
@@ -30,7 +31,7 @@ class HealthStatus:
 
     healthy: bool
     components: list[ComponentHealth] = field(default_factory=list)
-    timestamp: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dict."""
@@ -82,6 +83,7 @@ class HealthChecker:
             name: Component name.
             db_path: Path to SQLite database.
         """
+
         def check() -> bool:
             try:
                 with sqlite3.connect(str(db_path)) as conn:
@@ -92,9 +94,7 @@ class HealthChecker:
 
         self.register_check(name, check)
 
-    def register_storage_check(
-        self, name: str, check_path: str, storage_backend: Any
-    ) -> None:
+    def register_storage_check(self, name: str, check_path: str, storage_backend: Any) -> None:
         """Register a storage backend health check.
 
         Args:
@@ -102,6 +102,7 @@ class HealthChecker:
             check_path: Path to check for existence.
             storage_backend: Storage backend instance.
         """
+
         def check() -> bool:
             try:
                 storage_backend.list_files("")
@@ -151,11 +152,13 @@ class HealthChecker:
                 logger.warning("health_check_failed", component=name, error=str(exc))
             latency_ms = (time.monotonic() - start) * 1000
 
-            components.append(ComponentHealth(
-                name=name,
-                healthy=healthy,
-                latency_ms=latency_ms,
-            ))
+            components.append(
+                ComponentHealth(
+                    name=name,
+                    healthy=healthy,
+                    latency_ms=latency_ms,
+                )
+            )
 
         all_healthy = all(c.healthy for c in components)
         self._ready = all_healthy

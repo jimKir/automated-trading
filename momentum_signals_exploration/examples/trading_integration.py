@@ -10,19 +10,22 @@ Shows how to:
 """
 
 import sys
-sys.path.insert(0, '..')
 
-from scanner import MomentumScanner
-from filters import MomentumFilters
-from symbols import get_symbol_list
+sys.path.insert(0, "..")
+
 import logging
+
+from filters import MomentumFilters
+from scanner import MomentumScanner
+from symbols import get_symbol_list
 
 # If using hybrid deployment volatility predictor
 try:
-    sys.path.insert(0, '../../hybrid-deployment-v1/core')
+    sys.path.insert(0, "../../hybrid-deployment-v1/core")
     from hybrid_predictor import HybridPredictor
+
     VOLATILITY_AVAILABLE = True
-except:
+except ImportError:
     VOLATILITY_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO)
@@ -44,22 +47,20 @@ class MomentumTradingStrategy:
         self.trades = []
 
         # Initialize scanners
-        self.scanner = MomentumScanner(data_source='alpaca')
+        self.scanner = MomentumScanner(data_source="alpaca")
         self.filters = MomentumFilters()
 
         # Optional: volatility predictor
         if VOLATILITY_AVAILABLE:
             self.volatility_predictor = HybridPredictor(
-                endpoint_type='sagemaker',
-                sagemaker_endpoint='trading-volatility'
+                endpoint_type="sagemaker", sagemaker_endpoint="trading-volatility"
             )
             logger.info("✓ Volatility predictor loaded")
         else:
             self.volatility_predictor = None
             logger.warning("⚠ Volatility predictor not available")
 
-    def scan_and_filter(self, universe: str = 'sp500',
-                       top_n: int = 20) -> tuple:
+    def scan_and_filter(self, universe: str = "sp500", top_n: int = 20) -> tuple:
         """
         Scan universe and apply filters.
 
@@ -80,29 +81,21 @@ class MomentumTradingStrategy:
 
         # Apply quality filters
         filter_config = {
-            'min_volume': 500000,      # High liquidity only
-            'min_magnitude': 0.01,     # 1%+ moves
-            'min_price': 10.0,         # $10+
-            'max_price': 500.0         # Not too expensive
+            "min_volume": 500000,  # High liquidity only
+            "min_magnitude": 0.01,  # 1%+ moves
+            "min_price": 10.0,  # $10+
+            "max_price": 500.0,  # Not too expensive
         }
 
-        filtered = self.filters.apply_all_filters(
-            self.scanner.results,
-            filter_config
-        )
+        filtered = self.filters.apply_all_filters(self.scanner.results, filter_config)
 
         # Re-rank filtered results
         if filtered:
             gainers_filtered = sorted(
-                filtered.items(),
-                key=lambda x: x[1]['intra_momentum'],
-                reverse=True
+                filtered.items(), key=lambda x: x[1]["intra_momentum"], reverse=True
             )[:top_n]
 
-            losers_filtered = sorted(
-                filtered.items(),
-                key=lambda x: x[1]['intra_momentum']
-            )[:top_n]
+            losers_filtered = sorted(filtered.items(), key=lambda x: x[1]["intra_momentum"])[:top_n]
         else:
             gainers_filtered, losers_filtered = [], []
 
@@ -125,7 +118,7 @@ class MomentumTradingStrategy:
 
         try:
             volatility = self.volatility_predictor.predict(features)
-            logger.info(f"{symbol}: Volatility = {volatility*100:.2f}%")
+            logger.info(f"{symbol}: Volatility = {volatility * 100:.2f}%")
             return volatility
         except Exception as e:
             logger.warning(f"Volatility prediction failed for {symbol}: {e}")
@@ -151,38 +144,42 @@ class MomentumTradingStrategy:
 
         # BUY signals (gainers with low volatility)
         for symbol, metrics in gainers[:5]:  # Top 5 gainers
-            momentum = metrics['intra_momentum']
-            volume = metrics['volume']
-            price = metrics['price']
+            momentum = metrics["intra_momentum"]
+            volume = metrics["volume"]
+            price = metrics["price"]
 
             # Score: 0-100
             score = min(100, momentum * 1000)  # Scale to 0-100
 
             signals[symbol] = {
-                'signal': 'BUY',
-                'score': score,
-                'momentum': momentum,
-                'reason': f'Strong momentum: {momentum*100:.2f}%'
+                "signal": "BUY",
+                "score": score,
+                "momentum": momentum,
+                "reason": f"Strong momentum: {momentum * 100:.2f}%",
             }
 
-            logger.info(f"{symbol}: BUY signal (momentum: {momentum*100:.2f}%, score: {score:.0f})")
+            logger.info(
+                f"{symbol}: BUY signal (momentum: {momentum * 100:.2f}%, score: {score:.0f})"
+            )
 
         # SELL signals (losers with high volatility)
         for symbol, metrics in losers[:3]:  # Top 3 losers
-            momentum = metrics['intra_momentum']
-            volume = metrics['volume']
-            price = metrics['price']
+            momentum = metrics["intra_momentum"]
+            volume = metrics["volume"]
+            price = metrics["price"]
 
             score = min(100, abs(momentum) * 1000)
 
             signals[symbol] = {
-                'signal': 'SELL',
-                'score': score,
-                'momentum': momentum,
-                'reason': f'Negative momentum: {momentum*100:.2f}%'
+                "signal": "SELL",
+                "score": score,
+                "momentum": momentum,
+                "reason": f"Negative momentum: {momentum * 100:.2f}%",
             }
 
-            logger.info(f"{symbol}: SELL signal (momentum: {momentum*100:.2f}%, score: {score:.0f})")
+            logger.info(
+                f"{symbol}: SELL signal (momentum: {momentum * 100:.2f}%, score: {score:.0f})"
+            )
 
         return signals
 
@@ -199,24 +196,25 @@ class MomentumTradingStrategy:
         executed_trades = []
 
         for symbol, signal in signals.items():
-            signal_type = signal['signal']
-            score = signal['score']
+            signal_type = signal["signal"]
+            score = signal["score"]
 
             # Position sizing based on score
             position_size = max(1, int((self.capital * 0.05) / 100))  # 5% of capital per position
 
             trade = {
-                'symbol': symbol,
-                'type': signal_type,
-                'size': position_size,
-                'score': score,
-                'reason': signal['reason']
+                "symbol": symbol,
+                "type": signal_type,
+                "size": position_size,
+                "score": score,
+                "reason": signal["reason"],
             }
 
             # In real trading, would execute via broker API
             # For now, just log and track
-            logger.info(f"EXECUTE: {signal_type} {position_size} shares of {symbol} "
-                       f"(score: {score:.0f})")
+            logger.info(
+                f"EXECUTE: {signal_type} {position_size} shares of {symbol} (score: {score:.0f})"
+            )
 
             self.positions[symbol] = trade
             self.trades.append(trade)
@@ -224,7 +222,7 @@ class MomentumTradingStrategy:
 
         return executed_trades
 
-    def run_full_strategy(self, universe: str = 'sp500') -> dict:
+    def run_full_strategy(self, universe: str = "sp500") -> dict:
         """
         Run complete strategy cycle.
 
@@ -243,7 +241,7 @@ class MomentumTradingStrategy:
 
         if not gainers and not losers:
             logger.warning("No signals generated")
-            return {'signals': {}, 'trades': []}
+            return {"signals": {}, "trades": []}
 
         # Step 2: Generate signals
         signals = self.generate_signals(gainers, losers)
@@ -259,12 +257,7 @@ class MomentumTradingStrategy:
         logger.info(f"Trades executed: {len(trades)}")
         logger.info(f"Current positions: {len(self.positions)}")
 
-        return {
-            'gainers': gainers,
-            'losers': losers,
-            'signals': signals,
-            'trades': trades
-        }
+        return {"gainers": gainers, "losers": losers, "signals": signals, "trades": trades}
 
 
 def main():
@@ -273,25 +266,25 @@ def main():
     strategy = MomentumTradingStrategy(capital=25000)
 
     # Run full strategy
-    results = strategy.run_full_strategy(universe='sp500')
+    results = strategy.run_full_strategy(universe="sp500")
 
     # Print results
     print("\n" + "=" * 80)
     print("TRADING SIGNALS")
     print("=" * 80)
 
-    for symbol, signal in results['signals'].items():
+    for symbol, signal in results["signals"].items():
         print(f"{symbol}: {signal['signal']} (score: {signal['score']:.0f}) - {signal['reason']}")
 
     print("\n" + "=" * 80)
     print("EXECUTED TRADES")
     print("=" * 80)
 
-    for trade in results['trades']:
+    for trade in results["trades"]:
         print(f"{trade['type']} {trade['size']} {trade['symbol']} - {trade['reason']}")
 
     print("\n✓ Strategy cycle complete\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -7,14 +7,12 @@ Set env vars: ALPACA_API_KEY, ALPACA_API_SECRET
 SDK: uses alpaca-py (alpaca.trading / alpaca.data) — NOT the deprecated
 alpaca_trade_api package.
 """
+
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional
 
-from execution.broker_base import (
-    BrokerBase, Order, OrderSide, OrderStatus, OrderType, AccountInfo
-)
+from execution.broker_base import AccountInfo, BrokerBase, Order, OrderSide, OrderStatus
 from utils.logger import get_logger
 
 log = get_logger("AlpacaBroker")
@@ -23,16 +21,16 @@ log = get_logger("AlpacaBroker")
 class AlpacaBroker(BrokerBase):
     def __init__(self, config: dict):
         alpaca_cfg = config.get("brokers", {}).get("alpaca", {})
-        self.api_key    = alpaca_cfg.get("api_key")    or os.environ.get("ALPACA_API_KEY",    "")
+        self.api_key = alpaca_cfg.get("api_key") or os.environ.get("ALPACA_API_KEY", "")
         self.api_secret = alpaca_cfg.get("api_secret") or os.environ.get("ALPACA_API_SECRET", "")
-        self.paper      = alpaca_cfg.get("paper", True)
+        self.paper = alpaca_cfg.get("paper", True)
         self.trading_client = None
-        self.data_client    = None
+        self.data_client = None
 
     def connect(self) -> bool:
         try:
-            from alpaca.trading.client import TradingClient
             from alpaca.data.historical import StockHistoricalDataClient
+            from alpaca.trading.client import TradingClient
 
             self.trading_client = TradingClient(
                 api_key=self.api_key,
@@ -52,7 +50,7 @@ class AlpacaBroker(BrokerBase):
 
     def disconnect(self) -> None:
         self.trading_client = None
-        self.data_client    = None
+        self.data_client = None
 
     def get_account(self) -> AccountInfo:
         acc = self.trading_client.get_account()
@@ -65,14 +63,14 @@ class AlpacaBroker(BrokerBase):
             positions=self.get_positions(),
         )
 
-    def get_position(self, symbol: str) -> Optional[dict]:
+    def get_position(self, symbol: str) -> dict | None:
         try:
             pos = self.trading_client.get_open_position(symbol)
             return {"quantity": float(pos.qty), "avg_price": float(pos.avg_entry_price)}
         except Exception:
             return None
 
-    def get_positions(self) -> Dict[str, dict]:
+    def get_positions(self) -> dict[str, dict]:
         try:
             positions = self.trading_client.get_all_positions()
             return {
@@ -83,8 +81,8 @@ class AlpacaBroker(BrokerBase):
             return {}
 
     def place_order(self, order: Order) -> Order:
-        from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, StopOrderRequest
         from alpaca.trading.enums import OrderSide as AlpacaSide, TimeInForce
+        from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest, StopOrderRequest
 
         side = AlpacaSide.BUY if order.side == OrderSide.BUY else AlpacaSide.SELL
         order_type = order.order_type.value
@@ -134,14 +132,16 @@ class AlpacaBroker(BrokerBase):
             resp = self.trading_client.submit_order(req)
             order.order_id = str(resp.id)
             status_map = {
-                "filled":           OrderStatus.FILLED,
+                "filled": OrderStatus.FILLED,
                 "partially_filled": OrderStatus.PARTIAL,
-                "cancelled":        OrderStatus.CANCELLED,
+                "cancelled": OrderStatus.CANCELLED,
             }
             order.status = status_map.get(str(resp.status), OrderStatus.PENDING)
             if resp.filled_avg_price:
                 order.avg_fill_price = float(resp.filled_avg_price)
-            log.info(f"[Alpaca] {side.value.upper()} {order.symbol} qty={order.quantity} status={resp.status}")
+            log.info(
+                f"[Alpaca] {side.value.upper()} {order.symbol} qty={order.quantity} status={resp.status}"
+            )
         except Exception as exc:
             log.error(f"[Alpaca] Order error: {exc}")
             order.status = OrderStatus.REJECTED
@@ -150,14 +150,16 @@ class AlpacaBroker(BrokerBase):
     def cancel_order(self, order_id: str) -> bool:
         try:
             import uuid
+
             self.trading_client.cancel_order_by_id(uuid.UUID(order_id))
             return True
         except Exception:
             return False
 
-    def get_order_status(self, order_id: str) -> Optional[Order]:
+    def get_order_status(self, order_id: str) -> Order | None:
         try:
             import uuid
+
             o = self.trading_client.get_order_by_id(uuid.UUID(order_id))
             order = Order(
                 symbol=o.symbol,
@@ -174,7 +176,8 @@ class AlpacaBroker(BrokerBase):
     def get_latest_price(self, symbol: str) -> float:
         try:
             from alpaca.data.requests import StockLatestQuoteRequest
-            req  = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+
+            req = StockLatestQuoteRequest(symbol_or_symbols=symbol)
             resp = self.data_client.get_stock_latest_quote(req)
             if resp and symbol in resp:
                 quote = resp[symbol]
@@ -184,19 +187,17 @@ class AlpacaBroker(BrokerBase):
             pass
         return 0.0
 
-    def get_latest_prices(self, symbols: List[str]) -> Dict[str, float]:
+    def get_latest_prices(self, symbols: list[str]) -> dict[str, float]:
         try:
             from alpaca.data.requests import StockLatestQuoteRequest
-            req  = StockLatestQuoteRequest(symbol_or_symbols=symbols)
+
+            req = StockLatestQuoteRequest(symbol_or_symbols=symbols)
             resp = self.data_client.get_stock_latest_quote(req)
             if resp:
-                return {
-                    sym: float((q.ask_price + q.bid_price) / 2)
-                    for sym, q in resp.items()
-                }
+                return {sym: float((q.ask_price + q.bid_price) / 2) for sym, q in resp.items()}
         except Exception:
             pass
-        return {sym: 0.0 for sym in symbols}
+        return dict.fromkeys(symbols, 0.0)
 
     def is_market_open(self) -> bool:
         try:

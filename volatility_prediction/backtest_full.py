@@ -12,11 +12,14 @@ Proper out-of-sample evaluation:
   - Per-sector analysis
 """
 
-import os, sys, logging, time, warnings
+import logging
+import os
+import sys
+import time
+import warnings
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
-from collections import defaultdict
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 warnings.filterwarnings("ignore")
@@ -25,25 +28,44 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vol_engine import (
-    DataPipeline, FeatureEngine, VolatilityEstimators,
-    HARModel, LSTMVolModel, GBMVolModel, AdaptiveEnsemble,
-    WalkForwardValidator, SECTOR_MAP, UNIVERSE, HORIZONS,
+    SECTOR_MAP,
+    AdaptiveEnsemble,
+    DataPipeline,
+    FeatureEngine,
+    GBMVolModel,
+    HARModel,
+    LSTMVolModel,
+    WalkForwardValidator,
 )
 
 # ── Configuration ──────────────────────────────────────────────────────────
 TEST_SYMBOLS = [
     # Tech (high vol)
-    "AAPL", "NVDA", "TSLA", "AMD", "META",
+    "AAPL",
+    "NVDA",
+    "TSLA",
+    "AMD",
+    "META",
     # Financials (moderate vol)
-    "JPM", "GS", "BAC",
+    "JPM",
+    "GS",
+    "BAC",
     # Energy (high vol)
-    "XOM", "CVX", "SLB",
+    "XOM",
+    "CVX",
+    "SLB",
     # Healthcare (low vol)
-    "UNH", "JNJ", "LLY",
+    "UNH",
+    "JNJ",
+    "LLY",
     # Consumer (mixed)
-    "AMZN", "WMT", "COST",
+    "AMZN",
+    "WMT",
+    "COST",
     # Industrials
-    "CAT", "BA", "HON",
+    "CAT",
+    "BA",
+    "HON",
 ]
 
 HORIZON = "5d"
@@ -52,13 +74,13 @@ LOOKBACK_YEARS = 3.0
 # Test split: last 6 months (~126 trading days)
 TEST_DAYS = 126
 
-BOLD  = "\033[1m"
+BOLD = "\033[1m"
 RESET = "\033[0m"
 GREEN = "\033[92m"
-RED   = "\033[91m"
-CYAN  = "\033[96m"
+RED = "\033[91m"
+CYAN = "\033[96m"
 YELLOW = "\033[93m"
-GREY  = "\033[90m"
+GREY = "\033[90m"
 
 
 def classify_vol_regime(vol_series: pd.Series, current_vol: float) -> str:
@@ -66,11 +88,15 @@ def classify_vol_regime(vol_series: pd.Series, current_vol: float) -> str:
     if len(vol_series.dropna()) < 60:
         return "NORMAL"
     pctl = (vol_series.dropna() < current_vol).mean() * 100
-    if pctl > 80: return "HIGH"
-    elif pctl > 60: return "ELEVATED"
-    elif pctl > 40: return "NORMAL"
-    elif pctl > 20: return "LOW"
-    else: return "COMPRESSED"
+    if pctl > 80:
+        return "HIGH"
+    if pctl > 60:
+        return "ELEVATED"
+    if pctl > 40:
+        return "NORMAL"
+    if pctl > 20:
+        return "LOW"
+    return "COMPRESSED"
 
 
 def qlike_loss(pred, actual):
@@ -80,8 +106,8 @@ def qlike_loss(pred, actual):
     a = actual[mask]
     if len(p) < 10:
         return np.nan
-    p_sq = p ** 2
-    a_sq = a ** 2
+    p_sq = p**2
+    a_sq = a**2
     return (np.log(p_sq) + a_sq / p_sq).mean()
 
 
@@ -90,8 +116,10 @@ def main(force_refresh: bool = False):
 
     print(f"\n{BOLD}{'=' * 78}{RESET}")
     print(f"{BOLD}  VOLATILITY PREDICTION — FULL BACKTEST{RESET}")
-    print(f"{BOLD}  {len(TEST_SYMBOLS)} symbols | {LOOKBACK_YEARS:.0f}yr history | "
-          f"{HORIZON} horizon | {TEST_DAYS} test days{RESET}")
+    print(
+        f"{BOLD}  {len(TEST_SYMBOLS)} symbols | {LOOKBACK_YEARS:.0f}yr history | "
+        f"{HORIZON} horizon | {TEST_DAYS} test days{RESET}"
+    )
     print(f"{BOLD}{'=' * 78}{RESET}\n")
 
     # ── 1. Fetch data (cached — re-downloads only if stale or --force-refresh) ─
@@ -100,9 +128,11 @@ def main(force_refresh: bool = False):
     all_data = pipeline.fetch(TEST_SYMBOLS, LOOKBACK_YEARS, force_refresh=force_refresh)
     vix_data = pipeline.fetch_vix(LOOKBACK_YEARS, force_refresh=force_refresh)
     cache = pipeline.cache_info()
-    print(f"        Fetched {len(all_data)}/{len(TEST_SYMBOLS)} symbols "
-          f"(cache: {cache['total_size_mb']:.1f} MB, "
-          f"{len(cache['ohlcv_symbols'])} symbols cached)\n")
+    print(
+        f"        Fetched {len(all_data)}/{len(TEST_SYMBOLS)} symbols "
+        f"(cache: {cache['total_size_mb']:.1f} MB, "
+        f"{len(cache['ohlcv_symbols'])} symbols cached)\n"
+    )
 
     if len(all_data) < 5:
         print(f"  {RED}Not enough data — aborting{RESET}")
@@ -181,19 +211,19 @@ def main(force_refresh: bool = False):
     t1 = time.time()
     har_model = HARModel()
     har_model.fit(global_train_X, global_train_y)
-    print(f"        HAR fitted in {time.time()-t1:.1f}s")
+    print(f"        HAR fitted in {time.time() - t1:.1f}s")
 
     # GBM (global)
     t1 = time.time()
     gbm_model = GBMVolModel()
     gbm_model.fit(global_train_X, global_train_y)
-    print(f"        GBM fitted in {time.time()-t1:.1f}s")
+    print(f"        GBM fitted in {time.time() - t1:.1f}s")
 
     # LSTM (global)
     t1 = time.time()
     lstm_model = LSTMVolModel(seq_len=20, epochs=80, batch_size=64)
     lstm_model.fit(global_train_X, global_train_y)
-    print(f"        LSTM fitted in {time.time()-t1:.1f}s")
+    print(f"        LSTM fitted in {time.time() - t1:.1f}s")
     print()
 
     # ── 5. Out-of-sample evaluation ───────────────────────────────────
@@ -263,8 +293,11 @@ def main(force_refresh: bool = False):
             r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
             sym_metrics[model_name] = {
-                "rmse": np.sqrt(mse), "mae": mae, "qlike": ql, "r2": r2,
-                "n": len(p_clean)
+                "rmse": np.sqrt(mse),
+                "mae": mae,
+                "qlike": ql,
+                "r2": r2,
+                "n": len(p_clean),
             }
 
             model_preds_all[model_name].extend(p_clean)
@@ -320,8 +353,10 @@ def main(force_refresh: bool = False):
 
         marker = f" {GREEN}★{RESET}" if model_name == "Ensemble" else ""
         r2_color = GREEN if r2 > 0.3 else YELLOW if r2 > 0.1 else RED
-        print(f"  {model_name:<12} {rmse:>8.4f} {mae:>8.4f} {ql:>8.3f} "
-              f"{r2_color}{r2:>8.4f}{RESET} {len(p):>6}{marker}")
+        print(
+            f"  {model_name:<12} {rmse:>8.4f} {mae:>8.4f} {ql:>8.3f} "
+            f"{r2_color}{r2:>8.4f}{RESET} {len(p):>6}{marker}"
+        )
 
     print(f"\n  {GREY}QLIKE: lower = better | R²: higher = better | ★ = ensemble{RESET}\n")
 
@@ -356,8 +391,12 @@ def main(force_refresh: bool = False):
 
     try:
         from sklearn.metrics import (
-            f1_score, precision_score, recall_score,
-            accuracy_score, classification_report, confusion_matrix
+            accuracy_score,
+            classification_report,
+            confusion_matrix,
+            f1_score,
+            precision_score,
+            recall_score,
         )
 
         regimes = ["HIGH", "ELEVATED", "NORMAL", "LOW", "COMPRESSED"]
@@ -403,8 +442,7 @@ def main(force_refresh: bool = False):
 
                 print(f"\n  {BOLD}  Per-class F1 (Ensemble):{RESET}")
                 report = classification_report(
-                    true, pred, labels=labels_present,
-                    output_dict=True, zero_division=0
+                    true, pred, labels=labels_present, output_dict=True, zero_division=0
                 )
                 for cls in labels_present:
                     if cls in report:
@@ -427,10 +465,14 @@ def main(force_refresh: bool = False):
             bar = "█" * int(pct / 1.5) + "░" * max(0, 25 - int(pct / 1.5))
             # Highlight RSI and MACD features
             tag = ""
-            if "rsi" in feat: tag = f" {CYAN}[RSI]{RESET}"
-            elif "macd" in feat: tag = f" {YELLOW}[MACD]{RESET}"
-            elif "har" in feat: tag = f" {GREEN}[HAR]{RESET}"
-            elif "vol_" in feat: tag = f" {RED}[VOL]{RESET}"
+            if "rsi" in feat:
+                tag = f" {CYAN}[RSI]{RESET}"
+            elif "macd" in feat:
+                tag = f" {YELLOW}[MACD]{RESET}"
+            elif "har" in feat:
+                tag = f" {GREEN}[HAR]{RESET}"
+            elif "vol_" in feat:
+                tag = f" {RED}[VOL]{RESET}"
             print(f"  {feat:<24} {bar} {pct:>5.1f}%{tag}")
     print()
 
@@ -442,14 +484,16 @@ def main(force_refresh: bool = False):
 
     # ── Timing ────────────────────────────────────────────────────────
     elapsed = time.time() - t0
-    print(f"\n  Total backtest time: {elapsed:.0f}s ({elapsed/60:.1f}m)")
+    print(f"\n  Total backtest time: {elapsed:.0f}s ({elapsed / 60:.1f}m)")
     print(f"{BOLD}{'═' * 78}{RESET}\n")
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Volatility Prediction Full Backtest")
-    parser.add_argument("--force-refresh", action="store_true",
-                        help="Bypass data cache and re-download everything")
+    parser.add_argument(
+        "--force-refresh", action="store_true", help="Bypass data cache and re-download everything"
+    )
     args = parser.parse_args()
     main(force_refresh=args.force_refresh)

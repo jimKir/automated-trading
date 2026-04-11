@@ -12,20 +12,19 @@ Produces full performance report with:
   - Benchmark comparison (alpha, beta, information ratio)
   - Early Warning System (EWS) regime gating (optional)
 """
+
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from core.intraday_shock import VOL_LOOKBACK  # volume baseline window
 from core.portfolio import Portfolio
 from risk.manager import RiskManager
 from strategy.signals import SignalGenerator
 from utils.logger import get_logger
-from core.intraday_shock import VOL_LOOKBACK  # volume baseline window
 
 log = get_logger("Backtest")
 
@@ -42,8 +41,8 @@ class BacktestEngine:
         self.slippage = self.bt_cfg.get("slippage_pct", 0.0005)
         self.benchmark_sym = self.bt_cfg.get("benchmark", "SPY")
         self.rebalance_freq = config.get("strategy", {}).get("rebalance_frequency", "weekly")
-        self.use_ews            = config.get("ews",            {}).get("enabled", False)
-        self.use_vol_targeting  = config.get("vol_targeting",  {}).get("enabled", False)
+        self.use_ews = config.get("ews", {}).get("enabled", False)
+        self.use_vol_targeting = config.get("vol_targeting", {}).get("enabled", False)
         self.use_intraday_shock = config.get("intraday_shock", {}).get("enabled", False)
 
     # -----------------------------------------------------------------------
@@ -52,10 +51,10 @@ class BacktestEngine:
 
     def run(
         self,
-        all_data: Dict[str, pd.DataFrame],
-        benchmark_data: Optional[pd.DataFrame] = None,
+        all_data: dict[str, pd.DataFrame],
+        benchmark_data: pd.DataFrame | None = None,
         run_label: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run the backtest.
 
@@ -69,11 +68,13 @@ class BacktestEngine:
         -------
         dict with performance metrics and result DataFrames
         """
-        log.info(f"Starting backtest: {self.start} → {self.end}"
-                 + (f" [{run_label}]" if run_label else ""))
+        log.info(
+            f"Starting backtest: {self.start} → {self.end}"
+            + (f" [{run_label}]" if run_label else "")
+        )
 
-        portfolio  = Portfolio(self.config)
-        risk_mgr   = RiskManager(self.config)
+        portfolio = Portfolio(self.config)
+        risk_mgr = RiskManager(self.config)
         signal_gen = SignalGenerator(self.config)
 
         # ── Dynamic universe selector ─────────────────────────────────────────
@@ -82,11 +83,10 @@ class BacktestEngine:
         if self.config.get("dynamic_universe", {}).get("enabled", False):
             try:
                 from strategy.universe import DynamicUniverseSelector
+
                 universe_selector = DynamicUniverseSelector(self.config)
                 log.info("Dynamic universe selector enabled — pre-computing selections...")
-                universe_selections = universe_selector.compute_selection_series(
-                    all_data, []
-                )
+                universe_selections = universe_selector.compute_selection_series(all_data, [])
             except Exception as e:
                 log.warning(f"Dynamic universe selector failed: {e}")
 
@@ -97,6 +97,7 @@ class BacktestEngine:
             macro_syms = pred_cfg.get("macro_symbols", ["HYG", "LQD", "^VIX", "SHY", "SPY"])
             try:
                 from data.feed import fetch_yfinance
+
                 macro_data = fetch_yfinance(macro_syms, self.start, self.end)
                 if "TLT" in all_data and "TLT" not in macro_data:
                     macro_data["TLT"] = all_data["TLT"]
@@ -111,8 +112,11 @@ class BacktestEngine:
         for df in all_data.values():
             all_dates_set.update(df.index)
         all_dates = sorted(all_dates_set)
-        all_dates = [d for d in all_dates
-                     if pd.Timestamp(self.start, tz="UTC") <= d <= pd.Timestamp(self.end, tz="UTC")]
+        all_dates = [
+            d
+            for d in all_dates
+            if pd.Timestamp(self.start, tz="UTC") <= d <= pd.Timestamp(self.end, tz="UTC")
+        ]
 
         if not all_dates:
             raise ValueError("No overlapping dates found across assets in the specified range.")
@@ -122,11 +126,9 @@ class BacktestEngine:
         # ── Pre-compute dynamic universe selections if enabled ────────────────
         if universe_selector is not None:
             # Reset selector state and compute for real this time
-            universe_selector._last_selected   = []
-            universe_selector._last_rank_date  = None
-            universe_selections = universe_selector.compute_selection_series(
-                all_data, all_dates
-            )
+            universe_selector._last_selected = []
+            universe_selector._last_rank_date = None
+            universe_selections = universe_selector.compute_selection_series(all_data, all_dates)
             # Log stats
             stats = universe_selector.get_selection_stats(universe_selections)
             log.info(
@@ -139,10 +141,7 @@ class BacktestEngine:
 
         # ── Build combined price DataFrame for EWS ──────────────────────────
         # (Close prices, date-aligned)
-        price_df = pd.DataFrame({
-            sym: df["Close"]
-            for sym, df in all_data.items()
-        }).sort_index()
+        price_df = pd.DataFrame({sym: df["Close"] for sym, df in all_data.items()}).sort_index()
 
         # ── Pre-compute vol targeting scale series ───────────────────────────
         # We can't compute the final scale series yet (no equity returns exist).
@@ -152,6 +151,7 @@ class BacktestEngine:
         if self.use_vol_targeting:
             try:
                 from core.vol_targeting import VolatilityTargeter
+
                 vt_obj = VolatilityTargeter(self.config)
                 log.info("Vol targeting enabled.")
             except Exception as e:
@@ -159,11 +159,15 @@ class BacktestEngine:
 
         # Pre-fetch VIX for H2O vol forecaster (if not already loaded by ISD)
         _vix_for_h2o: pd.Series = pd.Series(dtype=float)
-        if self.use_vol_targeting and self.config.get("vol_targeting",{}).get("use_h2o_vol", False):
+        if self.use_vol_targeting and self.config.get("vol_targeting", {}).get(
+            "use_h2o_vol", False
+        ):
             try:
                 import yfinance as yf
-                _vix_raw = yf.download("^VIX", start=self.start, end=self.end,
-                                       auto_adjust=True, progress=False)
+
+                _vix_raw = yf.download(
+                    "^VIX", start=self.start, end=self.end, auto_adjust=True, progress=False
+                )
                 if not _vix_raw.empty:
                     _vix_for_h2o = _vix_raw["Close"].squeeze().dropna()
                     if _vix_for_h2o.index.tz is not None:
@@ -173,16 +177,19 @@ class BacktestEngine:
                 log.warning(f"VIX fetch for H2O failed: {e}")
 
         # ── Fetch VIX for intraday shock backtest simulation ────────────────────
-        isd_obj        = None
-        isd_bt_scales: Optional[pd.Series] = None
+        isd_obj = None
+        isd_bt_scales: pd.Series | None = None
         if self.use_intraday_shock:
             try:
                 from core.intraday_shock import IntradayShockDetector
+
                 isd_obj = IntradayShockDetector(self.config)
                 log.info("Intraday shock detector: fetching VIX history...")
                 import yfinance as yf
-                vix_raw = yf.download("^VIX", start=self.start, end=self.end,
-                                      auto_adjust=True, progress=False)
+
+                vix_raw = yf.download(
+                    "^VIX", start=self.start, end=self.end, auto_adjust=True, progress=False
+                )
                 if not vix_raw.empty:
                     vix_series = vix_raw["Close"].squeeze().dropna()
                     if vix_series.index.tz is not None:
@@ -192,8 +199,9 @@ class BacktestEngine:
                 log.info(f"VIX data: {len(vix_series)} days loaded")
 
                 # Also fetch SPY volume for volume shock detection
-                spy_vol_raw = yf.download("SPY", start=self.start, end=self.end,
-                                          auto_adjust=True, progress=False)
+                spy_vol_raw = yf.download(
+                    "SPY", start=self.start, end=self.end, auto_adjust=True, progress=False
+                )
                 if not spy_vol_raw.empty and "Volume" in spy_vol_raw.columns:
                     spy_vol_series = spy_vol_raw["Volume"].squeeze().dropna()
                     if spy_vol_series.index.tz is not None:
@@ -224,11 +232,12 @@ class BacktestEngine:
                 _pos_anomaly_scorer = None
 
         # ── Pre-compute EWS scores ───────────────────────────────────────────
-        ews_scores: Optional[pd.Series] = None
+        ews_scores: pd.Series | None = None
         ews_obj = None
         if self.use_ews:
             try:
                 from regime.ews import EarlyWarningSystem
+
                 ews_obj = EarlyWarningSystem(self.config)
                 log.info("EWS enabled — pre-computing stress scores (this takes ~2-3 min)...")
                 ews_scores = ews_obj.compute_backtest_scores(price_df, self.start, self.end)
@@ -244,11 +253,10 @@ class BacktestEngine:
         risk_mgr.update_equity(portfolio.equity)
         risk_mgr.reset_daily(portfolio.equity, cash=portfolio.cash)
 
-        ews_scale_log = []   # track EWS scale factor over time
-        vt_scale_log  = []   # track vol targeting scale factor over time
-        isd_scale_log = []   # track intraday shock scale factor over time
-        _equity_buffer: list = []   # rolling equity values for vol estimation
-
+        ews_scale_log = []  # track EWS scale factor over time
+        vt_scale_log = []  # track vol targeting scale factor over time
+        isd_scale_log = []  # track intraday shock scale factor over time
+        _equity_buffer: list = []  # rolling equity values for vol estimation
 
         # Pre-compute intraday shock scales for backtest (needs equity curve first
         # — done incrementally below using equity buffer)
@@ -275,15 +283,13 @@ class BacktestEngine:
             portfolio.update_prices(prices)
 
             # Check risk circuit breakers (pass cash for realised-only daily check)
-            halt, reason = risk_mgr.check_halt(
-                portfolio.equity, cash=portfolio.cash, date=date
-            )
+            halt, reason = risk_mgr.check_halt(portfolio.equity, cash=portfolio.cash, date=date)
             if halt:
                 portfolio.record_equity(date)
                 continue
 
             # ── EWS scale factor for today ────────────────────────────────────
-            ews_scale  = 1.0
+            ews_scale = 1.0
             ews_colour = "GREEN"
             if ews_scores is not None and ews_obj is not None:
                 ews_scale, ews_colour = ews_obj.get_scale_factor(date, ews_scores)
@@ -307,18 +313,18 @@ class BacktestEngine:
             # 'Intraday' move = today's close vs yesterday's close.
             isd_scale = 1.0
             if isd_obj is not None and i > 0 and not vix_series.empty:
-                date_naive      = date.replace(tzinfo=None)
-                prev_date_naive = all_dates[i-1].replace(tzinfo=None)
+                date_naive = date.replace(tzinfo=None)
+                prev_date_naive = all_dates[i - 1].replace(tzinfo=None)
 
                 vix_today = float(vix_series.asof(date_naive))
-                vix_prev  = float(vix_series.asof(prev_date_naive))
+                vix_prev = float(vix_series.asof(prev_date_naive))
 
                 eq_prev = float(_equity_buffer[-1]) if _equity_buffer else portfolio.equity
                 eq_curr = portfolio.equity
 
                 # SPY volume for volume shock detection
                 spy_vol_today = None
-                if 'spy_vol_series' in locals() and not spy_vol_series.empty:
+                if "spy_vol_series" in locals() and not spy_vol_series.empty:
                     _sv = spy_vol_series.asof(date_naive)
                     if _sv is not None and not pd.isna(_sv):
                         spy_vol_today = float(_sv)
@@ -330,28 +336,31 @@ class BacktestEngine:
                             isd_obj._volume_history = isd_obj._volume_history[-VOL_LOOKBACK:]
 
                 if vix_prev > 0 and eq_prev > 0:
-                    from core.intraday_shock import ShockState as _SS, SCALE_RECOVERY as _SR
+                    from core.intraday_shock import SCALE_RECOVERY as _SR, ShockState as _SS
+
                     if isd_obj.current_state == _SS.RECOVERY:
                         isd_obj._recovery_day += 1
                         if isd_obj._recovery_day >= len(_SR):
-                            isd_obj._state        = _SS.CLEAR
+                            isd_obj._state = _SS.CLEAR
                             isd_obj._recovery_day = 0
 
-                    isd_obj._morning_vix    = vix_prev
+                    isd_obj._morning_vix = vix_prev
                     isd_obj._morning_equity = eq_prev
-                    isd_obj._today          = date.date()
+                    isd_obj._today = date.date()
 
                     # price_chg proxy: equity return
                     price_chg_proxy = (eq_curr - eq_prev) / eq_prev if eq_prev > 0 else 0.0
 
                     isd_scale, isd_state, isd_reason = isd_obj.check(
-                        vix_today, eq_curr,
+                        vix_today,
+                        eq_curr,
                         current_volume=spy_vol_today,
                         prev_close=eq_prev,
                         current_close=eq_curr,
                     )
-                    isd_scale_log.append({"date": date, "scale": isd_scale,
-                                          "state": isd_state.value})
+                    isd_scale_log.append(
+                        {"date": date, "scale": isd_scale, "state": isd_state.value}
+                    )
                     if isd_scale < 1.0:
                         log.debug(
                             f"[{date.date()}] ISD {isd_state.value}: "
@@ -376,22 +385,21 @@ class BacktestEngine:
                             pos = portfolio.positions[sym]
                             if abs(pos.quantity) > 1e-8:
                                 portfolio.execute_order(
-                                    sym, -pos.quantity, prices[sym], date,
-                                    self.commission, self.slippage
+                                    sym,
+                                    -pos.quantity,
+                                    prices[sym],
+                                    date,
+                                    self.commission,
+                                    self.slippage,
                                 )
-                    active_data = {
-                        sym: df for sym, df in all_data.items()
-                        if sym in active_syms
-                    }
+                    active_data = {sym: df for sym, df in all_data.items() if sym in active_syms}
                 else:
                     active_data = all_data
 
-                historical_data = {
-                    sym: df[df.index <= date] for sym, df in active_data.items()
-                }
+                historical_data = {sym: df[df.index <= date] for sym, df in active_data.items()}
                 signals = signal_gen.generate_latest(historical_data)
 
-                max_pos  = self.config.get("risk", {}).get("max_position_pct", 0.15)
+                max_pos = self.config.get("risk", {}).get("max_position_pct", 0.15)
                 max_heat = self.config.get("capital", {}).get("max_portfolio_heat", 0.40)
 
                 # ── Vol-engine per-symbol sizing at rebalance ─────────────────
@@ -402,17 +410,23 @@ class BacktestEngine:
                 if vt_obj is not None:
                     try:
                         from volatility_prediction.vol_engine import VolatilityPredictionEngine
+
                         _ve = VolatilityPredictionEngine()
                         for sym, df in historical_data.items():
                             if "Close" not in df.columns or len(df) < 30:
                                 continue
                             try:
-                                sym_ret = np.log(df["Close"]/df["Close"].shift(1)).dropna()
-                                ve_vol  = _ve.predict_one(sym, df, as_of_date=date)
-                                est_vol = vt_obj.get_vol_estimate(
-                                    sym, sym_ret,
-                                    price_df=df if ve_vol is None else None,
-                                ) if ve_vol is None else ve_vol
+                                sym_ret = np.log(df["Close"] / df["Close"].shift(1)).dropna()
+                                ve_vol = _ve.predict_one(sym, df, as_of_date=date)
+                                est_vol = (
+                                    vt_obj.get_vol_estimate(
+                                        sym,
+                                        sym_ret,
+                                        price_df=df if ve_vol is None else None,
+                                    )
+                                    if ve_vol is None
+                                    else ve_vol
+                                )
                                 if est_vol and 0.01 < est_vol < 2.0:
                                     _sym_vol_scales[sym] = vt_obj.scale_from_vol(
                                         est_vol, smooth=True
@@ -432,11 +446,15 @@ class BacktestEngine:
                         log.debug(f"vol_engine batch failed ({_ve_err}) — trying H2O")
                         try:
                             vt_obj._load_h2o()
-                            if hasattr(vt_obj, '_h2o_fc') and vt_obj._h2o_fc is not None and len(_vix_for_h2o) > 0:
+                            if (
+                                hasattr(vt_obj, "_h2o_fc")
+                                and vt_obj._h2o_fc is not None
+                                and len(_vix_for_h2o) > 0
+                            ):
                                 sym_returns = {
-                                    sym: np.log(df['Close']/df['Close'].shift(1)).dropna()
+                                    sym: np.log(df["Close"] / df["Close"].shift(1)).dropna()
                                     for sym, df in historical_data.items()
-                                    if 'Close' in df.columns and len(df) >= 63
+                                    if "Close" in df.columns and len(df) >= 63
                                 }
                                 h2o_vols = vt_obj._h2o_fc.predict_batch(
                                     sym_returns, _vix_for_h2o, date
@@ -449,12 +467,13 @@ class BacktestEngine:
                             log.debug(f"H2O fallback also failed: {_h2o_err}")
 
                 # Apply combined scale (EWS × vol targeting) to position limits
-                effective_max_pos  = max_pos  * combined_scale
+                effective_max_pos = max_pos * combined_scale
                 effective_max_heat = max_heat * combined_scale
 
                 if ews_scale < 1.0:
-                    log.debug(f"[{date.date()}] EWS {ews_colour}: "
-                              f"scaling positions to {ews_scale:.0%}")
+                    log.debug(
+                        f"[{date.date()}] EWS {ews_colour}: scaling positions to {ews_scale:.0%}"
+                    )
 
                 # Pass price history + SPY for optimizer (risk parity / min-var)
                 spy_hist = all_data.get("SPY")
@@ -481,21 +500,25 @@ class BacktestEngine:
                 # Symbols with high predicted vol → smaller signal → smaller position
                 if _sym_vol_scales or _pos_scales:
                     scaled_signals = {
+<<<<<<< Updated upstream
                         sym: sig
                             * _sym_vol_scales.get(sym, 1.0)   # vol-engine scale
                             * _pos_scales.get(sym, 1.0)        # position anomaly scale
                         for sym, sig in signals.items()
+=======
+                        sym: sig * _sym_vol_scales.get(sym, 1.0) for sym, sig in signals.items()
+>>>>>>> Stashed changes
                     }
                 else:
                     scaled_signals = signals
 
                 target_weights = portfolio.compute_target_weights(
                     scaled_signals,
-                    max_position_pct   = effective_max_pos,
-                    max_portfolio_heat = effective_max_heat,
-                    price_history      = historical_data,
-                    as_of_date         = date,
-                    spy_data           = spy_hist,
+                    max_position_pct=effective_max_pos,
+                    max_portfolio_heat=effective_max_heat,
+                    price_history=historical_data,
+                    as_of_date=date,
+                    spy_data=spy_hist,
                 )
                 orders = portfolio.compute_orders(target_weights, prices)
 
@@ -550,18 +573,19 @@ class BacktestEngine:
         metrics.update(cost_summary)
         initial_equity = self.config.get("capital", {}).get("initial_equity", 25000)
         metrics["cost_total_pct_of_initial"] = (
-            cost_summary["cost_total"] / initial_equity * 100
-            if initial_equity > 0 else 0
+            cost_summary["cost_total"] / initial_equity * 100 if initial_equity > 0 else 0
         )
 
         # Intraday shock summary
         if isd_scale_log:
             isd_df = pd.DataFrame(isd_scale_log).set_index("date")
-            state_counts = isd_df["state"].value_counts().to_dict() if "state" in isd_df.columns else {}
-            metrics["isd_days_caution"]  = int(state_counts.get("CAUTION",  0))
-            metrics["isd_days_shock"]    = int(state_counts.get("SHOCK",    0))
+            state_counts = (
+                isd_df["state"].value_counts().to_dict() if "state" in isd_df.columns else {}
+            )
+            metrics["isd_days_caution"] = int(state_counts.get("CAUTION", 0))
+            metrics["isd_days_shock"] = int(state_counts.get("SHOCK", 0))
             metrics["isd_days_recovery"] = int(state_counts.get("RECOVERY", 0))
-            metrics["isd_avg_scale"]     = float(isd_df["scale"].mean())
+            metrics["isd_avg_scale"] = float(isd_df["scale"].mean())
             log.info(
                 f"Intraday shock: CAUTION={metrics['isd_days_caution']}d | "
                 f"SHOCK={metrics['isd_days_shock']}d | "
@@ -572,9 +596,9 @@ class BacktestEngine:
         # Vol targeting summary
         if vt_scale_log:
             vt_df = pd.DataFrame(vt_scale_log).set_index("date")
-            metrics["vt_avg_scale"]      = float(vt_df["vt_scale"].mean())
-            metrics["vt_min_scale"]      = float(vt_df["vt_scale"].min())
-            metrics["vt_max_scale"]      = float(vt_df["vt_scale"].max())
+            metrics["vt_avg_scale"] = float(vt_df["vt_scale"].mean())
+            metrics["vt_min_scale"] = float(vt_df["vt_scale"].min())
+            metrics["vt_max_scale"] = float(vt_df["vt_scale"].max())
             metrics["vt_days_scaled_up"] = int((vt_df["vt_scale"] > 1.05).sum())
             metrics["vt_days_scaled_dn"] = int((vt_df["vt_scale"] < 0.95).sum())
             log.info(
@@ -588,19 +612,22 @@ class BacktestEngine:
         if ews_scale_log:
             ews_df = pd.DataFrame(ews_scale_log).set_index("date")
             regime_counts = ews_df["regime"].value_counts().to_dict()
-            metrics["ews_regime_counts"]  = regime_counts
-            metrics["ews_avg_scale"]      = float(ews_df["scale"].mean())
-            metrics["ews_days_green"]     = int((ews_df["regime"] == "GREEN").sum())
-            metrics["ews_days_yellow"]    = int((ews_df["regime"] == "YELLOW").sum())
-            metrics["ews_days_orange"]    = int((ews_df["regime"] == "ORANGE").sum())
-            metrics["ews_days_red"]       = int(((ews_df["regime"] == "RED") |
-                                                 (ews_df["regime"] == "CRITICAL")).sum())
-            metrics["ews_scores"]         = ews_scores
+            metrics["ews_regime_counts"] = regime_counts
+            metrics["ews_avg_scale"] = float(ews_df["scale"].mean())
+            metrics["ews_days_green"] = int((ews_df["regime"] == "GREEN").sum())
+            metrics["ews_days_yellow"] = int((ews_df["regime"] == "YELLOW").sum())
+            metrics["ews_days_orange"] = int((ews_df["regime"] == "ORANGE").sum())
+            metrics["ews_days_red"] = int(
+                ((ews_df["regime"] == "RED") | (ews_df["regime"] == "CRITICAL")).sum()
+            )
+            metrics["ews_scores"] = ews_scores
             log.info(f"EWS regime distribution: {regime_counts}")
             log.info(f"EWS avg scale factor: {metrics['ews_avg_scale']:.2%}")
 
-        log.info(f"Total costs: ${cost_summary['cost_total']:,.2f} "
-                 f"({metrics['cost_total_pct_of_initial']:.2f}% of initial equity)")
+        log.info(
+            f"Total costs: ${cost_summary['cost_total']:,.2f} "
+            f"({metrics['cost_total_pct_of_initial']:.2f}% of initial equity)"
+        )
 
         self._log_summary(metrics)
         return metrics
@@ -611,9 +638,9 @@ class BacktestEngine:
 
     def run_comparison(
         self,
-        all_data: Dict[str, pd.DataFrame],
-        benchmark_data: Optional[pd.DataFrame] = None,
-    ) -> Dict[str, Dict]:
+        all_data: dict[str, pd.DataFrame],
+        benchmark_data: pd.DataFrame | None = None,
+    ) -> dict[str, dict]:
         """
         Run two backtests back-to-back:
           1. Baseline (EWS disabled)
@@ -626,18 +653,18 @@ class BacktestEngine:
         cfg_base = copy.deepcopy(self.config)
         cfg_base.setdefault("ews", {})["enabled"] = False
         engine_base = BacktestEngine(cfg_base)
-        log.info("\n" + "="*60)
+        log.info("\n" + "=" * 60)
         log.info("COMPARISON RUN 1/2: Baseline (no EWS)")
-        log.info("="*60)
+        log.info("=" * 60)
         metrics_base = engine_base.run(all_data, benchmark_data, run_label="Baseline")
 
         # With EWS
         cfg_ews = copy.deepcopy(self.config)
         cfg_ews.setdefault("ews", {})["enabled"] = True
         engine_ews = BacktestEngine(cfg_ews)
-        log.info("\n" + "="*60)
+        log.info("\n" + "=" * 60)
         log.info("COMPARISON RUN 2/2: With EWS")
-        log.info("="*60)
+        log.info("=" * 60)
         metrics_ews = engine_ews.run(all_data, benchmark_data, run_label="With EWS")
 
         self._log_comparison(metrics_base, metrics_ews)
@@ -645,25 +672,25 @@ class BacktestEngine:
         return {"baseline": metrics_base, "with_ews": metrics_ews}
 
     def _log_comparison(self, base: dict, ews: dict) -> None:
-        log.info("\n" + "="*65)
+        log.info("\n" + "=" * 65)
         log.info("  COMPARISON: Baseline vs With EWS")
-        log.info("="*65)
+        log.info("=" * 65)
         log.info(f"  {'Metric':<35} {'Baseline':>12} {'With EWS':>12} {'Delta':>10}")
-        log.info("-"*65)
+        log.info("-" * 65)
         metrics_to_compare = [
-            ("Total Return (%)",       "total_return_pct",          True),
-            ("Ann. Return (%)",        "ann_return_pct",            True),
-            ("Ann. Volatility (%)",    "ann_volatility_pct",        False),
-            ("Sharpe Ratio",           "sharpe_ratio",              True),
-            ("Sortino Ratio",          "sortino_ratio",             True),
-            ("Calmar Ratio",           "calmar_ratio",              True),
-            ("Max Drawdown (%)",       "max_drawdown_pct",          False),
-            ("MDD Duration (days)",    "max_drawdown_duration_days",False),
-            ("Win Rate (%)",           "win_rate_pct",              True),
-            ("VaR 99% (%)",            "var_hist_99_pct",           False),
-            ("CVaR 99% (%)",           "cvar_hist_99_pct",          False),
-            ("Omega Ratio",            "omega_ratio",               True),
-            ("Tail Ratio",             "tail_ratio",                True),
+            ("Total Return (%)", "total_return_pct", True),
+            ("Ann. Return (%)", "ann_return_pct", True),
+            ("Ann. Volatility (%)", "ann_volatility_pct", False),
+            ("Sharpe Ratio", "sharpe_ratio", True),
+            ("Sortino Ratio", "sortino_ratio", True),
+            ("Calmar Ratio", "calmar_ratio", True),
+            ("Max Drawdown (%)", "max_drawdown_pct", False),
+            ("MDD Duration (days)", "max_drawdown_duration_days", False),
+            ("Win Rate (%)", "win_rate_pct", True),
+            ("VaR 99% (%)", "var_hist_99_pct", False),
+            ("CVaR 99% (%)", "cvar_hist_99_pct", False),
+            ("Omega Ratio", "omega_ratio", True),
+            ("Tail Ratio", "tail_ratio", True),
         ]
         for label, key, higher_better in metrics_to_compare:
             bv = base.get(key)
@@ -672,28 +699,29 @@ class BacktestEngine:
                 continue
             try:
                 delta = ev - bv
-                sign  = "+" if delta > 0 else ""
+                sign = "+" if delta > 0 else ""
                 better = (delta > 0) == higher_better
-                flag   = "✓" if better else "✗"
+                flag = "✓" if better else "✗"
                 log.info(f"  {label:<35} {bv:>12.4f} {ev:>12.4f} {sign}{delta:>9.4f} {flag}")
             except Exception:
                 pass
-        log.info("="*65)
+        log.info("=" * 65)
 
         # EWS regime summary
         if "ews_regime_counts" in ews:
-            log.info(f"\n  EWS Regime Distribution (With EWS run):")
-            log.info(f"    GREEN    (full):      {ews.get('ews_days_green',0):>5} days")
-            log.info(f"    YELLOW   (70%):       {ews.get('ews_days_yellow',0):>5} days")
-            log.info(f"    ORANGE   (40%):       {ews.get('ews_days_orange',0):>5} days")
-            log.info(f"    RED/CRIT (≤20%):      {ews.get('ews_days_red',0):>5} days")
-            log.info(f"    Avg scale factor:     {ews.get('ews_avg_scale',1.0):.1%}")
+            log.info("\n  EWS Regime Distribution (With EWS run):")
+            log.info(f"    GREEN    (full):      {ews.get('ews_days_green', 0):>5} days")
+            log.info(f"    YELLOW   (70%):       {ews.get('ews_days_yellow', 0):>5} days")
+            log.info(f"    ORANGE   (40%):       {ews.get('ews_days_orange', 0):>5} days")
+            log.info(f"    RED/CRIT (≤20%):      {ews.get('ews_days_red', 0):>5} days")
+            log.info(f"    Avg scale factor:     {ews.get('ews_avg_scale', 1.0):.1%}")
 
     # -----------------------------------------------------------------------
     # Helpers
     # -----------------------------------------------------------------------
 
     def _rebalance_schedule(self, dates: list) -> set:
+<<<<<<< Updated upstream
         """
         Build the rebalance schedule for this run.
 
@@ -720,11 +748,21 @@ class BacktestEngine:
             choppy_score_series         = choppy,
             adaptive_weekly_threshold   = thr,
         )
+=======
+        s = pd.Series(dates, index=dates)
+        if self.rebalance_freq == "daily":
+            return set(dates)
+        if self.rebalance_freq == "weekly":
+            return set(s.resample("W-FRI").last().dropna())
+        if self.rebalance_freq == "monthly":
+            return set(s.resample("BME").last().dropna())
+        return set(dates)
+>>>>>>> Stashed changes
 
     def _check_stops(
         self,
         portfolio: Portfolio,
-        prices: Dict[str, float],
+        prices: dict[str, float],
         date: pd.Timestamp,
     ) -> None:
         to_close = []
@@ -732,9 +770,9 @@ class BacktestEngine:
             if pos.stop_loss <= 0 or sym not in prices:
                 continue
             price = prices[sym]
-            if pos.quantity > 0 and price <= pos.stop_loss:
-                to_close.append((sym, -pos.quantity, price))
-            elif pos.quantity < 0 and price >= pos.stop_loss:
+            if (pos.quantity > 0 and price <= pos.stop_loss) or (
+                pos.quantity < 0 and price >= pos.stop_loss
+            ):
                 to_close.append((sym, -pos.quantity, price))
 
         for sym, qty, price in to_close:
@@ -745,7 +783,7 @@ class BacktestEngine:
         self,
         equity: pd.Series,
         returns: pd.Series,
-        bench_returns: Optional[pd.Series],
+        bench_returns: pd.Series | None,
         risk_mgr: RiskManager,
     ) -> dict:
         n = len(returns)
@@ -759,8 +797,11 @@ class BacktestEngine:
         ann_vol = returns.std() * np.sqrt(ann_factor)
 
         risk_free = 0.04 / ann_factor  # 4% annualised risk-free rate assumption
-        sharpe = ((returns.mean() - risk_free) / returns.std() * np.sqrt(ann_factor)
-                  if returns.std() > 0 else np.nan)
+        sharpe = (
+            (returns.mean() - risk_free) / returns.std() * np.sqrt(ann_factor)
+            if returns.std() > 0
+            else np.nan
+        )
 
         downside = returns[returns < 0].std() * np.sqrt(ann_factor)
         sortino = (ann_return - 0.04) / downside if downside > 0 else np.nan
@@ -773,14 +814,14 @@ class BacktestEngine:
         win_rate = daily_wins / n
 
         conf = risk_mgr.var_confidence
-        hist_var   = RiskManager.historical_var(returns, conf)
-        hist_cvar  = RiskManager.historical_cvar(returns, conf)
-        param_var  = RiskManager.parametric_var(returns, conf)
-        mc_var     = RiskManager.monte_carlo_var(returns, conf)
+        hist_var = RiskManager.historical_var(returns, conf)
+        hist_cvar = RiskManager.historical_cvar(returns, conf)
+        param_var = RiskManager.parametric_var(returns, conf)
+        mc_var = RiskManager.monte_carlo_var(returns, conf)
 
-        skew       = RiskManager.skewness(returns)
-        kurt       = RiskManager.kurtosis(returns)
-        omega      = RiskManager.omega_ratio(returns)
+        skew = RiskManager.skewness(returns)
+        kurt = RiskManager.kurtosis(returns)
+        omega = RiskManager.omega_ratio(returns)
         tail_ratio = RiskManager.tail_ratio(returns)
 
         stress = RiskManager.stress_test(returns)
@@ -798,29 +839,29 @@ class BacktestEngine:
                 info_ratio = alpha / tracking_error if tracking_error > 0 else np.nan
 
         return {
-            "total_return_pct":          total_return * 100,
-            "ann_return_pct":            ann_return * 100,
-            "ann_volatility_pct":        ann_vol * 100,
-            "trading_days":              n,
-            "sharpe_ratio":              sharpe,
-            "sortino_ratio":             sortino,
-            "calmar_ratio":              calmar,
-            "max_drawdown_pct":          mdd * 100,
+            "total_return_pct": total_return * 100,
+            "ann_return_pct": ann_return * 100,
+            "ann_volatility_pct": ann_vol * 100,
+            "trading_days": n,
+            "sharpe_ratio": sharpe,
+            "sortino_ratio": sortino,
+            "calmar_ratio": calmar,
+            "max_drawdown_pct": mdd * 100,
             "max_drawdown_duration_days": mdd_duration,
-            "win_rate_pct":              win_rate * 100,
-            "var_hist_99_pct":           hist_var * 100,
-            "cvar_hist_99_pct":          hist_cvar * 100,
-            "var_parametric_99_pct":     param_var * 100,
-            "var_monte_carlo_99_pct":    mc_var * 100,
-            "skewness":                  skew,
-            "excess_kurtosis":           kurt,
-            "omega_ratio":               omega,
-            "tail_ratio":                tail_ratio,
-            "stress_scenarios":          stress,
-            "alpha_ann_pct":             alpha * 100 if alpha is not None else None,
-            "beta":                      beta,
-            "information_ratio":         info_ratio,
-            "tracking_error_pct":        tracking_error * 100 if tracking_error is not None else None,
+            "win_rate_pct": win_rate * 100,
+            "var_hist_99_pct": hist_var * 100,
+            "cvar_hist_99_pct": hist_cvar * 100,
+            "var_parametric_99_pct": param_var * 100,
+            "var_monte_carlo_99_pct": mc_var * 100,
+            "skewness": skew,
+            "excess_kurtosis": kurt,
+            "omega_ratio": omega,
+            "tail_ratio": tail_ratio,
+            "stress_scenarios": stress,
+            "alpha_ann_pct": alpha * 100 if alpha is not None else None,
+            "beta": beta,
+            "information_ratio": info_ratio,
+            "tracking_error_pct": tracking_error * 100 if tracking_error is not None else None,
         }
 
     def _log_summary(self, metrics: dict) -> None:
@@ -828,12 +869,26 @@ class BacktestEngine:
         log.info("=" * 60)
         log.info(f"BACKTEST RESULTS {('— ' + label) if label else ''}")
         log.info("=" * 60)
-        for k in ["total_return_pct", "ann_return_pct", "ann_volatility_pct",
-                  "sharpe_ratio", "sortino_ratio", "calmar_ratio",
-                  "max_drawdown_pct", "max_drawdown_duration_days",
-                  "win_rate_pct", "var_hist_99_pct", "cvar_hist_99_pct",
-                  "skewness", "excess_kurtosis", "omega_ratio", "tail_ratio",
-                  "alpha_ann_pct", "beta", "information_ratio"]:
+        for k in [
+            "total_return_pct",
+            "ann_return_pct",
+            "ann_volatility_pct",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "calmar_ratio",
+            "max_drawdown_pct",
+            "max_drawdown_duration_days",
+            "win_rate_pct",
+            "var_hist_99_pct",
+            "cvar_hist_99_pct",
+            "skewness",
+            "excess_kurtosis",
+            "omega_ratio",
+            "tail_ratio",
+            "alpha_ann_pct",
+            "beta",
+            "information_ratio",
+        ]:
             v = metrics.get(k)
             if v is not None:
                 log.info(f"  {k:<35} {v:>12.4f}")

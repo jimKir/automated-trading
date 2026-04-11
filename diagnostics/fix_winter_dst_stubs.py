@@ -21,8 +21,8 @@ Usage:
     PYTHONPATH=. python diagnostics/fix_winter_dst_stubs.py --dry-run
     PYTHONPATH=. python diagnostics/fix_winter_dst_stubs.py --delete
 """
+
 import argparse
-import json
 import re
 import sys
 from datetime import date
@@ -40,14 +40,16 @@ DST_END = {
 
 date_pat = re.compile(r"_(\d{4}-\d{2}-\d{2})_")
 
+
 def is_winter_date(d: date) -> bool:
     """True if date falls in winter (EST, UTC-5) period."""
-    dst_end   = DST_END.get(d.year)
+    dst_end = DST_END.get(d.year)
     # DST resumes second Sunday of March each year (approx Mar 8-14)
     dst_start_approx = date(d.year, 3, 14)  # safe upper bound for DST start
     if dst_end and dst_start_approx:
         return d >= dst_end or d < dst_start_approx
     return False
+
 
 def find_winter_stubs():
     """Find all empty stubs (v={}) on winter dates."""
@@ -69,12 +71,13 @@ def find_winter_stubs():
             stubs.append((d, f))
     return sorted(stubs)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Fix winter DST empty stubs")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show what would be deleted without deleting")
-    parser.add_argument("--delete", action="store_true",
-                        help="Actually delete the stubs")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be deleted without deleting"
+    )
+    parser.add_argument("--delete", action="store_true", help="Actually delete the stubs")
     args = parser.parse_args()
 
     if not args.dry_run and not args.delete:
@@ -106,18 +109,20 @@ def main():
         for d, f in items[:5]:
             print(f"    {d}  {f.name[:55]}")
         if len(items) > 5:
-            print(f"    ... and {len(items)-5} more")
+            print(f"    ... and {len(items) - 5} more")
         print()
 
     # Cost estimate for re-fetch
     n = len(stubs)
-    est_gb   = n * 20 * 0.0016   # 20 symbols × 1.6MB per symbol per day
+    est_gb = n * 20 * 0.0016  # 20 symbols × 1.6MB per symbol per day
     est_cost = est_gb * 16.0
-    print(f"  Re-fetch cost estimate: {n} dates × 20 syms × 1.6MB = {est_gb*1024:.0f} MB ≈ ${est_cost:.2f}")
+    print(
+        f"  Re-fetch cost estimate: {n} dates × 20 syms × 1.6MB = {est_gb * 1024:.0f} MB ≈ ${est_cost:.2f}"
+    )
     print()
 
     if args.dry_run:
-        print(f"  DRY RUN — no files deleted")
+        print("  DRY RUN — no files deleted")
         print(f"  Run with --delete to remove {len(stubs)} stubs")
     elif args.delete:
         deleted = 0
@@ -129,11 +134,12 @@ def main():
                 print(f"  Could not delete {f.name}: {e}")
         print(f"  ✅ Deleted {deleted}/{len(stubs)} winter stubs")
         print()
-        print(f"  Next step: re-run validate_databento_signals.py")
-        print(f"  The DST-aware window is already correct in databento_imbalance.py.")
-        print(f"  Estimated re-fetch: ${est_cost:.2f} and ~{n*50//60}–{n*70//60} min")
+        print("  Next step: re-run validate_databento_signals.py")
+        print("  The DST-aware window is already correct in databento_imbalance.py.")
+        print(f"  Estimated re-fetch: ${est_cost:.2f} and ~{n * 50 // 60}–{n * 70 // 60} min")
     print("=" * 62)
     print()
+
 
 if __name__ == "__main__":
     main()

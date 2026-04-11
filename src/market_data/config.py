@@ -17,10 +17,12 @@ _ENV_VAR_PATTERN = re.compile(r"\$\{(\w+)(?::-(.*?))?\}")
 def _resolve_env_vars(value: Any) -> Any:
     """Recursively resolve ${VAR:-default} patterns in config values."""
     if isinstance(value, str):
+
         def _replace(match: re.Match[str]) -> str:
             var_name = match.group(1)
             default = match.group(2) if match.group(2) is not None else ""
             return os.environ.get(var_name, default)
+
         return _ENV_VAR_PATTERN.sub(_replace, value)
     if isinstance(value, dict):
         return {k: _resolve_env_vars(v) for k, v in value.items()}
@@ -105,9 +107,7 @@ class BackfillCfg(BaseModel):
     start_date: str = "2019-01-01"
     end_date: str = "2026-03-24"
     symbols: list[str] = Field(default_factory=lambda: ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"])
-    schemas: list[str] = Field(
-        default_factory=lambda: ["trades", "quotes", "ohlcv-1m", "ohlcv-1d"]
-    )
+    schemas: list[str] = Field(default_factory=lambda: ["trades", "quotes", "ohlcv-1m", "ohlcv-1d"])
     chunk_size_days: int = 30
     max_retries: int = 5
     checkpoint_every_records: int = 1000

@@ -8,12 +8,13 @@ Handles:
   - VaR / CVaR (Historical + Parametric + Monte Carlo)
   - Black swan / tail risk metrics (Omega ratio, Tail Ratio, Stress scenarios)
 """
+
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Optional, Tuple
 from scipy import stats
+
 from utils.logger import get_logger
 
 log = get_logger("RiskManager")
@@ -33,10 +34,10 @@ class RiskManager:
 
         self._peak_equity = None
         self._daily_start_equity = None
-        self._daily_start_cash: Optional[float] = None   # cash at start of day (realised P&L)
-        self._daily_realised_loss: float = 0.0           # cumulative realised loss today
+        self._daily_start_cash: float | None = None  # cash at start of day (realised P&L)
+        self._daily_realised_loss: float = 0.0  # cumulative realised loss today
         self._trading_halted = False
-        self._daily_halt_date: Optional[str] = None
+        self._daily_halt_date: str | None = None
 
     # -----------------------------------------------------------------------
     # Circuit-breakers
@@ -81,18 +82,17 @@ class RiskManager:
         dd = (self._peak_equity - equity) / self._peak_equity
         if dd < 0.08:
             return 1.0
-        elif dd < 0.15:
+        if dd < 0.15:
             # Linear from 1.0 at 8% DD → 0.50 at 15% DD
             t = (dd - 0.08) / 0.07
             return 1.0 - 0.50 * t
-        elif dd < 0.25:
+        if dd < 0.25:
             # Linear from 0.50 at 15% DD → 0.20 at 25% DD
             t = (dd - 0.15) / 0.10
             return 0.50 - 0.30 * t
-        else:
-            return 0.20  # floor — never go fully flat
+        return 0.20  # floor — never go fully flat
 
-    def check_halt(self, equity: float, cash: float = None, date=None) -> Tuple[bool, str]:
+    def check_halt(self, equity: float, cash: float = None, date=None) -> tuple[bool, str]:
         """
         Returns (should_halt, reason).
 
@@ -111,9 +111,11 @@ class RiskManager:
         if self._peak_equity and self._peak_equity > 0:
             drawdown = (self._peak_equity - equity) / self._peak_equity
             if drawdown >= 0.40 and not self._trading_halted:
-                self._trading_halted = True   # flag for logging only
-                log.critical(f"CIRCUIT BREAKER WARNING: drawdown {drawdown:.2%} >= 40% "
-                             f"— positions reduced to 20% via drawdown_scale()")
+                self._trading_halted = True  # flag for logging only
+                log.critical(
+                    f"CIRCUIT BREAKER WARNING: drawdown {drawdown:.2%} >= 40% "
+                    f"— positions reduced to 20% via drawdown_scale()"
+                )
             # Never actually halt — drawdown_scale() handles the reduction
 
         # ── 2. Daily loss — realised cash only ───────────────────────────
@@ -129,15 +131,16 @@ class RiskManager:
                         f"DAILY HALT [{today_str}]: realised cash loss "
                         f"{daily_loss_pct:.2%} >= {self.daily_loss_limit:.2%}"
                     )
-                return True, (f"Daily realised loss: {daily_loss_pct:.2%} "
-                               f">= {self.daily_loss_limit:.2%}")
+                return True, (
+                    f"Daily realised loss: {daily_loss_pct:.2%} >= {self.daily_loss_limit:.2%}"
+                )
 
         return False, ""
 
     def reset_daily(self, equity: float, cash: float = None) -> None:
         """Call at the start of each new trading day."""
         self._daily_start_equity = equity
-        self._daily_start_cash  = cash  # None = not provided, halt won't fire
+        self._daily_start_cash = cash  # None = not provided, halt won't fire
         self._daily_realised_loss = 0.0
 
     # -----------------------------------------------------------------------
@@ -174,7 +177,9 @@ class RiskManager:
         Position $ = equity * target_vol / realized_vol
         """
         if len(symbol_returns) < 5:
-            return self.max_position_pct * 0.25 * equity  # conservative: 25% of max when data insufficient
+            return (
+                self.max_position_pct * 0.25 * equity
+            )  # conservative: 25% of max when data insufficient
         realized_vol = symbol_returns.std()
         if realized_vol == 0:
             return 0.0
@@ -185,7 +190,7 @@ class RiskManager:
     def compute_position_size(
         self,
         equity: float,
-        signal_strength: float,   # 0..1
+        signal_strength: float,  # 0..1
         symbol_returns: pd.Series,
         win_rate: float = 0.55,
         avg_win: float = 0.02,
@@ -208,12 +213,12 @@ class RiskManager:
     # Portfolio heat
     # -----------------------------------------------------------------------
 
-    def portfolio_heat(self, positions: Dict[str, float], equity: float) -> float:
+    def portfolio_heat(self, positions: dict[str, float], equity: float) -> float:
         """Total % of equity currently at risk."""
         total_exposure = sum(abs(v) for v in positions.values())
         return total_exposure / equity if equity > 0 else 0.0
 
-    def can_add_position(self, positions: Dict[str, float], equity: float) -> bool:
+    def can_add_position(self, positions: dict[str, float], equity: float) -> bool:
         heat = self.portfolio_heat(positions, equity)
         return heat < self.max_portfolio_heat
 
@@ -280,9 +285,7 @@ class RiskManager:
         sim = rng.normal(mu, sigma, (simulations, horizon)).sum(axis=1)
         return float(-np.percentile(sim, (1 - confidence) * 100))
 
-    def full_var_report(
-        self, returns: pd.Series, equity: float
-    ) -> Dict[str, float]:
+    def full_var_report(self, returns: pd.Series, equity: float) -> dict[str, float]:
         """All VaR metrics in dollar terms."""
         conf = self.var_confidence
         w = self.var_window
@@ -359,7 +362,7 @@ class RiskManager:
         return float(returns.dropna().kurt())  # excess kurtosis
 
     @staticmethod
-    def stress_test(returns: pd.Series) -> Dict[str, float]:
+    def stress_test(returns: pd.Series) -> dict[str, float]:
         """
         Simulate known crash scenarios applied to current strategy returns.
         Returns expected portfolio loss % if similar conditions occurred.

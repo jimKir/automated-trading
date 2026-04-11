@@ -23,6 +23,7 @@ Commands:
     python -m src.market_data.historical_store --audit      # data quality report
     python -m src.market_data.historical_store --status     # quick coverage summary
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,12 +31,10 @@ import json
 import logging
 import os
 import smtplib
-import traceback
 from datetime import date, datetime, timedelta
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -44,36 +43,64 @@ log = logging.getLogger("HistoricalStore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
+<<<<<<< Updated upstream
 REPO_ROOT    = Path(__file__).parent.parent.parent
 DATA_DIR     = REPO_ROOT / "data" / "historical"
 DAILY_DIR    = DATA_DIR / "daily"
 MACRO_DIR    = DATA_DIR / "macro"
 META_FILE    = DATA_DIR / "metadata.json"
 ALERT_EMAIL  = os.environ.get("ALERT_EMAIL", "")
+=======
+REPO_ROOT = Path(__file__).parent.parent.parent
+DATA_DIR = REPO_ROOT / "data" / "historical"
+DAILY_DIR = DATA_DIR / "daily"
+MACRO_DIR = DATA_DIR / "macro"
+META_FILE = DATA_DIR / "metadata.json"
+ALERT_EMAIL = "kiritsis.di@gmail.com"
+>>>>>>> Stashed changes
 
 # ── Universe ───────────────────────────────────────────────────────────────────
 EQUITY_SYMS = [
-    "AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA","AVGO",
-    "JPM","V","MA","UNH","JNJ","PG","HD","KO","XOM","CVX","BAC","GS",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "TSLA",
+    "AVGO",
+    "JPM",
+    "V",
+    "MA",
+    "UNH",
+    "JNJ",
+    "PG",
+    "HD",
+    "KO",
+    "XOM",
+    "CVX",
+    "BAC",
+    "GS",
 ]
 MACRO_SYMS = {
-    "SPY":  "SPY",          # S&P 500 ETF
-    "QQQ":  "QQQ",          # NASDAQ 100 ETF
-    "VIX":  "^VIX",         # CBOE Volatility Index
-    "HYG":  "HYG",          # High-yield bond ETF
-    "LQD":  "LQD",          # Investment-grade bond ETF
-    "TLT":  "TLT",          # 20Y Treasury ETF
-    "SHY":  "SHY",          # 1-3Y Treasury ETF
-    "GLD":  "GLD",          # Gold ETF
-    "DXY":  "DX-Y.NYB",     # Dollar Index
-    "IWM":  "IWM",          # Russell 2000 ETF
+    "SPY": "SPY",  # S&P 500 ETF
+    "QQQ": "QQQ",  # NASDAQ 100 ETF
+    "VIX": "^VIX",  # CBOE Volatility Index
+    "HYG": "HYG",  # High-yield bond ETF
+    "LQD": "LQD",  # Investment-grade bond ETF
+    "TLT": "TLT",  # 20Y Treasury ETF
+    "SHY": "SHY",  # 1-3Y Treasury ETF
+    "GLD": "GLD",  # Gold ETF
+    "DXY": "DX-Y.NYB",  # Dollar Index
+    "IWM": "IWM",  # Russell 2000 ETF
 }
 
 HISTORY_START = "2010-01-01"
-REFRESH_TAIL  = 7   # always re-fetch last N trading days (bars get revised)
+REFRESH_TAIL = 7  # always re-fetch last N trading days (bars get revised)
 
 
 # ── Metadata ───────────────────────────────────────────────────────────────────
+
 
 def load_meta() -> dict:
     if META_FILE.exists():
@@ -83,6 +110,7 @@ def load_meta() -> dict:
             return {}
     return {}
 
+
 def save_meta(meta: dict):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     META_FILE.write_text(json.dumps(meta, indent=2, default=str))
@@ -90,24 +118,30 @@ def save_meta(meta: dict):
 
 # ── Data fetcher ───────────────────────────────────────────────────────────────
 
-def fetch_yfinance(ticker: str, start: str, end: str) -> Optional[pd.DataFrame]:
+
+def fetch_yfinance(ticker: str, start: str, end: str) -> pd.DataFrame | None:
     """
     Fetch OHLCV from yfinance. Returns None on failure.
     Cleans up the multi-level column index yfinance sometimes produces.
     """
     try:
         import yfinance as yf
-        df = yf.download(ticker, start=start, end=end,
-                         auto_adjust=True, progress=False)
+
+        df = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
         if df is None or df.empty:
             return None
         # Flatten multi-level columns if present
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
-        df = df.rename(columns={
-            "Open": "open", "High": "high", "Low": "low",
-            "Close": "close", "Volume": "volume",
-        })
+        df = df.rename(
+            columns={
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Volume": "volume",
+            }
+        )
         df = df[["open", "high", "low", "close", "volume"]].copy()
         df.index.name = "date"
         df = df[df["close"].notna() & (df["close"] > 0)]
@@ -117,29 +151,39 @@ def fetch_yfinance(ticker: str, start: str, end: str) -> Optional[pd.DataFrame]:
         return None
 
 
-def fetch_alpaca(ticker: str, start: str, end: str) -> Optional[pd.DataFrame]:
+def fetch_alpaca(ticker: str, start: str, end: str) -> pd.DataFrame | None:
     """Alpaca fallback for recent data not yet in yfinance."""
-    key    = os.environ.get("ALPACA_API_KEY", "")
+    key = os.environ.get("ALPACA_API_KEY", "")
     secret = os.environ.get("ALPACA_API_SECRET", "")
     if not key:
         return None
     try:
         from alpaca.data.historical import StockHistoricalDataClient
-        from alpaca.data.requests   import StockBarsRequest
-        from alpaca.data.timeframe  import TimeFrame, TimeFrameUnit
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
         client = StockHistoricalDataClient(api_key=key, secret_key=secret)
         req = StockBarsRequest(
             symbol_or_symbols=ticker,
             timeframe=TimeFrame(1, TimeFrameUnit.Day),
-            start=start, end=end, adjustment="all",
+            start=start,
+            end=end,
+            adjustment="all",
         )
         resp = client.get_stock_bars(req)
         if not resp or not resp.data or ticker not in resp.data:
             return None
-        rows = [{"date": pd.Timestamp(b.timestamp).normalize(),
-                 "open": b.open, "high": b.high, "low": b.low,
-                 "close": b.close, "volume": b.volume}
-                for b in resp.data[ticker]]
+        rows = [
+            {
+                "date": pd.Timestamp(b.timestamp).normalize(),
+                "open": b.open,
+                "high": b.high,
+                "low": b.low,
+                "close": b.close,
+                "volume": b.volume,
+            }
+            for b in resp.data[ticker]
+        ]
         df = pd.DataFrame(rows).set_index("date").sort_index()
         return df[df["close"] > 0]
     except Exception as e:
@@ -149,12 +193,14 @@ def fetch_alpaca(ticker: str, start: str, end: str) -> Optional[pd.DataFrame]:
 
 # ── Parquet I/O ────────────────────────────────────────────────────────────────
 
+
 def parquet_path(sym: str, kind: str = "daily") -> Path:
     base = DAILY_DIR if kind == "daily" else MACRO_DIR
     base.mkdir(parents=True, exist_ok=True)
     return base / f"{sym}.parquet"
 
-def load_parquet(sym: str, kind: str = "daily") -> Optional[pd.DataFrame]:
+
+def load_parquet(sym: str, kind: str = "daily") -> pd.DataFrame | None:
     p = parquet_path(sym, kind)
     if not p.exists():
         return None
@@ -167,6 +213,7 @@ def load_parquet(sym: str, kind: str = "daily") -> Optional[pd.DataFrame]:
         log.warning(f"Failed to read {p}: {e}")
         return None
 
+
 def save_parquet(df: pd.DataFrame, sym: str, kind: str = "daily"):
     """Atomic write: temp → rename."""
     p = parquet_path(sym, kind)
@@ -177,8 +224,8 @@ def save_parquet(df: pd.DataFrame, sym: str, kind: str = "daily"):
 
 # ── Core operations ────────────────────────────────────────────────────────────
 
-def collect_symbol(sym: str, ticker: str, kind: str = "daily",
-                   start: str = HISTORY_START) -> dict:
+
+def collect_symbol(sym: str, ticker: str, kind: str = "daily", start: str = HISTORY_START) -> dict:
     """
     First-time full download for one symbol.
     Returns status dict.
@@ -194,8 +241,13 @@ def collect_symbol(sym: str, ticker: str, kind: str = "daily",
         return {"sym": sym, "status": "FAILED", "rows": 0, "error": "no data"}
 
     save_parquet(df, sym, kind)
-    return {"sym": sym, "status": "OK", "rows": len(df),
-            "first": str(df.index[0].date()), "last": str(df.index[-1].date())}
+    return {
+        "sym": sym,
+        "status": "OK",
+        "rows": len(df),
+        "first": str(df.index[0].date()),
+        "last": str(df.index[-1].date()),
+    }
 
 
 def update_symbol(sym: str, ticker: str, kind: str = "daily") -> dict:
@@ -225,17 +277,23 @@ def update_symbol(sym: str, ticker: str, kind: str = "daily") -> dict:
 
     # Remove overlap, append new
     cutoff = pd.Timestamp(refresh_from)
-    old    = existing[existing.index < cutoff]
+    old = existing[existing.index < cutoff]
     merged = pd.concat([old, new_data]).sort_index()
     merged = merged[~merged.index.duplicated(keep="last")]
 
     save_parquet(merged, sym, kind)
     new_rows = len(merged) - len(existing)
-    return {"sym": sym, "status": "UPDATED", "rows": len(merged),
-            "new_rows": new_rows, "last": str(merged.index[-1].date())}
+    return {
+        "sym": sym,
+        "status": "UPDATED",
+        "rows": len(merged),
+        "new_rows": new_rows,
+        "last": str(merged.index[-1].date()),
+    }
 
 
 # ── Quality validation ─────────────────────────────────────────────────────────
+
 
 def validate_symbol(sym: str, kind: str = "daily") -> dict:
     """
@@ -253,11 +311,10 @@ def validate_symbol(sym: str, kind: str = "daily") -> dict:
     issues = []
 
     if df is None or df.empty:
-        return {"sym": sym, "status": "MISSING", "issues": ["No data file"],
-                "rows": 0, "score": 0}
+        return {"sym": sym, "status": "MISSING", "issues": ["No data file"], "rows": 0, "score": 0}
 
     rows = len(df)
-    score = 100   # start at 100, deduct per issue
+    score = 100  # start at 100, deduct per issue
 
     # ── Check 1: Staleness ──────────────────────────────────────────────────
     last_date = df.index[-1].date()
@@ -275,9 +332,9 @@ def validate_symbol(sym: str, kind: str = "daily") -> dict:
         score -= 30
 
     # ── Check 3: OHLC consistency ───────────────────────────────────────────
-    bad_ohlc = ((df["high"] < df["close"]) |
-                (df["low"]  > df["close"]) |
-                (df["high"] < df["low"])).sum()
+    bad_ohlc = (
+        (df["high"] < df["close"]) | (df["low"] > df["close"]) | (df["high"] < df["low"])
+    ).sum()
     if bad_ohlc > 0:
         issues.append(f"BAD_OHLC: {bad_ohlc} bars where H<C or L>C or H<L")
         score -= min(bad_ohlc * 5, 25)
@@ -291,7 +348,7 @@ def validate_symbol(sym: str, kind: str = "daily") -> dict:
             worst = outliers.abs().nlargest(3)
             issues.append(
                 f"OUTLIERS: {len(outliers)} returns > 5σ. "
-                f"Worst: {', '.join(f'{d.date()}={v*100:.1f}%' for d,v in worst.items())}"
+                f"Worst: {', '.join(f'{d.date()}={v * 100:.1f}%' for d, v in worst.items())}"
             )
             score -= min(len(outliers) * 3, 20)
 
@@ -301,13 +358,14 @@ def validate_symbol(sym: str, kind: str = "daily") -> dict:
         # Use CustomBusinessDay with US holidays for accurate gap detection
         try:
             from pandas.tseries.holiday import USFederalHolidayCalendar
+
             us_bday = pd.offsets.CustomBusinessDay(calendar=USFederalHolidayCalendar())
             date_range = pd.date_range(df.index[0], df.index[-1], freq=us_bday)
         except Exception:
             date_range = pd.bdate_range(df.index[0], df.index[-1])
         expected = len(date_range)
-        actual   = len(df)
-        missing  = expected - actual
+        actual = len(df)
+        missing = expected - actual
         if missing > 15:
             gap_pct = missing / expected * 100
             issues.append(f"GAPS: {missing} missing trading days ({gap_pct:.1f}% of expected)")
@@ -324,17 +382,18 @@ def validate_symbol(sym: str, kind: str = "daily") -> dict:
     status = "OK" if score >= 90 else ("WARN" if score >= 70 else "BAD")
 
     return {
-        "sym":    sym,
+        "sym": sym,
         "status": status,
-        "score":  score,
-        "rows":   rows,
-        "first":  str(df.index[0].date()),
-        "last":   str(df.index[-1].date()),
+        "score": score,
+        "rows": rows,
+        "first": str(df.index[0].date()),
+        "last": str(df.index[-1].date()),
         "issues": issues,
     }
 
 
 # ── Email alerts ───────────────────────────────────────────────────────────────
+
 
 def send_alert(subject: str, body: str, to: str = ALERT_EMAIL):
     """
@@ -349,7 +408,7 @@ def send_alert(subject: str, body: str, to: str = ALERT_EMAIL):
     host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com")
     port = int(os.environ.get("ALERT_SMTP_PORT", "587"))
     user = os.environ.get("ALERT_SMTP_USER", "")
-    pwd  = os.environ.get("ALERT_SMTP_PASS", "")
+    pwd = os.environ.get("ALERT_SMTP_PASS", "")
 
     if not user or not pwd:
         log.warning(f"[ALERT — email not configured] {subject}\n{body}")
@@ -358,8 +417,8 @@ def send_alert(subject: str, body: str, to: str = ALERT_EMAIL):
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"[TradingSystem] {subject}"
-        msg["From"]    = user
-        msg["To"]      = to
+        msg["From"] = user
+        msg["To"] = to
         msg.attach(MIMEText(body, "plain"))
 
         with smtplib.SMTP(host, port) as server:
@@ -374,18 +433,18 @@ def send_alert(subject: str, body: str, to: str = ALERT_EMAIL):
 
 def alert_if_issues(results: list[dict]):
     """Check validation results and send email if any BAD or WARN symbols."""
-    bad  = [r for r in results if r["status"] == "BAD"]
+    bad = [r for r in results if r["status"] == "BAD"]
     warn = [r for r in results if r["status"] == "WARN"]
 
     if not bad and not warn:
         return
 
     lines = [
-        f"Trading System — Data Quality Alert",
+        "Trading System — Data Quality Alert",
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"",
+        "",
         f"{'BAD' if bad else 'WARNING'} quality data detected. DO NOT trade without resolving.",
-        f"",
+        "",
     ]
 
     if bad:
@@ -405,8 +464,8 @@ def alert_if_issues(results: list[dict]):
         lines.append("")
 
     lines += [
-        f"Run  python -m src.market_data.historical_store --audit  for full details.",
-        f"Run  python -m src.market_data.historical_store --update  to refresh data.",
+        "Run  python -m src.market_data.historical_store --audit  for full details.",
+        "Run  python -m src.market_data.historical_store --update  to refresh data.",
     ]
 
     body = "\n".join(lines)
@@ -416,8 +475,8 @@ def alert_if_issues(results: list[dict]):
 
 # ── Public API (used by backtest/live engine) ──────────────────────────────────
 
-def load_all_daily(start: str = "2021-01-01",
-                   end: Optional[str] = None) -> dict[str, pd.DataFrame]:
+
+def load_all_daily(start: str = "2021-01-01", end: str | None = None) -> dict[str, pd.DataFrame]:
     """
     Load all equity and macro OHLCV data into memory.
     Returns {ticker: DataFrame} dict ready for the backtest engine.
@@ -439,14 +498,22 @@ def load_all_daily(start: str = "2021-01-01",
         if df is not None and not df.empty:
             df = df.loc[start:end]
             # Rename to title case for backtest engine compatibility
-            df = df.rename(columns={"open":"Open","high":"High","low":"Low",
-                                     "close":"Close","volume":"Volume"})
-            result[ticker if kind=="macro" else sym] = df
+            df = df.rename(
+                columns={
+                    "open": "Open",
+                    "high": "High",
+                    "low": "Low",
+                    "close": "Close",
+                    "volume": "Volume",
+                }
+            )
+            result[ticker if kind == "macro" else sym] = df
 
     return result
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
+
 
 def cmd_collect(args):
     """First-time full download of all symbols."""
@@ -463,22 +530,25 @@ def cmd_collect(args):
     ok, failed = [], []
     for sym, ticker, kind in all_syms:
         result = collect_symbol(sym, ticker, kind)
-        meta[sym] = {**result, "last_updated": datetime.now().isoformat(),
-                     "source": "yfinance", "kind": kind}
+        meta[sym] = {
+            **result,
+            "last_updated": datetime.now().isoformat(),
+            "source": "yfinance",
+            "kind": kind,
+        }
         if result["status"] == "OK":
             ok.append(sym)
             print(f"  ✅ {sym:<6} {result['rows']:>5} rows  {result['first']} → {result['last']}")
         else:
             failed.append(sym)
-            print(f"  ❌ {sym:<6} FAILED — {result.get('error','')}")
+            print(f"  ❌ {sym:<6} FAILED — {result.get('error', '')}")
 
     save_meta(meta)
     print()
     print(f"  Completed: {len(ok)} OK, {len(failed)} failed")
     if failed:
         print(f"  Failed: {failed}")
-        send_alert("Data Collection Failures",
-                   f"Failed to collect: {failed}\nRun --collect again.")
+        send_alert("Data Collection Failures", f"Failed to collect: {failed}\nRun --collect again.")
     print(f"  Data saved to: {DATA_DIR}")
     print("=" * 60)
 
@@ -498,24 +568,22 @@ def cmd_update(args):
     updated, no_change, failed = [], [], []
     for sym, ticker, kind in all_syms:
         result = update_symbol(sym, ticker, kind)
-        meta[sym] = {**meta.get(sym, {}), **result,
-                     "last_updated": datetime.now().isoformat()}
+        meta[sym] = {**meta.get(sym, {}), **result, "last_updated": datetime.now().isoformat()}
         if result["status"] == "UPDATED":
             updated.append(sym)
-            print(f"  ✅ {sym:<6} +{result.get('new_rows',0)} rows → {result.get('last','?')}")
+            print(f"  ✅ {sym:<6} +{result.get('new_rows', 0)} rows → {result.get('last', '?')}")
         elif result["status"] == "NO_NEW":
             no_change.append(sym)
             print(f"  ─  {sym:<6} already up to date")
         else:
             failed.append(sym)
-            print(f"  ❌ {sym:<6} {result.get('status','FAILED')}")
+            print(f"  ❌ {sym:<6} {result.get('status', 'FAILED')}")
 
     save_meta(meta)
     print()
     print(f"  Updated: {len(updated)}  No change: {len(no_change)}  Failed: {len(failed)}")
     if failed:
-        send_alert("Data Update Failures",
-                   f"Update failed for: {failed}\nRun --update again.")
+        send_alert("Data Update Failures", f"Update failed for: {failed}\nRun --update again.")
 
     # Auto-validate after update
     print("\n  Running post-update quality check...")
@@ -543,22 +611,28 @@ def cmd_audit(args, quiet: bool = False):
         if r["status"] == "BAD":
             bad.append(r)
             if not quiet:
-                print(f"  ❌ {sym:<6} score={r['score']:>3}/100  {r['rows']:>5} rows  "
-                      f"{r.get('first','?')} → {r.get('last','?')}")
+                print(
+                    f"  ❌ {sym:<6} score={r['score']:>3}/100  {r['rows']:>5} rows  "
+                    f"{r.get('first', '?')} → {r.get('last', '?')}"
+                )
                 for issue in r["issues"]:
                     print(f"       → {issue}")
         elif r["status"] == "WARN":
             warn.append(r)
             if not quiet:
-                print(f"  ⚠️  {sym:<6} score={r['score']:>3}/100  {r['rows']:>5} rows  "
-                      f"{r.get('first','?')} → {r.get('last','?')}")
+                print(
+                    f"  ⚠️  {sym:<6} score={r['score']:>3}/100  {r['rows']:>5} rows  "
+                    f"{r.get('first', '?')} → {r.get('last', '?')}"
+                )
                 for issue in r["issues"]:
                     print(f"       → {issue}")
         else:
             ok_syms.append(sym)
             if not quiet:
-                print(f"  ✅ {sym:<6} score={r['score']:>3}/100  {r['rows']:>5} rows  "
-                      f"{r.get('first','?')} → {r.get('last','?')}")
+                print(
+                    f"  ✅ {sym:<6} score={r['score']:>3}/100  {r['rows']:>5} rows  "
+                    f"{r.get('first', '?')} → {r.get('last', '?')}"
+                )
 
     if not quiet:
         print()
@@ -578,13 +652,16 @@ def cmd_status(args):
     print("=" * 55)
     meta = load_meta()
     all_syms = EQUITY_SYMS + list(MACRO_SYMS.keys())
-    missing = [s for s in all_syms if not parquet_path(s, "daily").exists()
-               and not parquet_path(s, "macro").exists()]
+    missing = [
+        s
+        for s in all_syms
+        if not parquet_path(s, "daily").exists() and not parquet_path(s, "macro").exists()
+    ]
     present = [s for s in all_syms if s not in missing]
     print(f"  Present: {len(present)}/{len(all_syms)} symbols")
     if missing:
         print(f"  Missing: {missing}")
-        print(f"  Run: python -m src.market_data.historical_store --collect")
+        print("  Run: python -m src.market_data.historical_store --collect")
     else:
         lasts = []
         for sym in present:
@@ -596,26 +673,32 @@ def cmd_status(args):
             print(f"  Latest bar:  {max(lasts)}")
             print(f"  Oldest last: {min(lasts)}")
             if (date.today() - max(lasts)).days > 5:
-                print(f"  ⚠️  Data is stale — run: python -m src.market_data.historical_store --update")
+                print(
+                    "  ⚠️  Data is stale — run: python -m src.market_data.historical_store --update"
+                )
             else:
-                print(f"  ✅ Data is current")
+                print("  ✅ Data is current")
     print("=" * 55)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Historical data store")
     grp = parser.add_mutually_exclusive_group(required=True)
-    grp.add_argument("--collect", action="store_true",
-                     help="First-time full download of all symbols")
-    grp.add_argument("--update",  action="store_true",
-                     help="Incremental update — append latest bars")
-    grp.add_argument("--audit",   action="store_true",
-                     help="Full data quality audit")
-    grp.add_argument("--status",  action="store_true",
-                     help="Quick coverage summary")
+    grp.add_argument(
+        "--collect", action="store_true", help="First-time full download of all symbols"
+    )
+    grp.add_argument(
+        "--update", action="store_true", help="Incremental update — append latest bars"
+    )
+    grp.add_argument("--audit", action="store_true", help="Full data quality audit")
+    grp.add_argument("--status", action="store_true", help="Quick coverage summary")
     args = parser.parse_args()
 
-    if args.collect: cmd_collect(args)
-    elif args.update: cmd_update(args)
-    elif args.audit:  cmd_audit(args)
-    elif args.status: cmd_status(args)
+    if args.collect:
+        cmd_collect(args)
+    elif args.update:
+        cmd_update(args)
+    elif args.audit:
+        cmd_audit(args)
+    elif args.status:
+        cmd_status(args)

@@ -34,11 +34,10 @@ Anti-overfitting:
     all-equity portfolio even in the strongest bull markets
   - Smoothed with 3-month EWM to prevent whipsawing
 """
+
 from __future__ import annotations
 
-import warnings
 import time
-from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -49,14 +48,14 @@ log = get_logger("UniverseSelector")
 
 # ── Static fallback caps (used before adaptive regime is active) ──────────────
 STATIC_CAPS = {
-    "equity":  0.60,
+    "equity": 0.60,
     "futures": 0.25,
-    "crypto":  0.25,
+    "crypto": 0.25,
 }
 
 # ── Adaptive cap bounds ────────────────────────────────────────────────────────
-EQUITY_CAP_MIN  = 0.60   # floor: bear market
-EQUITY_CAP_MAX  = 0.90   # ceiling: strong bull
+EQUITY_CAP_MIN = 0.60  # floor: bear market
+EQUITY_CAP_MAX = 0.90  # ceiling: strong bull
 # Remainder split evenly between futures and crypto
 FUTURES_CRYPTO_SHARE = 0.50  # when equity=60%, futures=25%, crypto=25% → split remaining 40%
 
@@ -87,23 +86,23 @@ class AdaptiveCaps:
 
     def __init__(self, config: dict):
         du_cfg = config.get("dynamic_universe", {})
-        self.enabled      = du_cfg.get("adaptive_caps", True)
-        self.cap_min      = du_cfg.get("equity_cap_min", EQUITY_CAP_MIN)
-        self.cap_max      = du_cfg.get("equity_cap_max", EQUITY_CAP_MAX)
+        self.enabled = du_cfg.get("adaptive_caps", True)
+        self.cap_min = du_cfg.get("equity_cap_min", EQUITY_CAP_MIN)
+        self.cap_max = du_cfg.get("equity_cap_max", EQUITY_CAP_MAX)
         self.regime_window = du_cfg.get("momentum_window", 126)  # reuse momentum window
 
         # Smoothed regime score (EWM across rebalances)
-        self._regime_ewm: Optional[float] = None
-        self._cap_log: List[dict] = []   # for diagnostics / reporting
+        self._regime_ewm: float | None = None
+        self._cap_log: list[dict] = []  # for diagnostics / reporting
 
     # ─────────────────────────────────────────────────────────────────────────
 
     def compute(
         self,
-        all_data: Dict[str, pd.DataFrame],
-        scores: Dict[str, float],
+        all_data: dict[str, pd.DataFrame],
+        scores: dict[str, float],
         as_of_date: pd.Timestamp,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Compute adaptive caps for the current rebalance date.
 
@@ -136,24 +135,26 @@ class AdaptiveCaps:
         equity_cap = float(np.clip(equity_cap, self.cap_min, self.cap_max))
 
         # Remaining budget split evenly between futures and crypto
-        remaining   = 1.0 - equity_cap
+        remaining = 1.0 - equity_cap
         futures_cap = remaining * 0.50
-        crypto_cap  = remaining * 0.50
+        crypto_cap = remaining * 0.50
 
         caps = {
-            "equity":  equity_cap,
+            "equity": equity_cap,
             "futures": futures_cap,
-            "crypto":  crypto_cap,
+            "crypto": crypto_cap,
         }
 
-        self._cap_log.append({
-            "date":         as_of_date,
-            "regime_raw":   round(regime_score, 3),
-            "regime_smooth": round(smooth_score, 3),
-            "equity_cap":   round(equity_cap, 3),
-            "futures_cap":  round(futures_cap, 3),
-            "crypto_cap":   round(crypto_cap, 3),
-        })
+        self._cap_log.append(
+            {
+                "date": as_of_date,
+                "regime_raw": round(regime_score, 3),
+                "regime_smooth": round(smooth_score, 3),
+                "equity_cap": round(equity_cap, 3),
+                "futures_cap": round(futures_cap, 3),
+                "crypto_cap": round(crypto_cap, 3),
+            }
+        )
 
         log.debug(
             f"[{as_of_date.date()}] Adaptive caps: "
@@ -167,8 +168,8 @@ class AdaptiveCaps:
 
     def _compute_regime_score(
         self,
-        all_data: Dict[str, pd.DataFrame],
-        scores: Dict[str, float],
+        all_data: dict[str, pd.DataFrame],
+        scores: dict[str, float],
         as_of_date: pd.Timestamp,
     ) -> float:
         """
@@ -194,8 +195,8 @@ class AdaptiveCaps:
             close = spy_data["Close"]
             close = close[close.index <= as_of_date].dropna()
             if len(close) >= 200:
-                spy_now  = float(close.iloc[-1])
-                ma200    = float(close.rolling(200).mean().iloc[-1])
+                spy_now = float(close.iloc[-1])
+                ma200 = float(close.rolling(200).mean().iloc[-1])
                 # How far above/below 200d MA (%)
                 distance = (spy_now - ma200) / ma200
                 # -5% below → 0.0, +5% above → 1.0
@@ -204,8 +205,9 @@ class AdaptiveCaps:
                 log.debug(f"  SPY vs 200MA: {distance:+.1%} → signal={s2:.2f}")
 
         # ── Signal 3: Equity vs defensive momentum spread ───────────────────
-        eq_scores  = [v for k, v in scores.items()
-                      if _classify(k) == "equity" and not _is_defensive(k)]
+        eq_scores = [
+            v for k, v in scores.items() if _classify(k) == "equity" and not _is_defensive(k)
+        ]
         def_scores = [v for k, v in scores.items() if _is_defensive(k)]
         if eq_scores and def_scores:
             spread = np.mean(eq_scores) - np.mean(def_scores)
@@ -245,22 +247,22 @@ class DynamicUniverseSelector:
 
     def __init__(self, config: dict):
         du_cfg = config.get("dynamic_universe", {})
-        self.enabled          = du_cfg.get("enabled", False)
-        self.top_n            = du_cfg.get("top_n", 20)
-        self.momentum_window  = du_cfg.get("momentum_window", 126)
+        self.enabled = du_cfg.get("enabled", False)
+        self.top_n = du_cfg.get("top_n", 20)
+        self.momentum_window = du_cfg.get("momentum_window", 126)
         self.min_history_days = du_cfg.get("min_history_days", 252)
-        self.rerank_freq      = du_cfg.get("rerank_frequency", "monthly")
+        self.rerank_freq = du_cfg.get("rerank_frequency", "monthly")
 
         candidates = du_cfg.get("candidates", {})
-        self._all_candidates: List[str] = (
-            candidates.get("equities", []) +
-            candidates.get("futures",  []) +
-            candidates.get("crypto",   [])
+        self._all_candidates: list[str] = (
+            candidates.get("equities", [])
+            + candidates.get("futures", [])
+            + candidates.get("crypto", [])
         )
 
-        self._last_selected:  List[str]              = []
-        self._last_rank_date: Optional[pd.Timestamp] = None
-        self._adaptive_caps   = AdaptiveCaps(config)
+        self._last_selected: list[str] = []
+        self._last_rank_date: pd.Timestamp | None = None
+        self._adaptive_caps = AdaptiveCaps(config)
 
         if self.enabled:
             adaptive = du_cfg.get("adaptive_caps", True)
@@ -275,21 +277,21 @@ class DynamicUniverseSelector:
 
     def select(
         self,
-        all_data: Dict[str, pd.DataFrame],
+        all_data: dict[str, pd.DataFrame],
         as_of_date: pd.Timestamp,
-    ) -> List[str]:
+    ) -> list[str]:
         if not self.enabled:
             return list(all_data.keys())
 
         if not self._needs_rerank(as_of_date):
             return self._last_selected
 
-        scores   = self._compute_momentum_scores(all_data, as_of_date)
+        scores = self._compute_momentum_scores(all_data, as_of_date)
         if not scores:
             return self._last_selected or list(all_data.keys())
 
         # Compute adaptive caps for this rebalance
-        caps     = self._adaptive_caps.compute(all_data, scores, as_of_date)
+        caps = self._adaptive_caps.compute(all_data, scores, as_of_date)
         selected = self._apply_caps_and_select(scores, caps)
 
         prev = set(self._last_selected)
@@ -304,7 +306,7 @@ class DynamicUniverseSelector:
                 f"-{len(rems)} ({', '.join(sorted(rems)[:4])})"
             )
 
-        self._last_selected  = selected
+        self._last_selected = selected
         self._last_rank_date = as_of_date
         return selected
 
@@ -314,16 +316,18 @@ class DynamicUniverseSelector:
         if self._last_rank_date is None:
             return True
         elapsed = (date - self._last_rank_date).days
-        if self.rerank_freq == "weekly":   return elapsed >= 5
-        if self.rerank_freq == "monthly":  return elapsed >= 21
+        if self.rerank_freq == "weekly":
+            return elapsed >= 5
+        if self.rerank_freq == "monthly":
+            return elapsed >= 21
         return elapsed >= 21
 
     def _compute_momentum_scores(
         self,
-        all_data: Dict[str, pd.DataFrame],
+        all_data: dict[str, pd.DataFrame],
         as_of_date: pd.Timestamp,
-    ) -> Dict[str, float]:
-        scores: Dict[str, float] = {}
+    ) -> dict[str, float]:
+        scores: dict[str, float] = {}
         for sym in self._all_candidates:
             if sym not in all_data:
                 continue
@@ -335,7 +339,7 @@ class DynamicUniverseSelector:
             if len(close) < self.momentum_window + 21:
                 continue
 
-            price_now  = float(close.iloc[-21])
+            price_now = float(close.iloc[-21])
             price_past = float(close.iloc[-self.momentum_window - 21])
             if price_past <= 0:
                 continue
@@ -354,14 +358,14 @@ class DynamicUniverseSelector:
 
     def _apply_caps_and_select(
         self,
-        scores: Dict[str, float],
-        caps: Dict[str, float],
-    ) -> List[str]:
+        scores: dict[str, float],
+        caps: dict[str, float],
+    ) -> list[str]:
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
-        max_equity  = max(1, int(self.top_n * caps["equity"]))
+        max_equity = max(1, int(self.top_n * caps["equity"]))
         max_futures = max(1, int(self.top_n * caps["futures"]))
-        max_crypto  = max(1, int(self.top_n * caps["crypto"]))
+        max_crypto = max(1, int(self.top_n * caps["crypto"]))
 
         counts = {"equity": 0, "futures": 0, "crypto": 0}
         limits = {"equity": max_equity, "futures": max_futures, "crypto": max_crypto}
@@ -388,11 +392,11 @@ class DynamicUniverseSelector:
 
     def compute_selection_series(
         self,
-        all_data: Dict[str, pd.DataFrame],
-        all_dates: List[pd.Timestamp],
-    ) -> Dict[pd.Timestamp, List[str]]:
-        selections: Dict[pd.Timestamp, List[str]] = {}
-        current: List[str] = []
+        all_data: dict[str, pd.DataFrame],
+        all_dates: list[pd.Timestamp],
+    ) -> dict[pd.Timestamp, list[str]]:
+        selections: dict[pd.Timestamp, list[str]] = {}
+        current: list[str] = []
 
         for date in all_dates:
             if self._needs_rerank(date):
@@ -400,7 +404,7 @@ class DynamicUniverseSelector:
                 self._last_rank_date = date
             selections[date] = list(current)
 
-        all_ever: Set[str] = set()
+        all_ever: set[str] = set()
         for syms in selections.values():
             all_ever.update(syms)
         log.info(
@@ -413,32 +417,30 @@ class DynamicUniverseSelector:
         """Return the full history of adaptive cap values (useful for reporting)."""
         return self._adaptive_caps.get_cap_history()
 
-    def get_selection_stats(
-        self, selections: Dict[pd.Timestamp, List[str]]
-    ) -> Dict:
-        all_syms: Set[str] = set()
-        symbol_counts: Dict[str, int] = {}
+    def get_selection_stats(self, selections: dict[pd.Timestamp, list[str]]) -> dict:
+        all_syms: set[str] = set()
+        symbol_counts: dict[str, int] = {}
         for syms in selections.values():
             all_syms.update(syms)
             for s in syms:
                 symbol_counts[s] = symbol_counts.get(s, 0) + 1
 
         total = len(selections)
-        freq  = {sym: c / total * 100 for sym, c in symbol_counts.items()}
+        freq = {sym: c / total * 100 for sym, c in symbol_counts.items()}
         return {
-            "total_candidates":  len(self._all_candidates),
-            "ever_selected":     len(all_syms),
-            "always_selected":   [s for s, f in freq.items() if f > 95],
-            "most_stable":       sorted(freq.items(), key=lambda x: -x[1])[:10],
-            "avg_turnover_pct":  self._compute_turnover(selections),
+            "total_candidates": len(self._all_candidates),
+            "ever_selected": len(all_syms),
+            "always_selected": [s for s, f in freq.items() if f > 95],
+            "most_stable": sorted(freq.items(), key=lambda x: -x[1])[:10],
+            "avg_turnover_pct": self._compute_turnover(selections),
         }
 
     @staticmethod
-    def _compute_turnover(selections: Dict[pd.Timestamp, List[str]]) -> float:
+    def _compute_turnover(selections: dict[pd.Timestamp, list[str]]) -> float:
         dates = sorted(selections.keys())
         turnovers = []
         for i in range(1, len(dates)):
-            prev = set(selections[dates[i-1]])
+            prev = set(selections[dates[i - 1]])
             curr = set(selections[dates[i]])
             if not prev:
                 continue
@@ -451,6 +453,7 @@ class DynamicUniverseSelector:
 # Fetches S&P 500 + Nasdaq 100 constituents dynamically, filters for
 # liquidity/history, and merges with fixed ETFs/futures/crypto.
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class DynamicCandidateBuilder:
     """
@@ -474,32 +477,113 @@ class DynamicCandidateBuilder:
     """
 
     # Free data sources for index constituents
-    SP500_CSV  = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
+    SP500_CSV = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"
     # Nasdaq-100 curated list (updated periodically — covers all major constituents)
     NDX100_TICKERS = [
-        'AAPL','MSFT','NVDA','AMZN','META','GOOGL','GOOG','TSLA','AVGO','COST',
-        'NFLX','ASML','AMD','PEP','LIN','CSCO','ADBE','QCOM','TXN','INTU',
-        'CMCSA','AMAT','ISRG','BKNG','MU','HON','VRTX','LRCX','PANW','KLAC',
-        'MELI','REGN','MDLZ','CDNS','SNPS','ABNB','ORLY','FTNT','CRWD','ROP',
-        'CTAS','MNST','MRVL','KDP','PCAR','ADP','PAYX','WDAY','DXCM','ODFL',
-        'FAST','BIIB','DLTR','IDXX','VRSK','ANSS','ALGN','TEAM','ZS','ILMN',
-        'CPRT','ROST','GILD','PLTR','EBAY','PYPL','INTC','PDD','CEG','GFS',
-        'FANG','ON','TTWO','DDOG','SNOW','COIN','RBLX','TTD','APP','MSTR',
-        'SMCI','DECK','AXON','NTRA','PODD','GEHC','CDW','CCEP','PSTG','TXRH',
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "AMZN",
+        "META",
+        "GOOGL",
+        "GOOG",
+        "TSLA",
+        "AVGO",
+        "COST",
+        "NFLX",
+        "ASML",
+        "AMD",
+        "PEP",
+        "LIN",
+        "CSCO",
+        "ADBE",
+        "QCOM",
+        "TXN",
+        "INTU",
+        "CMCSA",
+        "AMAT",
+        "ISRG",
+        "BKNG",
+        "MU",
+        "HON",
+        "VRTX",
+        "LRCX",
+        "PANW",
+        "KLAC",
+        "MELI",
+        "REGN",
+        "MDLZ",
+        "CDNS",
+        "SNPS",
+        "ABNB",
+        "ORLY",
+        "FTNT",
+        "CRWD",
+        "ROP",
+        "CTAS",
+        "MNST",
+        "MRVL",
+        "KDP",
+        "PCAR",
+        "ADP",
+        "PAYX",
+        "WDAY",
+        "DXCM",
+        "ODFL",
+        "FAST",
+        "BIIB",
+        "DLTR",
+        "IDXX",
+        "VRSK",
+        "ANSS",
+        "ALGN",
+        "TEAM",
+        "ZS",
+        "ILMN",
+        "CPRT",
+        "ROST",
+        "GILD",
+        "PLTR",
+        "EBAY",
+        "PYPL",
+        "INTC",
+        "PDD",
+        "CEG",
+        "GFS",
+        "FANG",
+        "ON",
+        "TTWO",
+        "DDOG",
+        "SNOW",
+        "COIN",
+        "RBLX",
+        "TTD",
+        "APP",
+        "MSTR",
+        "SMCI",
+        "DECK",
+        "AXON",
+        "NTRA",
+        "PODD",
+        "GEHC",
+        "CDW",
+        "CCEP",
+        "PSTG",
+        "TXRH",
     ]
 
     def __init__(self, config: dict):
         dc_cfg = config.get("dynamic_candidates", {})
-        self.enabled          = dc_cfg.get("enabled", False)
-        self.min_avg_volume   = dc_cfg.get("min_avg_volume_usd", 5_000_000)
+        self.enabled = dc_cfg.get("enabled", False)
+        self.min_avg_volume = dc_cfg.get("min_avg_volume_usd", 5_000_000)
         self.min_history_days = dc_cfg.get("min_history_days", 252)
-        self.include_sp500    = dc_cfg.get("include_sp500", True)
-        self.include_ndx100   = dc_cfg.get("include_ndx100", True)
-        self.max_stocks       = dc_cfg.get("max_stocks", 500)   # cap to avoid fetch overload
-        self.cache_hours      = dc_cfg.get("cache_hours", 24)   # re-fetch after N hours
+        self.include_sp500 = dc_cfg.get("include_sp500", True)
+        self.include_ndx100 = dc_cfg.get("include_ndx100", True)
+        self.max_stocks = dc_cfg.get("max_stocks", 500)  # cap to avoid fetch overload
+        self.cache_hours = dc_cfg.get("cache_hours", 24)  # re-fetch after N hours
 
-        self._constituent_cache: Optional[List[str]] = None
-        self._cache_time: Optional[float] = None
+        self._constituent_cache: list[str] | None = None
+        self._cache_time: float | None = None
 
     def get_full_candidate_list(
         self,
@@ -507,7 +591,7 @@ class DynamicCandidateBuilder:
         data_start: str,
         data_end: str,
         verbose: bool = True,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Build and return the complete candidate list.
         Fetches index constituents + config fixed assets.
@@ -517,9 +601,7 @@ class DynamicCandidateBuilder:
         if not self.enabled:
             # Fall back to config-defined candidates
             du = config.get("dynamic_universe", {}).get("candidates", {})
-            return (du.get("equities", []) +
-                    du.get("futures",  []) +
-                    du.get("crypto",   []))
+            return du.get("equities", []) + du.get("futures", []) + du.get("crypto", [])
 
         log.info("DynamicCandidateBuilder: building candidate pool...")
 
@@ -530,18 +612,16 @@ class DynamicCandidateBuilder:
 
         # 2. Fixed ETFs / futures / crypto from config (always included)
         du = config.get("dynamic_universe", {}).get("candidates", {})
-        fixed_etfs    = du.get("equities", [])
-        fixed_futures = du.get("futures",  [])
-        fixed_crypto  = du.get("crypto",   [])
+        fixed_etfs = du.get("equities", [])
+        fixed_futures = du.get("futures", [])
+        fixed_crypto = du.get("crypto", [])
 
         # Remove stocks that are already in the fixed ETF list
         stocks = [s for s in stocks if s not in fixed_etfs]
 
         # 3. Filter stocks for liquidity + history
         if stocks:
-            valid_stocks = self._filter_stocks(
-                stocks, data_start, data_end, verbose
-            )
+            valid_stocks = self._filter_stocks(stocks, data_start, data_end, verbose)
         else:
             valid_stocks = []
 
@@ -565,19 +645,21 @@ class DynamicCandidateBuilder:
         )
         return result
 
-    def _fetch_constituents(self, verbose: bool = True) -> List[str]:
+    def _fetch_constituents(self, verbose: bool = True) -> list[str]:
         """
         Fetch S&P 500 from GitHub CSV and Nasdaq-100 from curated list.
         Both sources are always available without authentication.
         """
         # Check cache
-        if (self._constituent_cache is not None and
-                self._cache_time is not None and
-                time.time() - self._cache_time < self.cache_hours * 3600):
+        if (
+            self._constituent_cache is not None
+            and self._cache_time is not None
+            and time.time() - self._cache_time < self.cache_hours * 3600
+        ):
             log.debug("DynamicCandidateBuilder: using cached constituents")
             return self._constituent_cache
 
-        tickers: Set[str] = set()
+        tickers: set[str] = set()
 
         if self.include_sp500:
             try:
@@ -593,24 +675,25 @@ class DynamicCandidateBuilder:
 
         if self.include_ndx100:
             # Use curated Nasdaq-100 list (always available, no HTTP needed)
-            ndx_tickers = [t for t in self.NDX100_TICKERS
-                           if t not in tickers]  # skip duplicates with S&P500
+            ndx_tickers = [
+                t for t in self.NDX100_TICKERS if t not in tickers
+            ]  # skip duplicates with S&P500
             tickers.update(self.NDX100_TICKERS)
             if verbose:
                 log.info(f"  Nasdaq-100: {len(self.NDX100_TICKERS)} tickers added")
 
-        result = sorted(list(tickers))[:self.max_stocks]
+        result = sorted(list(tickers))[: self.max_stocks]
         self._constituent_cache = result
         self._cache_time = time.time()
         return result
 
     def _filter_stocks(
         self,
-        tickers: List[str],
+        tickers: list[str],
         start: str,
         end: str,
         verbose: bool = True,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Download price/volume for each ticker and filter by:
           - Minimum history (252 days)
@@ -628,11 +711,14 @@ class DynamicCandidateBuilder:
         log.info(f"  Filtering {len(tickers)} stocks (this takes ~1-2 minutes)...")
 
         for i in range(0, len(tickers), batch_size):
-            batch = tickers[i:i + batch_size]
+            batch = tickers[i : i + batch_size]
             try:
                 raw = yf.download(
-                    batch, start=start, end=end,
-                    auto_adjust=True, progress=False,
+                    batch,
+                    start=start,
+                    end=end,
+                    auto_adjust=True,
+                    progress=False,
                     threads=True,
                 )
                 if raw.empty:
@@ -640,11 +726,13 @@ class DynamicCandidateBuilder:
 
                 # Handle both MultiIndex (multiple tickers) and single ticker
                 if isinstance(raw.columns, pd.MultiIndex):
-                    close_df  = raw["Close"]
-                    volume_df = raw["Volume"] if "Volume" in raw.columns.get_level_values(0) else None
+                    close_df = raw["Close"]
+                    volume_df = (
+                        raw["Volume"] if "Volume" in raw.columns.get_level_values(0) else None
+                    )
                 else:
                     # Single ticker
-                    close_df  = raw[["Close"]]
+                    close_df = raw[["Close"]]
                     volume_df = raw[["Volume"]] if "Volume" in raw.columns else None
 
                 for sym in batch:
@@ -653,14 +741,14 @@ class DynamicCandidateBuilder:
                             failed += 1
                             continue
 
-                        close  = close_df[sym].dropna()
+                        close = close_df[sym].dropna()
                         if len(close) < self.min_history_days:
                             continue
 
                         if volume_df is not None and sym in volume_df.columns:
-                            vol    = volume_df[sym].dropna()
+                            vol = volume_df[sym].dropna()
                             # Dollar volume = price × shares traded
-                            dv     = (close * vol).rolling(20).mean().dropna()
+                            dv = (close * vol).rolling(20).mean().dropna()
                             if dv.empty or float(dv.iloc[-1]) < self.min_avg_volume:
                                 continue
 
@@ -669,7 +757,7 @@ class DynamicCandidateBuilder:
                         failed += 1
 
             except Exception as e:
-                log.debug(f"  Batch {i//batch_size} failed: {e}")
+                log.debug(f"  Batch {i // batch_size} failed: {e}")
                 failed += len(batch)
 
             # Polite delay between batches

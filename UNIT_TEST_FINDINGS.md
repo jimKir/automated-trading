@@ -1,113 +1,122 @@
 # Unit Test Findings Report
 
-**Date:** 2026-04-06
+**Date:** 2026-04-06 (v2 — all bugs fixed)
 **Test File:** `tests/test_critical_paths.py`
-**Results:** 45 passed, 0 failed, 6 skipped (yfinance not in sandbox)
+**Results:** 71 passed, 0 failed, 7 skipped (yfinance not in sandbox)
 
 ---
 
 ## Bugs Found & Fixed
 
-### BUG 1: `fetch_with_retry.py` — NameError on import (CRITICAL)
+### BUG 1: `fetch_with_retry.py` — NameError on import (CRITICAL) — FIXED
 
 **Severity:** CRITICAL — prevents module from loading
 **File:** `fetch_with_retry.py`, line 82
-**Test:** `TestFetchWithRetry::test_missing_pd_import_in_fetch_with_retry`
 
-**Problem:**
-The method `fetch_bars_with_retry()` uses `pd.DataFrame` in its return type annotation (`-> Optional[pd.DataFrame]`), but `pandas` was not imported at module level. In Python 3.10 (without `from __future__ import annotations`), type annotations are evaluated at function definition time, causing a `NameError: name 'pd' is not defined` when the module is imported.
+**Problem:** `pd.DataFrame` in return type annotation evaluated at function definition time in Python 3.10, causing `NameError: name 'pd' is not defined`.
 
-**Impact:** `daily_data_update.py` crashes immediately when calling `run_daily_update()` because it imports `FetchWithRetry` inside the function body (line 58).
+**Fix:** Added `from __future__ import annotations` and `import pandas as pd`.
 
-**Fix Applied:**
-```python
-# Added at top of fetch_with_retry.py:
-from __future__ import annotations
-import pandas as pd
-```
-
-**Status:** FIXED
+**Status:** FIXED (v1) — regression test: `TestFetchWithRetry::test_module_import_succeeds`
 
 ---
 
-### BUG 2: `fetch_all.py` — Timezone mismatch in `run_fetch()` delta merge (CRITICAL)
+### BUG 2: `fetch_all.py` — Timezone mismatch in `run_fetch()` delta merge (CRITICAL) — FIXED
 
 **Severity:** CRITICAL — crashes on UTC-aware cached data
 **File:** `fetch_all.py`, lines 353-354
-**Test:** `TestFetchAllRunFetch::test_delta_merge_timezone_bug`
 
-**Problem:**
-The timezone bug that was fixed in `daily_data_update.py` (lines 134-141) was NOT fixed in the parallel code path in `fetch_all.py`'s `run_fetch()` function:
+**Problem:** Naive `pd.Timestamp(delta_start)` compared against UTC-aware index raised `TypeError`.
 
-```python
-# BEFORE (broken):
-cutoff = pd.Timestamp(delta_start)          # naive timestamp
-df_old = df_old[df_old.index < cutoff]       # TypeError if index is UTC-aware
-```
+**Fix (v1):** Inline tz-check matching daily_data_update.py pattern.
+**Fix (v2):** Replaced with centralised `tz_aware_cutoff()` helper.
 
-This raises `TypeError: Invalid comparison between dtype=datetime64[ns, UTC] and Timestamp` when cached data has UTC-aware indexes (which is common for Alpaca data).
-
-**Impact:** `fetch_all.py --update` fails silently on symbols with UTC-aware cached data, preventing delta updates.
-
-**Fix Applied:**
-```python
-# AFTER (fixed):
-if df_old.index.tz is None:
-    cutoff = pd.Timestamp(delta_start)
-else:
-    cutoff = pd.Timestamp(delta_start, tz="UTC").tz_convert(df_old.index.tz)
-df_old = df_old[df_old.index < cutoff]
-```
-
-**Status:** FIXED
+**Status:** FIXED — regression test: `TestTzAwareCutoff::test_cutoff_filters_utc_index_without_error`
 
 ---
 
-### BUG 3: `crypto_fetcher.py` — MultiIndex columns from yfinance >= 0.2.40 (MEDIUM)
+### BUG 3: `crypto_fetcher.py` — MultiIndex columns from yfinance >= 0.2.40 (MEDIUM) — FIXED
 
 **Severity:** MEDIUM — crashes on newer yfinance versions
 **File:** `crypto_fetcher.py`, line 47
-**Test:** `TestCryptoFetcher::test_multiindex_columns_bug`
 
-**Problem:**
-yfinance >= 0.2.40 returns MultiIndex columns for single-ticker downloads (e.g., `("Open", "BTC-USD")`). The code `df.columns = [c.lower() for c in df.columns]` iterates over tuples when columns are MultiIndex, and calling `.lower()` on a tuple raises `AttributeError`.
+**Problem:** yfinance >= 0.2.40 returns MultiIndex columns for single-ticker downloads. Calling `.lower()` on tuple columns raises `AttributeError`.
 
-**Impact:** Crypto data fetching fails silently on newer yfinance versions, returning None instead of valid data.
+**Fix:** Added `df.columns = df.columns.get_level_values(0)` before lowercasing.
 
-**Fix Applied:**
-```python
-# Flatten MultiIndex columns before lowercasing:
-if isinstance(df.columns, pd.MultiIndex):
-    df.columns = df.columns.get_level_values(0)
-df.columns = [c.lower() for c in df.columns]
-```
-
-**Status:** FIXED
+**Status:** FIXED (v1) — regression test: `TestCryptoFetcher::test_multiindex_columns_flattening`
 
 ---
 
-### BUG 4: `daily_data_update.py` — Incorrect `is_crypto` detection in retry loop (LOW)
+### BUG 4: `daily_data_update.py` — Incorrect `is_crypto` detection in retry loop (LOW) — FIXED
 
 **Severity:** LOW — affects retry path for edge-case symbols
 **File:** `daily_data_update.py`, line 174
-**Test:** `TestDailyUpdateRetryLogic::test_is_crypto_detection_unknown_symbol`
 
-**Problem:**
-The retry loop detects whether a failed symbol is crypto by checking:
+**Problem:** The retry loop used an inefficient list comprehension:
 ```python
 is_crypto = (sym, True) in [(s, c) for s, c in all_symbols if c]
 ```
-If a crypto symbol fails and is not already in `all_symbols` (e.g., if it was added dynamically), this check returns `False`, causing the retry to hit the wrong API endpoint (stock instead of crypto).
+This returns `False` for any crypto symbol not already in `all_symbols` (e.g., KEY_CRYPTO symbols added dynamically), causing retries to hit the wrong API endpoint.
 
-**Impact:** Failed crypto symbols not in the original symbol list would be retried as equities, which would fail silently. Low risk because key crypto symbols are explicitly added to `all_symbols`.
-
-**Recommendation:** Replace with a set-based lookup or check symbol naming convention:
+**Fix:** Replaced with set-based lookup that also checks KEY_CRYPTO:
 ```python
 crypto_set = {s for s, c in all_symbols if c}
 is_crypto = sym in crypto_set or sym in KEY_CRYPTO
 ```
 
-**Status:** NOT FIXED (low severity, documented for future improvement)
+**Status:** FIXED (v2) — regression tests: `TestDailyUpdateIsCryptoDetection` (5 tests)
+
+---
+
+### BUG 5: `fetch_all.py` — `validate_dataframe` skips NaN/negative checks on Title Case columns (MEDIUM) — FIXED
+
+**Severity:** MEDIUM — quality checks silently pass on non-standard column names
+**File:** `fetch_all.py`, `validate_dataframe()`
+
+**Problem:** The `missing_columns` check correctly lowercased column names via `set(c.lower() for c in df.columns)`, but the subsequent NaN and negative checks used `if col in df.columns` with lowercase col names. If data arrived with Title Case columns (e.g., from yfinance: `Open`, `High`, `Close`), NaN/negative checks were silently skipped because `"close" not in ["Close", ...]`.
+
+**Fix:** Added `df_check = df.rename(columns={c: c.lower()})` at the start of validation so all checks operate on normalised lowercase columns.
+
+**Status:** FIXED (v2) — regression tests: `test_title_case_columns_detected`, `test_title_case_nan_detected`
+
+---
+
+### BUG 6: Resource leaks — `json.dump(data, open(...))` (LOW) — FIXED
+
+**Severity:** LOW — file handles not explicitly closed
+**Files:** `fetch_all.py` (3 locations), `daily_data_update.py` (1 location)
+
+**Problem:** Pattern `json.dump(data, open(path, "w"))` opens a file without a context manager. While CPython's reference counting usually closes these promptly, this is not guaranteed (e.g., in PyPy or under GC pressure), which can cause data loss if the process crashes before the OS flushes buffers.
+
+**Fix:** Replaced all instances with explicit `with open(path, "w") as f: json.dump(data, f)`.
+
+**Status:** FIXED (v2) — regression test: `TestResourceHandling::test_json_dump_with_context_manager`
+
+---
+
+## Improvements Made (v2)
+
+### Centralised `tz_aware_cutoff()` helper
+
+The timezone cutoff logic was duplicated in 4 locations across 3 files. Created a single `tz_aware_cutoff(date_str, index)` function in `fetch_all.py` and replaced all inline copies:
+
+- `fetch_all.py` `run_fetch()` — delta merge path
+- `daily_data_update.py` `run_daily_update()` — main update loop
+- `daily_data_update.py` `run_daily_update()` — retry loop
+- `fetch_with_retry.py` `retry_failed_symbols()` — retry merge path
+
+### Added `from __future__ import annotations` to all modules
+
+Prevents type-hint evaluation bugs (BUG 1 pattern) across the entire pipeline:
+
+- `fetch_all.py`
+- `fetch_with_retry.py`
+- `crypto_fetcher.py`
+- `daily_data_update.py`
+- `migrate_to_canonical.py`
+
+Regression guard: `TestFutureAnnotations` (5 parametrized tests)
 
 ---
 
@@ -115,35 +124,31 @@ is_crypto = sym in crypto_set or sym in KEY_CRYPTO
 
 | Module | Tests | Critical Paths Covered |
 |--------|-------|----------------------|
-| `fetch_all.validate_dataframe` | 9 | Empty, NaN, negatives, zero volume, jumps, missing cols, edge cases |
-| Timezone cutoff handling | 7 | Naive vs aware, fixed logic both paths, unfixed bug confirmation |
-| `_sym_dir` / `_canonical_path` | 5 | Equity, crypto, slash replacement |
-| `_atomic_write` / file I/O | 5 | Create, no-tmp-left, roundtrip, canonical preference, end date |
-| `FetchWithRetry` | 4 | Backoff calculation, cap, import bug, state persistence |
-| Migration logic | 4 | Overlap merge, dedup, dry-run, empty dir |
-| `crypto_fetcher` | 6 | Availability, column standardization, MultiIndex bug, timezone |
-| Daily update retry | 3 | is_crypto detection, unknown symbol, list mutation safety |
-| Data merge/dedup | 3 | Overlap, non-overlap, sort order |
-| Edge cases | 4 | Special chars, empty cache, all-zero volume, case-insensitive cols |
+| `validate_dataframe` | 13 | Empty, NaN, negatives, zero volume, jumps, missing cols, Title Case, mixed case, multi-issue, single row, large DF |
+| `tz_aware_cutoff` helper | 7 | Naive, UTC, US/Eastern, filtering, empty index |
+| Timezone regression | 3 | Naive, UTC, original bug demonstration |
+| `_sym_dir` / `_canonical_path` | 7 | Equity, crypto, slash, colon, BRK/B |
+| `_atomic_write` / file I/O | 7 | Create, no-tmp, roundtrip, overwrite, UTC index, canonical preference, end date |
+| `FetchWithRetry` | 6 | Backoff calc, cap, first-attempt, import check, state roundtrip, empty state |
+| Migration logic | 5 | Overlap merge, dedup, dry-run, empty dir, 3-file gaps |
+| `crypto_fetcher` | 7 | Availability, column standard, MultiIndex fix+regression, timezone |
+| `is_crypto` detection (BUG 4) | 5 | Known crypto, equity, unknown KEY_CRYPTO, old vs new logic |
+| Data merge/dedup | 4 | Overlap, non-overlap, sort order, mixed tz |
+| Resource handling | 2 | Context manager JSON, atomic write failure cleanup |
+| Edge cases | 7 | Special chars, empty cache, all-zero vol, mixed case, sym in stats, large DF, duplicate index |
+| Future annotations guard | 5 | All 5 pipeline modules checked |
 
-**Total: 51 tests across 11 test classes**
+**Total: 78 tests across 13 test classes (71 passed, 7 skipped)**
 
 ---
 
-## Files Modified to Fix Bugs
+## Files Modified
 
 | File | Bug # | Change |
 |------|-------|--------|
-| `fetch_with_retry.py` | BUG 1 | Added `from __future__ import annotations` and `import pandas as pd` |
-| `fetch_all.py` | BUG 2 | Applied timezone-aware cutoff in `run_fetch()` delta merge (line 353) |
-| `crypto_fetcher.py` | BUG 3 | Added MultiIndex column flattening before lowercasing |
-
----
-
-## Recommendations
-
-1. **Add `from __future__ import annotations`** to all new modules — prevents type hint evaluation bugs
-2. **Centralize the timezone cutoff logic** into a helper function to avoid the same bug in multiple locations
-3. **Pin yfinance version** in `requirements.txt` to avoid breaking changes in column format
-4. **Add integration tests** that hit the actual Alpaca API (with mock credentials) to verify end-to-end flow
-5. **Replace the `is_crypto` detection** in the retry loop with a set-based lookup for reliability
+| `fetch_all.py` | BUG 2, 5, 6 | Added `tz_aware_cutoff()` helper, fixed `validate_dataframe` column normalisation, fixed resource leaks, added `from __future__ import annotations` |
+| `daily_data_update.py` | BUG 4, 6 | Fixed is_crypto detection with set-based lookup, replaced inline cutoff logic with helper, fixed resource leak, added `from __future__ import annotations` |
+| `fetch_with_retry.py` | — | Replaced inline cutoff logic with `tz_aware_cutoff()` helper |
+| `crypto_fetcher.py` | — | Added `from __future__ import annotations` |
+| `migrate_to_canonical.py` | — | Added `from __future__ import annotations` |
+| `tests/test_critical_paths.py` | — | Expanded from 51 to 78 tests; added 7 new test classes |

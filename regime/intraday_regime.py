@@ -25,11 +25,11 @@ Config key (in main config dict):
   ews:
     use_intraday: true   # toggle Layer E on/off
 """
+
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -38,13 +38,13 @@ log = logging.getLogger("EWS.LayerE")
 
 # ── Regime label → EWS stress score ────────────────────────────────────────
 REGIME_SCORES: dict[str, float] = {
-    "TRENDING_UP":   0.0,
+    "TRENDING_UP": 0.0,
     "TRENDING_DOWN": 0.3,
     "TRANSITIONING": 0.4,
-    "ELEVATED_VOL":  0.5,
-    "CHOPPY":        0.7,
-    "HIGH_FEAR":     0.9,
-    "UNKNOWN":       0.0,
+    "ELEVATED_VOL": 0.5,
+    "CHOPPY": 0.7,
+    "HIGH_FEAR": 0.9,
+    "UNKNOWN": 0.0,
 }
 
 # Default lookback for SPY bars when fetching live
@@ -72,8 +72,8 @@ class IntradayRegimeScorer:
 
     def score_today(
         self,
-        spy_bars: Optional[pd.DataFrame] = None,
-        vix_level: Optional[float] = None,
+        spy_bars: pd.DataFrame | None = None,
+        vix_level: float | None = None,
     ) -> float:
         """
         Compute the Layer-E stress score for today.
@@ -96,12 +96,11 @@ class IntradayRegimeScorer:
         """
         try:
             bars = self._ensure_spy_bars(spy_bars)
-            vix  = self._ensure_vix(vix_level)
+            vix = self._ensure_vix(vix_level)
             regime = self._detect_regime(bars, vix)
-            score  = REGIME_SCORES.get(regime, 0.0)
+            score = REGIME_SCORES.get(regime, 0.0)
             log.info(
-                f"EWS Layer E | regime={regime} vix={vix:.1f} "
-                f"bars={len(bars)} → score={score:.2f}"
+                f"EWS Layer E | regime={regime} vix={vix:.1f} bars={len(bars)} → score={score:.2f}"
             )
             return float(score)
         except Exception as exc:
@@ -111,8 +110,8 @@ class IntradayRegimeScorer:
     def compute_series(
         self,
         start: str,
-        end:   str,
-        spy_data: Optional[pd.DataFrame] = None,
+        end: str,
+        spy_data: pd.DataFrame | None = None,
     ) -> pd.Series:
         """
         Compute a daily regime-stress series for backtesting.
@@ -157,11 +156,7 @@ class IntradayRegimeScorer:
                         scores[day] = 0.0
                         continue
 
-                    vix_val = float(
-                        vix_series.asof(day)
-                        if not vix_series.empty
-                        else 18.0
-                    )
+                    vix_val = float(vix_series.asof(day) if not vix_series.empty else 18.0)
                     if np.isnan(vix_val):
                         vix_val = 18.0
 
@@ -218,48 +213,44 @@ class IntradayRegimeScorer:
             return "UNKNOWN"
 
         closes = bars["close"].astype(float).values
-        highs  = bars["high"].astype(float).values
-        lows   = bars["low"].astype(float).values
+        highs = bars["high"].astype(float).values
+        lows = bars["low"].astype(float).values
 
         # 20-bar EMA
-        ema20    = self._ema(closes, 20)
+        ema20 = self._ema(closes, 20)
         above_ma = bool(closes[-1] > ema20)
 
         # ADX (14-bar directional movement)
-        adx      = self._adx(highs, lows, closes, 14)
+        adx = self._adx(highs, lows, closes, 14)
         trending = bool(adx > 20)
 
         # 5-bar drift
-        drift_5 = float(
-            (closes[-1] - closes[-5]) / (closes[-5] + 1e-9)
-        ) if len(closes) >= 5 else 0.0
+        drift_5 = (
+            float((closes[-1] - closes[-5]) / (closes[-5] + 1e-9)) if len(closes) >= 5 else 0.0
+        )
 
         # Classify — same thresholds as scanner_v2
         if vix_level > 35:
             return "HIGH_FEAR"
-        elif vix_level > 28:
+        if vix_level > 28:
             return "ELEVATED_VOL"
-        elif trending and above_ma and drift_5 > 0:
+        if trending and above_ma and drift_5 > 0:
             return "TRENDING_UP"
-        elif trending and (not above_ma) and drift_5 < 0:
+        if trending and (not above_ma) and drift_5 < 0:
             return "TRENDING_DOWN"
-        elif not trending:
+        if not trending:
             return "CHOPPY"
-        else:
-            return "TRANSITIONING"
+        return "TRANSITIONING"
 
     # ------------------------------------------------------------------
     # Data helpers
     # ------------------------------------------------------------------
 
-    def _ensure_spy_bars(
-        self, spy_bars: Optional[pd.DataFrame]
-    ) -> pd.DataFrame:
+    def _ensure_spy_bars(self, spy_bars: pd.DataFrame | None) -> pd.DataFrame:
         """Return provided bars or fetch from yfinance."""
         if spy_bars is not None and not spy_bars.empty:
             return spy_bars
-        from datetime import timezone
-        _now = datetime.now(timezone.utc)
+        _now = datetime.now(UTC)
         return self._fetch_yfinance(
             "SPY",
             (_now - timedelta(days=_LIVE_LOOKBACK_DAYS)).strftime("%Y-%m-%d"),
@@ -267,12 +258,13 @@ class IntradayRegimeScorer:
             interval="1h",
         )
 
-    def _ensure_vix(self, vix_level: Optional[float]) -> float:
+    def _ensure_vix(self, vix_level: float | None) -> float:
         """Return provided VIX or fetch latest reading from yfinance."""
         if vix_level is not None:
             return float(vix_level)
         try:
             import yfinance as yf
+
             vix_df = yf.Ticker("^VIX").history(period="5d", interval="1d")
             if not vix_df.empty:
                 return float(vix_df["Close"].iloc[-1])
@@ -283,8 +275,8 @@ class IntradayRegimeScorer:
     def _load_daily_spy(
         self,
         start: str,
-        end:   str,
-        spy_data: Optional[pd.DataFrame],
+        end: str,
+        spy_data: pd.DataFrame | None,
     ) -> pd.DataFrame:
         """Return daily SPY OHLCV for the range, normalised to lowercase cols."""
         if spy_data is not None and not spy_data.empty:
@@ -296,9 +288,7 @@ class IntradayRegimeScorer:
                 return df
 
         # Extend window by 60 days to ensure enough bars at start
-        fetch_start = (
-            pd.Timestamp(start) - timedelta(days=60)
-        ).strftime("%Y-%m-%d")
+        fetch_start = (pd.Timestamp(start) - timedelta(days=60)).strftime("%Y-%m-%d")
         df = self._fetch_yfinance("SPY", fetch_start, end, interval="1d")
         if df is not None and not df.empty:
             return df
@@ -308,9 +298,7 @@ class IntradayRegimeScorer:
     def _load_daily_vix(self, start: str, end: str) -> pd.Series:
         """Return daily VIX close as a pd.Series indexed by date."""
         try:
-            fetch_start = (
-                pd.Timestamp(start) - timedelta(days=60)
-            ).strftime("%Y-%m-%d")
+            fetch_start = (pd.Timestamp(start) - timedelta(days=60)).strftime("%Y-%m-%d")
             df = self._fetch_yfinance("^VIX", fetch_start, end, interval="1d")
             if df is not None and not df.empty:
                 return df["close"].astype(float)
@@ -321,16 +309,17 @@ class IntradayRegimeScorer:
     @staticmethod
     def _fetch_yfinance(
         ticker: str,
-        start:  str,
-        end:    str,
+        start: str,
+        end: str,
         interval: str = "1d",
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """
         Fetch OHLCV from yfinance and normalise column names to lowercase.
         Returns None on failure.
         """
         try:
             import yfinance as yf
+
             df = yf.Ticker(ticker).history(
                 start=start,
                 end=end,
@@ -338,13 +327,15 @@ class IntradayRegimeScorer:
             )
             if df is None or df.empty:
                 return None
-            df = df.rename(columns={
-                "Open":   "open",
-                "High":   "high",
-                "Low":    "low",
-                "Close":  "close",
-                "Volume": "volume",
-            })
+            df = df.rename(
+                columns={
+                    "Open": "open",
+                    "High": "high",
+                    "Low": "low",
+                    "Close": "close",
+                    "Volume": "volume",
+                }
+            )
             # Strip timezone so comparisons with naive Timestamps work
             if df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
@@ -354,7 +345,7 @@ class IntradayRegimeScorer:
             return None
 
     @staticmethod
-    def _normalise_columns(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    def _normalise_columns(df: pd.DataFrame | None) -> pd.DataFrame | None:
         """
         Accept DataFrames with either Title-case or lower-case OHLC columns.
         Returns the frame with lower-case column names, or None if required
@@ -362,7 +353,11 @@ class IntradayRegimeScorer:
         """
         if df is None or df.empty:
             return None
-        rename = {c: c.lower() for c in df.columns if c.lower() in ("open", "high", "low", "close", "volume")}
+        rename = {
+            c: c.lower()
+            for c in df.columns
+            if c.lower() in ("open", "high", "low", "close", "volume")
+        }
         df = df.rename(columns=rename)
         for col in ("open", "high", "low", "close"):
             if col not in df.columns:
@@ -388,8 +383,8 @@ class IntradayRegimeScorer:
 
     @staticmethod
     def _adx(
-        highs:  np.ndarray,
-        lows:   np.ndarray,
+        highs: np.ndarray,
+        lows: np.ndarray,
         closes: np.ndarray,
         period: int = 14,
     ) -> float:
@@ -398,4 +393,5 @@ class IntradayRegimeScorer:
         Delegates to shared implementation in utils.indicators.
         """
         from utils.indicators import compute_adx
+
         return compute_adx(highs, lows, closes, period)

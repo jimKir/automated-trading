@@ -56,8 +56,7 @@ class TestSymbolMaster:
     def test_bulk_upsert(self, tmp_dir: Path) -> None:
         sm = SymbolMaster(db_path=tmp_dir / "sm.db")
         records = [
-            SymbolRecord(symbol_id=0, ticker=f"SYM{i}", asset_class="equity")
-            for i in range(10)
+            SymbolRecord(symbol_id=0, ticker=f"SYM{i}", asset_class="equity") for i in range(10)
         ]
         count = sm.bulk_upsert(records)
         assert count == 10
@@ -66,7 +65,9 @@ class TestSymbolMaster:
     def test_upsert_updates_existing(self, tmp_dir: Path) -> None:
         sm = SymbolMaster(db_path=tmp_dir / "sm.db")
         sm.upsert_symbol(SymbolRecord(symbol_id=0, ticker="AAPL", asset_class="equity", name="Old"))
-        sm.upsert_symbol(SymbolRecord(symbol_id=0, ticker="AAPL", asset_class="equity", name="Apple Inc."))
+        sm.upsert_symbol(
+            SymbolRecord(symbol_id=0, ticker="AAPL", asset_class="equity", name="Apple Inc.")
+        )
         result = sm.get_by_ticker("AAPL")
         assert result is not None
         assert result.name == "Apple Inc."

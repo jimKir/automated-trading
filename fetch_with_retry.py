@@ -14,15 +14,15 @@ Features:
 Usage:
   python3 fetch_with_retry.py --mode update --max-retries 3
 """
+
 from __future__ import annotations
 
-import sys
-import time
 import json
 import logging
-from pathlib import Path
+import sys
+import time
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List
+from pathlib import Path
 
 import pandas as pd
 
@@ -36,10 +36,14 @@ logging.basicConfig(
 logger = logging.getLogger("fetch_retry")
 
 from fetch_all import (
-    AlpacaFetcher, load_cached, get_cached_end_date,
-    _canonical_path, _atomic_write, _get_catalogue,
-    _register, validate_dataframe, OHLCV_DIR, CRYPTO_DIR,
-    CACHE_DIR, REFRESH_TAIL
+    CACHE_DIR,
+    REFRESH_TAIL,
+    AlpacaFetcher,
+    _atomic_write,
+    _canonical_path,
+    get_cached_end_date,
+    load_cached,
+    tz_aware_cutoff,
 )
 
 
@@ -50,7 +54,7 @@ class FetchWithRetry:
         self.api = AlpacaFetcher()
         self.max_retries = max_retries
         self.base_backoff = base_backoff
-        self.failed_symbols: Dict[str, dict] = {}
+        self.failed_symbols: dict[str, dict] = {}
         self.retry_state_file = CACHE_DIR / "fetch_retry_state.json"
         self._load_retry_state()
 
@@ -70,10 +74,14 @@ class FetchWithRetry:
         try:
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             with open(self.retry_state_file, "w") as f:
-                json.dump({
-                    "failed": self.failed_symbols,
-                    "saved_at": datetime.now().isoformat(),
-                }, f, indent=2)
+                json.dump(
+                    {
+                        "failed": self.failed_symbols,
+                        "saved_at": datetime.now().isoformat(),
+                    },
+                    f,
+                    indent=2,
+                )
         except Exception as e:
             logger.warning(f"Could not save retry state: {e}")
 
@@ -83,13 +91,12 @@ class FetchWithRetry:
         start: str,
         end: str,
         is_crypto: bool,
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Fetch bars with exponential backoff retry logic.
 
         Returns:
             DataFrame if successful, None if all retries exhausted.
         """
-        import pandas as pd
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -99,9 +106,9 @@ class FetchWithRetry:
                     if sym in self.failed_symbols:
                         del self.failed_symbols[sym]
                     return df
-                elif attempt < self.max_retries:
+                if attempt < self.max_retries:
                     # No data this time, retry
-                    backoff = min(self.base_backoff ** attempt, 16.0)
+                    backoff = min(self.base_backoff**attempt, 16.0)
                     logger.debug(f"{sym}: No data, retrying in {backoff:.1f}s...")
                     time.sleep(backoff)
                 else:
@@ -110,8 +117,10 @@ class FetchWithRetry:
 
             except Exception as e:
                 if attempt < self.max_retries:
-                    backoff = min(self.base_backoff ** attempt, 16.0)
-                    logger.warning(f"{sym}: {type(e).__name__}, retry {attempt + 1}/{self.max_retries} in {backoff:.1f}s")
+                    backoff = min(self.base_backoff**attempt, 16.0)
+                    logger.warning(
+                        f"{sym}: {type(e).__name__}, retry {attempt + 1}/{self.max_retries} in {backoff:.1f}s"
+                    )
                     time.sleep(backoff)
                 else:
                     # Record final failure
@@ -149,7 +158,7 @@ class FetchWithRetry:
                     datetime.strptime(cached_end, "%Y-%m-%d") - timedelta(days=REFRESH_TAIL)
                 ).strftime("%Y-%m-%d")
             else:
-                fetch_start = (datetime.now() - timedelta(days=5*365)).strftime("%Y-%m-%d")
+                fetch_start = (datetime.now() - timedelta(days=5 * 365)).strftime("%Y-%m-%d")
 
             df_new = self.fetch_bars_with_retry(sym, fetch_start, today, is_sym_crypto)
 
@@ -157,12 +166,7 @@ class FetchWithRetry:
                 # Attempt to merge and write
                 df_old = load_cached(sym, is_sym_crypto)
                 if df_old is not None:
-                    import pandas as pd
-                    cutoff = pd.Timestamp(fetch_start, tz="UTC")
-                    if df_old.index.tz is None:
-                        cutoff = pd.Timestamp(fetch_start)
-                    else:
-                        cutoff = pd.Timestamp(fetch_start, tz="UTC").tz_convert(df_old.index.tz)
+                    cutoff = tz_aware_cutoff(fetch_start, df_old.index)
                     df_old = df_old[df_old.index < cutoff]
                     df_merged = pd.concat([df_old, df_new]).sort_index()
                     df_merged = df_merged[~df_merged.index.duplicated(keep="last")]
@@ -184,13 +188,13 @@ class FetchWithRetry:
         if not self.failed_symbols:
             return
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  PERMANENTLY FAILED SYMBOLS ({len(self.failed_symbols)})")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         for sym, info in self.failed_symbols.items():
             attempts = info.get("attempts", "?")
             error = info.get("error", "Unknown")[:60]
             print(f"  {sym:12s} ({attempts} attempts) — {error}")
 
-        print(f"\n{'='*70}\n")
+        print(f"\n{'=' * 70}\n")

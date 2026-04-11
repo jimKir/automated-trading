@@ -22,11 +22,15 @@ Models tested:
 Metrics: F1 (macro & weighted), Accuracy, Precision, Recall, Confusion Matrix
 """
 
-import os, sys, time, warnings, logging
+import logging
+import os
+import sys
+import time
+import warnings
+from collections import Counter
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
-from collections import Counter
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 warnings.filterwarnings("ignore")
@@ -34,52 +38,78 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vol_engine import (
-    DataPipeline, FeatureEngine, VolatilityEstimators,
-    SECTOR_MAP, UNIVERSE,
-)
-
-from sklearn.metrics import (
-    f1_score, precision_score, recall_score, accuracy_score,
-    classification_report, confusion_matrix, roc_auc_score,
-)
-from sklearn.preprocessing import RobustScaler, LabelEncoder
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import (
-    RandomForestClassifier, ExtraTreesClassifier,
-    StackingClassifier, VotingClassifier,
-)
-
-import xgboost as xgb
 import lightgbm as lgb
+import xgboost as xgb
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    RandomForestClassifier,
+    VotingClassifier,
+)
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+from sklearn.preprocessing import RobustScaler
+from vol_engine import (
+    SECTOR_MAP,
+    DataPipeline,
+    FeatureEngine,
+)
 
 # ── Config ────────────────────────────────────────────────────────────────
 TEST_SYMBOLS = [
-    "AAPL", "NVDA", "TSLA", "AMD", "META", "MSFT", "GOOGL", "AVGO",  # Tech
-    "JPM", "GS", "BAC", "MS",                                          # Financials
-    "XOM", "CVX", "SLB", "COP",                                        # Energy
-    "UNH", "JNJ", "LLY", "ABBV",                                       # Health
-    "AMZN", "HD", "WMT", "COST",                                       # Consumer
-    "CAT", "BA", "HON", "GE",                                          # Industrials
+    "AAPL",
+    "NVDA",
+    "TSLA",
+    "AMD",
+    "META",
+    "MSFT",
+    "GOOGL",
+    "AVGO",  # Tech
+    "JPM",
+    "GS",
+    "BAC",
+    "MS",  # Financials
+    "XOM",
+    "CVX",
+    "SLB",
+    "COP",  # Energy
+    "UNH",
+    "JNJ",
+    "LLY",
+    "ABBV",  # Health
+    "AMZN",
+    "HD",
+    "WMT",
+    "COST",  # Consumer
+    "CAT",
+    "BA",
+    "HON",
+    "GE",  # Industrials
 ]
 
 LOOKBACK_YEARS = 3.0
-TEST_DAYS = 126     # ~6 months
-HORIZON_DAYS = 5    # predict 5-day forward vol regime
+TEST_DAYS = 126  # ~6 months
+HORIZON_DAYS = 5  # predict 5-day forward vol regime
 
-BOLD  = "\033[1m"
+BOLD = "\033[1m"
 RESET = "\033[0m"
 GREEN = "\033[92m"
-RED   = "\033[91m"
-CYAN  = "\033[96m"
+RED = "\033[91m"
+CYAN = "\033[96m"
 YELLOW = "\033[93m"
-GREY  = "\033[90m"
+GREY = "\033[90m"
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # TARGET ENGINEERING
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def create_classification_target(
     close: pd.Series,
@@ -109,7 +139,7 @@ def create_classification_target(
             continue
 
         # Rolling history of vol (no future leakage)
-        hist_vol = fwd_vol.iloc[max(0, i - lookback):i].dropna()
+        hist_vol = fwd_vol.iloc[max(0, i - lookback) : i].dropna()
         if len(hist_vol) < 60:
             continue
 
@@ -130,6 +160,7 @@ def create_classification_target(
 # LSTM CLASSIFIER
 # ══════════════════════════════════════════════════════════════════════════
 
+
 class LSTMClassifier:
     """Bidirectional LSTM for volatility regime classification."""
 
@@ -142,7 +173,7 @@ class LSTMClassifier:
 
     def _build(self, n_features):
         import tensorflow as tf
-        from tensorflow.keras import layers, Model
+        from tensorflow.keras import Model, layers
 
         inp = layers.Input(shape=(self.seq_len, n_features))
         x = layers.Bidirectional(layers.LSTM(64, return_sequences=True, dropout=0.2))(inp)
@@ -174,7 +205,7 @@ class LSTMClassifier:
         # Create sequences
         Xs, ys = [], []
         for i in range(self.seq_len, len(X_sc)):
-            Xs.append(X_sc[i - self.seq_len:i])
+            Xs.append(X_sc[i - self.seq_len : i])
             ys.append(y_train[i])
         Xs, ys = np.array(Xs), np.array(ys)
 
@@ -184,7 +215,7 @@ class LSTMClassifier:
             X_val_sc = self.scaler.transform(X_val)
             Xv, yv = [], []
             for i in range(self.seq_len, len(X_val_sc)):
-                Xv.append(X_val_sc[i - self.seq_len:i])
+                Xv.append(X_val_sc[i - self.seq_len : i])
                 yv.append(y_val[i])
             if len(Xv) > 20:
                 val_data = (np.array(Xv), np.array(yv))
@@ -193,16 +224,19 @@ class LSTMClassifier:
 
         callbacks = [
             tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss" if val_data else "loss",
-                patience=8, restore_best_weights=True
+                monitor="val_loss" if val_data else "loss", patience=8, restore_best_weights=True
             ),
             tf.keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=4, min_lr=1e-6),
         ]
 
         self.model.fit(
-            Xs, ys, validation_data=val_data,
-            epochs=self.epochs, batch_size=64,
-            callbacks=callbacks, verbose=0,
+            Xs,
+            ys,
+            validation_data=val_data,
+            epochs=self.epochs,
+            batch_size=64,
+            callbacks=callbacks,
+            verbose=0,
         )
         return self
 
@@ -210,24 +244,24 @@ class LSTMClassifier:
         X_sc = self.scaler.transform(X)
         Xs = []
         for i in range(self.seq_len, len(X_sc)):
-            Xs.append(X_sc[i - self.seq_len:i])
+            Xs.append(X_sc[i - self.seq_len : i])
         if not Xs:
             return np.array([])
         probs = self.model.predict(np.array(Xs), verbose=0)
         preds = np.full(len(X), -1)
-        preds[self.seq_len:] = probs.argmax(axis=1)
+        preds[self.seq_len :] = probs.argmax(axis=1)
         return preds
 
     def predict_proba(self, X):
         X_sc = self.scaler.transform(X)
         Xs = []
         for i in range(self.seq_len, len(X_sc)):
-            Xs.append(X_sc[i - self.seq_len:i])
+            Xs.append(X_sc[i - self.seq_len : i])
         if not Xs:
             return np.array([])
         probs = self.model.predict(np.array(Xs), verbose=0)
         full_probs = np.full((len(X), self.n_classes), 1.0 / self.n_classes)
-        full_probs[self.seq_len:] = probs
+        full_probs[self.seq_len :] = probs
         return full_probs
 
 
@@ -235,13 +269,16 @@ class LSTMClassifier:
 # MAIN BACKTEST
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def main(force_refresh: bool = False):
     t0 = time.time()
     class_names = ["LOW", "NORMAL", "HIGH"]
 
     print(f"\n{BOLD}{'═' * 78}{RESET}")
     print(f"{BOLD}  VOLATILITY CLASSIFICATION BACKTEST{RESET}")
-    print(f"{BOLD}  {len(TEST_SYMBOLS)} symbols | 3 classes (LOW/NORMAL/HIGH) | {HORIZON_DAYS}d horizon{RESET}")
+    print(
+        f"{BOLD}  {len(TEST_SYMBOLS)} symbols | 3 classes (LOW/NORMAL/HIGH) | {HORIZON_DAYS}d horizon{RESET}"
+    )
     print(f"{BOLD}{'═' * 78}{RESET}\n")
 
     # ── 1. Data (cached — re-downloads only if stale or --force-refresh) ─
@@ -250,9 +287,11 @@ def main(force_refresh: bool = False):
     all_data = pipeline.fetch(TEST_SYMBOLS, LOOKBACK_YEARS, force_refresh=force_refresh)
     vix_data = pipeline.fetch_vix(LOOKBACK_YEARS, force_refresh=force_refresh)
     cache = pipeline.cache_info()
-    print(f"        {len(all_data)} symbols fetched "
-          f"(cache: {cache['total_size_mb']:.1f} MB, "
-          f"{len(cache['ohlcv_symbols'])} symbols cached)\n")
+    print(
+        f"        {len(all_data)} symbols fetched "
+        f"(cache: {cache['total_size_mb']:.1f} MB, "
+        f"{len(cache['ohlcv_symbols'])} symbols cached)\n"
+    )
 
     # ── 2. Features + targets ─────────────────────────────────────────
     print(f"  {CYAN}[2/6]{RESET} Building features + classification targets...")
@@ -287,7 +326,9 @@ def main(force_refresh: bool = False):
     global_test_y = pd.concat(test_y_dict.values()).sort_index()
 
     n_features = global_train_X.shape[1]
-    print(f"        {n_features} features | Train: {len(global_train_X)} | Test: {len(global_test_X)}")
+    print(
+        f"        {n_features} features | Train: {len(global_train_X)} | Test: {len(global_test_X)}"
+    )
     print(f"        Train class distribution: {dict(Counter(global_train_y.values))}")
     print(f"        Test  class distribution: {dict(Counter(global_test_y.values))}\n")
 
@@ -306,70 +347,98 @@ def main(force_refresh: bool = False):
     # ── XGBoost ───────────────────────────────────────────────────────
     t1 = time.time()
     xgb_clf = xgb.XGBClassifier(
-        n_estimators=500, max_depth=6, learning_rate=0.05,
-        subsample=0.8, colsample_bytree=0.8,
-        min_child_weight=5, gamma=0.1,
-        reg_alpha=0.1, reg_lambda=1.0,
-        objective="multi:softprob", num_class=3,
-        eval_metric="mlogloss", use_label_encoder=False,
-        early_stopping_rounds=50, verbosity=0,
+        n_estimators=500,
+        max_depth=6,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        min_child_weight=5,
+        gamma=0.1,
+        reg_alpha=0.1,
+        reg_lambda=1.0,
+        objective="multi:softprob",
+        num_class=3,
+        eval_metric="mlogloss",
+        use_label_encoder=False,
+        early_stopping_rounds=50,
+        verbosity=0,
     )
     xgb_clf.fit(
-        X_train_sc, y_train,
-        eval_set=[(X_test_sc, y_test)], verbose=False,
+        X_train_sc,
+        y_train,
+        eval_set=[(X_test_sc, y_test)],
+        verbose=False,
     )
     models["XGBoost"] = xgb_clf
-    print(f"    ✓ XGBoost          {time.time()-t1:.1f}s  (best iter: {xgb_clf.best_iteration})")
+    print(f"    ✓ XGBoost          {time.time() - t1:.1f}s  (best iter: {xgb_clf.best_iteration})")
 
     # ── LightGBM ──────────────────────────────────────────────────────
     t1 = time.time()
     lgb_clf = lgb.LGBMClassifier(
-        n_estimators=500, max_depth=6, learning_rate=0.05,
-        subsample=0.8, colsample_bytree=0.8,
-        min_child_samples=20, reg_alpha=0.1, reg_lambda=0.1,
-        num_class=3, objective="multiclass",
-        verbose=-1, importance_type="gain",
+        n_estimators=500,
+        max_depth=6,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        min_child_samples=20,
+        reg_alpha=0.1,
+        reg_lambda=0.1,
+        num_class=3,
+        objective="multiclass",
+        verbose=-1,
+        importance_type="gain",
     )
     lgb_clf.fit(
-        X_train_sc, y_train,
+        X_train_sc,
+        y_train,
         eval_set=[(X_test_sc, y_test)],
         callbacks=[lgb.early_stopping(50, verbose=False)],
     )
     models["LightGBM"] = lgb_clf
-    print(f"    ✓ LightGBM         {time.time()-t1:.1f}s  (best iter: {lgb_clf.best_iteration_})")
+    print(f"    ✓ LightGBM         {time.time() - t1:.1f}s  (best iter: {lgb_clf.best_iteration_})")
 
     # ── Random Forest ─────────────────────────────────────────────────
     t1 = time.time()
     rf_clf = RandomForestClassifier(
-        n_estimators=500, max_depth=10,
-        min_samples_leaf=20, min_samples_split=40,
-        max_features="sqrt", class_weight="balanced",
-        n_jobs=-1, random_state=42,
+        n_estimators=500,
+        max_depth=10,
+        min_samples_leaf=20,
+        min_samples_split=40,
+        max_features="sqrt",
+        class_weight="balanced",
+        n_jobs=-1,
+        random_state=42,
     )
     rf_clf.fit(X_train_sc, y_train)
     models["RandomForest"] = rf_clf
-    print(f"    ✓ Random Forest    {time.time()-t1:.1f}s")
+    print(f"    ✓ Random Forest    {time.time() - t1:.1f}s")
 
     # ── Extra Trees ───────────────────────────────────────────────────
     t1 = time.time()
     et_clf = ExtraTreesClassifier(
-        n_estimators=500, max_depth=10,
-        min_samples_leaf=20, class_weight="balanced",
-        n_jobs=-1, random_state=42,
+        n_estimators=500,
+        max_depth=10,
+        min_samples_leaf=20,
+        class_weight="balanced",
+        n_jobs=-1,
+        random_state=42,
     )
     et_clf.fit(X_train_sc, y_train)
     models["ExtraTrees"] = et_clf
-    print(f"    ✓ Extra Trees      {time.time()-t1:.1f}s")
+    print(f"    ✓ Extra Trees      {time.time() - t1:.1f}s")
 
     # ── Logistic Regression (baseline) ────────────────────────────────
     t1 = time.time()
     lr_clf = LogisticRegression(
-        C=1.0, max_iter=1000, multi_class="multinomial",
-        class_weight="balanced", solver="lbfgs",
+        C=1.0,
+        max_iter=1000,
+        multi_class="multinomial",
+        class_weight="balanced",
+        solver="lbfgs",
     )
     lr_clf.fit(X_train_sc, y_train)
     models["LogisticReg"] = lr_clf
-    print(f"    ✓ Logistic Reg     {time.time()-t1:.1f}s")
+    print(f"    ✓ Logistic Reg     {time.time() - t1:.1f}s")
 
     # ── LSTM Classifier ───────────────────────────────────────────────
     t1 = time.time()
@@ -377,44 +446,68 @@ def main(force_refresh: bool = False):
     # Train/val split for LSTM
     split_lstm = int(len(X_train_sc) * 0.85)
     lstm_clf.fit(
-        global_train_X.values[:split_lstm], y_train[:split_lstm],
-        global_train_X.values[split_lstm:], y_train[split_lstm:],
+        global_train_X.values[:split_lstm],
+        y_train[:split_lstm],
+        global_train_X.values[split_lstm:],
+        y_train[split_lstm:],
     )
     models["LSTM"] = lstm_clf
-    print(f"    ✓ LSTM             {time.time()-t1:.1f}s")
+    print(f"    ✓ LSTM             {time.time() - t1:.1f}s")
 
     # ── Soft Voting Ensemble (XGB + LGB + RF) ───────────────────────
     t1 = time.time()
     vote_clf = VotingClassifier(
         estimators=[
-            ("xgb", xgb.XGBClassifier(
-                n_estimators=300, max_depth=5, learning_rate=0.05,
-                subsample=0.8, colsample_bytree=0.8,
-                objective="multi:softprob", num_class=3,
-                use_label_encoder=False, verbosity=0,
-            )),
-            ("lgb", lgb.LGBMClassifier(
-                n_estimators=300, max_depth=5, learning_rate=0.05,
-                verbose=-1, num_class=3,
-            )),
-            ("rf", RandomForestClassifier(
-                n_estimators=300, max_depth=8,
-                min_samples_leaf=20, class_weight="balanced",
-                n_jobs=-1, random_state=42,
-            )),
+            (
+                "xgb",
+                xgb.XGBClassifier(
+                    n_estimators=300,
+                    max_depth=5,
+                    learning_rate=0.05,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    objective="multi:softprob",
+                    num_class=3,
+                    use_label_encoder=False,
+                    verbosity=0,
+                ),
+            ),
+            (
+                "lgb",
+                lgb.LGBMClassifier(
+                    n_estimators=300,
+                    max_depth=5,
+                    learning_rate=0.05,
+                    verbose=-1,
+                    num_class=3,
+                ),
+            ),
+            (
+                "rf",
+                RandomForestClassifier(
+                    n_estimators=300,
+                    max_depth=8,
+                    min_samples_leaf=20,
+                    class_weight="balanced",
+                    n_jobs=-1,
+                    random_state=42,
+                ),
+            ),
         ],
         voting="soft",
         n_jobs=-1,
     )
     vote_clf.fit(X_train_sc, y_train)
     models["VotingEnsemble"] = vote_clf
-    print(f"    ✓ Voting Ensemble  {time.time()-t1:.1f}s")
+    print(f"    ✓ Voting Ensemble  {time.time() - t1:.1f}s")
     print()
 
     # ── 4. Evaluate ───────────────────────────────────────────────────
     print(f"  {CYAN}[4/6]{RESET} Evaluating on held-out test set ({len(y_test)} samples)...\n")
 
-    print(f"{BOLD}  {'MODEL':<15} {'Accuracy':>9} {'F1-macro':>9} {'F1-wt':>9} {'Prec-wt':>9} {'Rec-wt':>9}{RESET}")
+    print(
+        f"{BOLD}  {'MODEL':<15} {'Accuracy':>9} {'F1-macro':>9} {'F1-wt':>9} {'Prec-wt':>9} {'Rec-wt':>9}{RESET}"
+    )
     print(f"  {'─' * 65}")
 
     all_results = {}
@@ -440,22 +533,30 @@ def main(force_refresh: bool = False):
         rec = recall_score(y_true, y_pred, average="weighted", zero_division=0)
 
         all_results[name] = {
-            "acc": acc, "f1_macro": f1_mac, "f1_weighted": f1_wt,
-            "precision": prec, "recall": rec,
-            "y_pred": y_pred, "y_true": y_true,
+            "acc": acc,
+            "f1_macro": f1_mac,
+            "f1_weighted": f1_wt,
+            "precision": prec,
+            "recall": rec,
+            "y_pred": y_pred,
+            "y_true": y_true,
         }
 
         acc_c = GREEN if acc > 0.5 else YELLOW if acc > 0.4 else RED
         f1_c = GREEN if f1_mac > 0.5 else YELLOW if f1_mac > 0.4 else RED
 
         marker = ""
-        print(f"  {name:<15} {acc_c}{acc:>9.3f}{RESET} {f1_c}{f1_mac:>9.3f}{RESET} "
-              f"{f1_wt:>9.3f} {prec:>9.3f} {rec:>9.3f}{marker}")
+        print(
+            f"  {name:<15} {acc_c}{acc:>9.3f}{RESET} {f1_c}{f1_mac:>9.3f}{RESET} "
+            f"{f1_wt:>9.3f} {prec:>9.3f} {rec:>9.3f}{marker}"
+        )
 
     # Find best model
     if all_results:
         best_name = max(all_results, key=lambda n: all_results[n]["f1_macro"])
-        print(f"\n  {GREEN}★ Best model: {best_name} (F1-macro: {all_results[best_name]['f1_macro']:.3f}){RESET}")
+        print(
+            f"\n  {GREEN}★ Best model: {best_name} (F1-macro: {all_results[best_name]['f1_macro']:.3f}){RESET}"
+        )
 
     # ── 5. Detailed report for best + stacking ────────────────────────
     print(f"\n{BOLD}  {'═' * 70}{RESET}")
@@ -467,7 +568,8 @@ def main(force_refresh: bool = False):
         print(f"  {'─' * 60}")
 
         report = classification_report(
-            r["y_true"], r["y_pred"],
+            r["y_true"],
+            r["y_pred"],
             target_names=class_names,
             zero_division=0,
         )
@@ -476,14 +578,14 @@ def main(force_refresh: bool = False):
 
         # Confusion matrix
         cm = confusion_matrix(r["y_true"], r["y_pred"], labels=[0, 1, 2])
-        print(f"\n    Confusion Matrix:")
+        print("\n    Confusion Matrix:")
         print(f"    {'':>10} {'Pred LOW':>10} {'Pred NORM':>10} {'Pred HIGH':>10}")
         for i, label in enumerate(class_names):
             row = "  ".join(f"{v:>8}" for v in cm[i])
             print(f"    {label:>10} {row}")
 
         # Per-class metrics
-        print(f"\n    Per-class F1:")
+        print("\n    Per-class F1:")
         per_class_f1 = f1_score(r["y_true"], r["y_pred"], average=None, zero_division=0)
         for i, (cls, f1) in enumerate(zip(class_names, per_class_f1)):
             f1c = GREEN if f1 > 0.5 else YELLOW if f1 > 0.35 else RED
@@ -494,24 +596,31 @@ def main(force_refresh: bool = False):
     print(f"\n{BOLD}  TOP 25 FEATURES (XGBoost gain){RESET}")
     print(f"  {'─' * 60}")
 
-    fi = pd.Series(
-        xgb_clf.feature_importances_,
-        index=global_train_X.columns
-    ).sort_values(ascending=False)
+    fi = pd.Series(xgb_clf.feature_importances_, index=global_train_X.columns).sort_values(
+        ascending=False
+    )
 
     total = fi.sum()
     for feat, imp in fi.head(25).items():
         pct = imp / total * 100
         bar = "█" * int(pct * 1.5) + "░" * max(0, 25 - int(pct * 1.5))
         tag = ""
-        if "rsi" in feat: tag = f" {CYAN}[RSI]{RESET}"
-        elif "macd" in feat: tag = f" {YELLOW}[MACD]{RESET}"
-        elif "stoch" in feat: tag = f" {GREEN}[STOCH]{RESET}"
-        elif "adx" in feat or "di_" in feat or "strong_trend" in feat: tag = f" {RED}[ADX]{RESET}"
-        elif "pmo" in feat: tag = f" {GREY}[PMO]{RESET}"
-        elif "har" in feat: tag = f" {GREEN}[HAR]{RESET}"
-        elif "vol_" in feat: tag = f" {RED}[VOL]{RESET}"
-        elif "vix" in feat: tag = f" {YELLOW}[VIX]{RESET}"
+        if "rsi" in feat:
+            tag = f" {CYAN}[RSI]{RESET}"
+        elif "macd" in feat:
+            tag = f" {YELLOW}[MACD]{RESET}"
+        elif "stoch" in feat:
+            tag = f" {GREEN}[STOCH]{RESET}"
+        elif "adx" in feat or "di_" in feat or "strong_trend" in feat:
+            tag = f" {RED}[ADX]{RESET}"
+        elif "pmo" in feat:
+            tag = f" {GREY}[PMO]{RESET}"
+        elif "har" in feat:
+            tag = f" {GREEN}[HAR]{RESET}"
+        elif "vol_" in feat:
+            tag = f" {RED}[VOL]{RESET}"
+        elif "vix" in feat:
+            tag = f" {YELLOW}[VIX]{RESET}"
         print(f"  {feat:<26} {bar} {pct:>5.1f}%{tag}")
 
     # ── Per-symbol breakdown ──────────────────────────────────────────
@@ -532,14 +641,16 @@ def main(force_refresh: bool = False):
     # ── Summary ───────────────────────────────────────────────────────
     elapsed = time.time() - t0
     print(f"\n  {BOLD}Random baseline (3-class): 33.3% accuracy, 0.333 F1{RESET}")
-    print(f"  Total time: {elapsed:.0f}s ({elapsed/60:.1f}m)")
+    print(f"  Total time: {elapsed:.0f}s ({elapsed / 60:.1f}m)")
     print(f"\n{BOLD}{'═' * 78}{RESET}\n")
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Volatility Classification Backtest")
-    parser.add_argument("--force-refresh", action="store_true",
-                        help="Bypass data cache and re-download everything")
+    parser.add_argument(
+        "--force-refresh", action="store_true", help="Bypass data cache and re-download everything"
+    )
     args = parser.parse_args()
     main(force_refresh=args.force_refresh)

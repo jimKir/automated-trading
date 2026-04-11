@@ -10,14 +10,12 @@ Set environment variables:
 
 Testnet URL: https://testnet.binance.vision  (set testnet=True)
 """
+
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional
 
-from execution.broker_base import (
-    BrokerBase, Order, OrderSide, OrderStatus, OrderType, AccountInfo
-)
+from execution.broker_base import AccountInfo, BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from utils.logger import get_logger
 
 log = get_logger("BinanceBroker")
@@ -27,18 +25,15 @@ class BinanceBroker(BrokerBase):
     def __init__(self, config: dict):
         self.config = config
         binance_cfg = config.get("brokers", {}).get("binance", {})
-        self.api_key = (
-            binance_cfg.get("api_key") or os.environ.get("BINANCE_API_KEY", "")
-        )
-        self.api_secret = (
-            binance_cfg.get("api_secret") or os.environ.get("BINANCE_API_SECRET", "")
-        )
+        self.api_key = binance_cfg.get("api_key") or os.environ.get("BINANCE_API_KEY", "")
+        self.api_secret = binance_cfg.get("api_secret") or os.environ.get("BINANCE_API_SECRET", "")
         self.testnet = binance_cfg.get("testnet", True)
         self.client = None
 
     def connect(self) -> bool:
         try:
             from binance.client import Client
+
             self.client = Client(
                 self.api_key,
                 self.api_secret,
@@ -88,7 +83,7 @@ class BinanceBroker(BrokerBase):
             positions={k: {"quantity": v} for k, v in balances.items()},
         )
 
-    def get_position(self, symbol: str) -> Optional[dict]:
+    def get_position(self, symbol: str) -> dict | None:
         base = symbol.replace("-USD", "").replace("USDT", "")
         for b in self.client.get_account()["balances"]:
             if b["asset"] == base:
@@ -97,7 +92,7 @@ class BinanceBroker(BrokerBase):
                     return {"quantity": qty}
         return None
 
-    def get_positions(self) -> Dict[str, dict]:
+    def get_positions(self) -> dict[str, dict]:
         result = {}
         for b in self.client.get_account()["balances"]:
             qty = float(b["free"]) + float(b["locked"])
@@ -106,7 +101,8 @@ class BinanceBroker(BrokerBase):
         return result
 
     def place_order(self, order: Order) -> Order:
-        from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT
+        from binance.enums import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, SIDE_BUY, SIDE_SELL
+
         sym = self._to_binance_symbol(order.symbol)
         side = SIDE_BUY if order.side == OrderSide.BUY else SIDE_SELL
 
@@ -159,7 +155,7 @@ class BinanceBroker(BrokerBase):
         log.warning("cancel_order: symbol required for Binance cancellations")
         return False
 
-    def get_order_status(self, order_id: str) -> Optional[Order]:
+    def get_order_status(self, order_id: str) -> Order | None:
         log.warning("get_order_status: symbol required for Binance query")
         return None
 
@@ -172,7 +168,7 @@ class BinanceBroker(BrokerBase):
             log.warning(f"[Binance] Price error {sym}: {e}")
             return 0.0
 
-    def get_latest_prices(self, symbols: List[str]) -> Dict[str, float]:
+    def get_latest_prices(self, symbols: list[str]) -> dict[str, float]:
         prices = {}
         for sym in symbols:
             prices[sym] = self.get_latest_price(sym)

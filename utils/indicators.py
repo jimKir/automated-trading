@@ -2,10 +2,10 @@
 Shared technical indicators.
 Consolidates implementations used across strategy and regime modules.
 """
+
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 
 def compute_adx(

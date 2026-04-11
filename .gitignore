@@ -43,4 +43,17 @@ trading-deploy_accessKeys.csv
 .cache/computed/
 .cache/prices/
 .cache/factors/
-# NB: .cache/databento/ is intentionally NOT ignored — user wants it committed
+
+# Alpaca fetched data (700MB+, not for git)
+data_cache/
+
+# Diagnostic / debug scripts (one-off, not production)
+diagnose_fetch.py
+fetch_all_verbose.py
+validate_cache.py
+daily_update_status_*.md
+
+# Duplicate directories with spaces (accidental copies)
+*" b"/
+momentum_signals_exploration\ b/
+volatility_prediction\ b/

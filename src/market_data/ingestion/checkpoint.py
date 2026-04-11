@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -242,8 +242,6 @@ class CheckpointManager:
             Number of checkpoints removed.
         """
         with self._lock, sqlite3.connect(str(self.db_path)) as conn:
-            cursor = conn.execute(
-                "DELETE FROM checkpoints WHERE status = 'completed'"
-            )
+            cursor = conn.execute("DELETE FROM checkpoints WHERE status = 'completed'")
             conn.commit()
             return cursor.rowcount

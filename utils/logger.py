@@ -1,10 +1,11 @@
 """
 Centralised logging with structured output.
 """
+
 import logging
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 
 def get_logger(name: str, log_dir: str = "logs", level: str = "INFO") -> logging.Logger:
@@ -26,9 +27,7 @@ def get_logger(name: str, log_dir: str = "logs", level: str = "INFO") -> logging
     logger.addHandler(ch)
 
     # file
-    fh = logging.FileHandler(
-        Path(log_dir) / f"{datetime.now().strftime('%Y%m%d')}_trading.log"
-    )
+    fh = logging.FileHandler(Path(log_dir) / f"{datetime.now().strftime('%Y%m%d')}_trading.log")
     fh.setFormatter(fmt)
     logger.addHandler(fh)
 

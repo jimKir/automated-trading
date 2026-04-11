@@ -34,10 +34,10 @@ Config keys (under ews: section):
   use_choppy:     true    # Layer F — 2025-fingerprint choppy regime detector
   enabled:        true
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -51,26 +51,34 @@ log = get_logger("EWS")
 # Layer A reduced 0.35→0.30, Layer B 0.30→0.25, Layer E 0.10→0.05.
 # Total still sums to 1.0.
 LAYER_WEIGHTS = {
+<<<<<<< Updated upstream
     "anomaly":         0.30,   # Layer A: Isolation Forest position anomaly
     "macro":           0.25,   # Layer B: FRED macro stress
     "event_shock":     0.15,   # Layer C: VIX velocity + breadth
     "commodity_fx":    0.10,   # Layer D: Oil, Gold, DXY, JPY
     "intraday_regime": 0.05,   # Layer E: ADX + SPY EMA (intraday)
     "choppy_regime":   0.15,   # Layer F: 2025-fingerprint choppy detector (new)
+=======
+    "anomaly": 0.35,
+    "macro": 0.30,
+    "event_shock": 0.15,
+    "commodity_fx": 0.10,
+    "intraday_regime": 0.10,
+>>>>>>> Stashed changes
 }
 
 # EWS score → position scale factor
 # Thresholds set conservatively to avoid over-trading
 SCALE_THRESHOLDS = [
-    (0.25, 1.00, "GREEN",    "Full exposure"),
-    (0.40, 0.70, "YELLOW",   "Trimming positions"),
-    (0.55, 0.40, "ORANGE",   "Reducing exposure"),
-    (0.70, 0.20, "RED",      "Defensive positioning"),
+    (0.25, 1.00, "GREEN", "Full exposure"),
+    (0.40, 0.70, "YELLOW", "Trimming positions"),
+    (0.55, 0.40, "ORANGE", "Reducing exposure"),
+    (0.70, 0.20, "RED", "Defensive positioning"),
     (1.01, 0.05, "CRITICAL", "Near-flat — acute stress"),
 ]
 
 
-def ews_score_to_scale(score: float) -> Tuple[float, str, str]:
+def ews_score_to_scale(score: float) -> tuple[float, str, str]:
     """Convert EWS score to (scale_factor, colour, description)."""
     for threshold, scale, colour, desc in SCALE_THRESHOLDS:
         if score < threshold:
@@ -86,6 +94,7 @@ class EarlyWarningSystem:
 
     def __init__(self, config: dict):
         self.config = config
+<<<<<<< Updated upstream
         self._use_macro     = config.get("ews", {}).get("use_macro",     True)
         self._use_anomaly   = config.get("ews", {}).get("use_anomaly",   True)
         self._use_event     = config.get("ews", {}).get("use_event",     True)
@@ -101,26 +110,46 @@ class EarlyWarningSystem:
         self._commfx_scorer     = None
         self._intraday_scorer   = None
         self._choppy_detector   = None
+=======
+        self._use_macro = config.get("ews", {}).get("use_macro", True)
+        self._use_anomaly = config.get("ews", {}).get("use_anomaly", True)
+        self._use_event = config.get("ews", {}).get("use_event", True)
+        self._use_commfx = config.get("ews", {}).get("use_commfx", True)
+        self._use_intraday = config.get("ews", {}).get("use_intraday", True)
+        self._enabled = config.get("ews", {}).get("enabled", True)
+
+        # Lazy-loaded sub-modules
+        self._anomaly_detector = None
+        self._macro_scorer = None
+        self._event_detector = None
+        self._commfx_scorer = None
+        self._intraday_scorer = None
+>>>>>>> Stashed changes
 
         # Cached series for backtest (keyed by start+end)
-        self._score_cache: Dict[str, pd.Series] = {}
+        self._score_cache: dict[str, pd.Series] = {}
 
     # ------------------------------------------------------------------
     def _load_modules(self):
         if self._anomaly_detector is None and self._use_anomaly:
-            from regime.anomaly      import PositionAnomalyDetector
+            from regime.anomaly import PositionAnomalyDetector
+
             self._anomaly_detector = PositionAnomalyDetector()
         if self._macro_scorer is None and self._use_macro:
-            from regime.macro_score  import MacroStressScorer
+            from regime.macro_score import MacroStressScorer
+
             self._macro_scorer = MacroStressScorer()
         if self._event_detector is None and self._use_event:
-            from regime.event_shock  import EventShockDetector
+            from regime.event_shock import EventShockDetector
+
             self._event_detector = EventShockDetector()
         if self._commfx_scorer is None and self._use_commfx:
             from regime.commodity_fx import CommodityFXScorer
+
             self._commfx_scorer = CommodityFXScorer()
         if self._intraday_scorer is None and self._use_intraday:
             from regime.intraday_regime import IntradayRegimeScorer
+
             self._intraday_scorer = IntradayRegimeScorer()
         if self._choppy_detector is None and self._use_choppy:
             from regime.choppy_regime import ChoppyRegimeDetector
@@ -252,25 +281,39 @@ class EarlyWarningSystem:
 
         # Weighted combination
         ews_scores = (
+<<<<<<< Updated upstream
             LAYER_WEIGHTS["anomaly"]         * combined.get("anomaly",         0) +
             LAYER_WEIGHTS["macro"]           * combined.get("macro",           0) +
             LAYER_WEIGHTS["event_shock"]     * combined.get("event_shock",     0) +
             LAYER_WEIGHTS["commodity_fx"]    * combined.get("commodity_fx",    0) +
             LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0) +
             LAYER_WEIGHTS["choppy_regime"]   * combined.get("choppy_regime",   0)
+=======
+            LAYER_WEIGHTS["anomaly"] * combined.get("anomaly", 0)
+            + LAYER_WEIGHTS["macro"] * combined.get("macro", 0)
+            + LAYER_WEIGHTS["event_shock"] * combined.get("event_shock", 0)
+            + LAYER_WEIGHTS["commodity_fx"] * combined.get("commodity_fx", 0)
+            + LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0)
+>>>>>>> Stashed changes
         )
 
         # Smooth with 3-day EMA to avoid single-day noise spikes
         ews_scores = ews_scores.ewm(span=3, adjust=False).mean()
         ews_scores = ews_scores.clip(0, 1)
 
-        log.info(f"EWS: score stats — mean={ews_scores.mean():.3f} "
-                 f"max={ews_scores.max():.3f} "
-                 f"p95={ews_scores.quantile(0.95):.3f}")
+        log.info(
+            f"EWS: score stats — mean={ews_scores.mean():.3f} "
+            f"max={ews_scores.max():.3f} "
+            f"p95={ews_scores.quantile(0.95):.3f}"
+        )
 
         # Log how many days each regime state was active
         for thr, scale, colour, desc in SCALE_THRESHOLDS:
-            prev_thr = SCALE_THRESHOLDS[SCALE_THRESHOLDS.index((thr, scale, colour, desc)) - 1][0] if SCALE_THRESHOLDS.index((thr, scale, colour, desc)) > 0 else 0
+            prev_thr = (
+                SCALE_THRESHOLDS[SCALE_THRESHOLDS.index((thr, scale, colour, desc)) - 1][0]
+                if SCALE_THRESHOLDS.index((thr, scale, colour, desc)) > 0
+                else 0
+            )
             days_in = ((ews_scores >= prev_thr) & (ews_scores < thr)).sum()
             log.info(f"  {colour:<10} ({scale:.0%} scale): {days_in} days")
 
@@ -278,8 +321,7 @@ class EarlyWarningSystem:
         return ews_scores
 
     # ------------------------------------------------------------------
-    def get_scale_factor(self, date: pd.Timestamp,
-                         ews_scores: pd.Series) -> Tuple[float, str]:
+    def get_scale_factor(self, date: pd.Timestamp, ews_scores: pd.Series) -> tuple[float, str]:
         """
         Get the position scale factor for a given date from pre-computed scores.
         Returns (scale_factor, regime_colour).
@@ -295,7 +337,7 @@ class EarlyWarningSystem:
         return scale, colour
 
     # ------------------------------------------------------------------
-    def score_today(self, all_prices: pd.DataFrame = None) -> Tuple[float, float, str]:
+    def score_today(self, all_prices: pd.DataFrame = None) -> tuple[float, float, str]:
         """
         Compute live EWS score for paper/live trading.
         Returns (ews_score, scale_factor, regime_colour).
@@ -305,9 +347,8 @@ class EarlyWarningSystem:
 
         self._load_modules()
 
-        from datetime import timezone
-        _now = datetime.now(timezone.utc)
-        end   = _now.strftime("%Y-%m-%d")
+        _now = datetime.now(UTC)
+        end = _now.strftime("%Y-%m-%d")
         start = (_now - timedelta(days=400)).strftime("%Y-%m-%d")
 
         scores_by_layer = {}
@@ -370,9 +411,7 @@ class EarlyWarningSystem:
                 scores_by_layer["choppy_regime"] = 0.0
 
         ews_score = sum(
-            LAYER_WEIGHTS[k] * v
-            for k, v in scores_by_layer.items()
-            if k in LAYER_WEIGHTS
+            LAYER_WEIGHTS[k] * v for k, v in scores_by_layer.items() if k in LAYER_WEIGHTS
         )
         ews_score = float(np.clip(ews_score, 0, 1))
         scale, colour, desc = ews_score_to_scale(ews_score)
@@ -384,8 +423,7 @@ class EarlyWarningSystem:
         return ews_score, scale, colour
 
     # ------------------------------------------------------------------
-    def generate_ews_report_data(self, ews_scores: pd.Series,
-                                 all_prices: pd.DataFrame) -> dict:
+    def generate_ews_report_data(self, ews_scores: pd.Series, all_prices: pd.DataFrame) -> dict:
         """
         Generate EWS report data for inclusion in the HTML backtest report.
         """
@@ -393,24 +431,24 @@ class EarlyWarningSystem:
             return {}
 
         scale_factors = ews_scores.apply(lambda s: ews_score_to_scale(s)[0])
-        colours       = ews_scores.apply(lambda s: ews_score_to_scale(s)[1])
+        colours = ews_scores.apply(lambda s: ews_score_to_scale(s)[1])
 
         regime_counts = colours.value_counts().to_dict()
-        avg_scale     = float(scale_factors.mean())
+        avg_scale = float(scale_factors.mean())
 
         # Days when EWS was in each state
-        days_green    = int((colours == "GREEN").sum())
-        days_yellow   = int((colours == "YELLOW").sum())
-        days_orange   = int((colours == "ORANGE").sum())
-        days_red      = int(((colours == "RED") | (colours == "CRITICAL")).sum())
+        days_green = int((colours == "GREEN").sum())
+        days_yellow = int((colours == "YELLOW").sum())
+        days_orange = int((colours == "ORANGE").sum())
+        days_red = int(((colours == "RED") | (colours == "CRITICAL")).sum())
 
         return {
-            "ews_scores":       ews_scores,
+            "ews_scores": ews_scores,
             "ews_scale_factors": scale_factors,
-            "ews_avg_scale":    avg_scale,
-            "ews_days_green":   days_green,
-            "ews_days_yellow":  days_yellow,
-            "ews_days_orange":  days_orange,
-            "ews_days_red":     days_red,
+            "ews_avg_scale": avg_scale,
+            "ews_days_green": days_green,
+            "ews_days_yellow": days_yellow,
+            "ews_days_orange": days_orange,
+            "ews_days_red": days_red,
             "ews_regime_counts": regime_counts,
         }

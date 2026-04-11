@@ -16,13 +16,19 @@ Usage:
   python3 fetch_all.py --validate       # Run quality checks on cached data
   python3 fetch_all.py --stats          # Print cache statistics
 """
-import os, sys, json, logging, time, argparse, tempfile
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
 
 import pandas as pd
-import numpy as np
 from dotenv import load_dotenv
 
 # ── Setup ────────────────────────────────────────────────────────────────────
@@ -37,14 +43,26 @@ logging.basicConfig(
 logger = logging.getLogger("fetch_all")
 
 # ── Constants ────────────────────────────────────────────────────────────────
-CACHE_DIR       = ROOT / "data_cache"
-OHLCV_DIR       = CACHE_DIR / "ohlcv"
-CRYPTO_DIR      = CACHE_DIR / "crypto"
-PROGRESS_FILE   = CACHE_DIR / "fetch_progress.json"
-QUALITY_FILE    = CACHE_DIR / "quality_report.json"
-REFRESH_TAIL    = 7     # Always re-fetch last N calendar days (bars may revise)
-RATE_LIMIT      = 180   # Max requests per 60s window
-HISTORY_YEARS   = 5     # Default backfill depth
+CACHE_DIR = ROOT / "data_cache"
+OHLCV_DIR = CACHE_DIR / "ohlcv"
+CRYPTO_DIR = CACHE_DIR / "crypto"
+PROGRESS_FILE = CACHE_DIR / "fetch_progress.json"
+QUALITY_FILE = CACHE_DIR / "quality_report.json"
+REFRESH_TAIL = 7  # Always re-fetch last N calendar days (bars may revise)
+RATE_LIMIT = 180  # Max requests per 60s window
+HISTORY_YEARS = 5  # Default backfill depth
+
+
+# ── Timezone helper ─────────────────────────────────────────────────────────
+def tz_aware_cutoff(date_str: str, index: pd.DatetimeIndex) -> pd.Timestamp:
+    """Create a cutoff Timestamp that matches the timezone of a DatetimeIndex.
+
+    Prevents TypeError when comparing tz-naive vs tz-aware datetimes.
+    This was previously duplicated in 4+ locations; centralised here.
+    """
+    if index.tz is None:
+        return pd.Timestamp(date_str)
+    return pd.Timestamp(date_str, tz="UTC").tz_convert(index.tz)
 
 
 # ── Catalogue integration ────────────────────────────────────────────────────
@@ -52,6 +70,7 @@ def _get_catalogue():
     """Get DataCatalogue singleton (best-effort, never crashes)."""
     try:
         from src.market_data.catalogue import get_catalogue
+
         return get_catalogue()
     except Exception:
         return None
@@ -89,33 +108,37 @@ def validate_dataframe(df: pd.DataFrame, sym: str) -> dict:
         issues.append("empty_dataframe")
         return stats
 
+    # Normalise column names to lowercase for consistent checks
+    col_map = {c: c.lower() for c in df.columns}
+    df_check = df.rename(columns=col_map)
+
     # Required columns
     required = {"open", "high", "low", "close", "volume"}
-    missing = required - set(c.lower() for c in df.columns)
+    missing = required - set(df_check.columns)
     if missing:
         issues.append(f"missing_columns:{missing}")
 
     # NaN check
     for col in ["open", "high", "low", "close"]:
-        if col in df.columns:
-            nan_count = df[col].isna().sum()
+        if col in df_check.columns:
+            nan_count = df_check[col].isna().sum()
             if nan_count > 0:
                 issues.append(f"nan_{col}:{nan_count}")
 
     # Negative prices
     for col in ["open", "high", "low", "close"]:
-        if col in df.columns and (df[col] < 0).any():
-            issues.append(f"negative_{col}:{(df[col] < 0).sum()}")
+        if col in df_check.columns and (df_check[col] < 0).any():
+            issues.append(f"negative_{col}:{(df_check[col] < 0).sum()}")
 
     # Zero volume (>50% of rows = likely stale)
-    if "volume" in df.columns:
-        zero_pct = (df["volume"] == 0).mean()
+    if "volume" in df_check.columns:
+        zero_pct = (df_check["volume"] == 0).mean()
         if zero_pct > 0.5:
             issues.append(f"high_zero_volume:{zero_pct:.0%}")
 
     # Price jumps > 80% in a single day
-    if "close" in df.columns and len(df) > 1:
-        returns = df["close"].pct_change().abs()
+    if "close" in df_check.columns and len(df_check) > 1:
+        returns = df_check["close"].pct_change().abs()
         jumps = (returns > 0.8).sum()
         if jumps > 3:
             issues.append(f"extreme_jumps:{jumps}")
@@ -151,7 +174,7 @@ def _atomic_write(path: Path, df: pd.DataFrame):
         return False
 
 
-def load_cached(sym: str, is_crypto: bool) -> Optional[pd.DataFrame]:
+def load_cached(sym: str, is_crypto: bool) -> pd.DataFrame | None:
     """Load existing cached data for a symbol."""
     canon = _canonical_path(sym, is_crypto)
     if canon.exists():
@@ -182,7 +205,7 @@ def load_cached(sym: str, is_crypto: bool) -> Optional[pd.DataFrame]:
         return None
 
 
-def get_cached_end_date(sym: str, is_crypto: bool) -> Optional[str]:
+def get_cached_end_date(sym: str, is_crypto: bool) -> str | None:
     """Return the latest date in cached data, or None if no cache."""
     df = load_cached(sym, is_crypto)
     if df is None or df.empty:
@@ -196,13 +219,15 @@ def get_cached_end_date(sym: str, is_crypto: bool) -> Optional[str]:
 # ── Alpaca API ───────────────────────────────────────────────────────────────
 class AlpacaFetcher:
     def __init__(self):
+        from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
         from alpaca.trading.client import TradingClient
-        from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
 
         k = os.getenv("ALPACA_API_KEY") or os.getenv("APCA_API_KEY_ID")
         s = os.getenv("ALPACA_API_SECRET") or os.getenv("APCA_API_SECRET_KEY")
         if not k or not s:
-            raise ValueError("Missing API credentials. Set ALPACA_API_KEY and ALPACA_API_SECRET in .env")
+            raise ValueError(
+                "Missing API credentials. Set ALPACA_API_KEY and ALPACA_API_SECRET in .env"
+            )
 
         self.trading = TradingClient(k, s)
         self.stock_client = StockHistoricalDataClient(k, s)
@@ -223,6 +248,7 @@ class AlpacaFetcher:
 
     def get_all_assets(self):
         from alpaca.trading.requests import GetAssetsRequest
+
         self._rate_limit()
         assets = self.trading.get_all_assets(GetAssetsRequest(status="active"))
         result = []
@@ -232,7 +258,7 @@ class AlpacaFetcher:
             result.append({"symbol": a.symbol, "class": t, "is_crypto": is_crypto})
         return result
 
-    def fetch_bars(self, sym: str, start: str, end: str, is_crypto: bool) -> Optional[pd.DataFrame]:
+    def fetch_bars(self, sym: str, start: str, end: str, is_crypto: bool) -> pd.DataFrame | None:
         """Fetch OHLCV bars for a single symbol.
 
         For crypto: tries Alpaca first, falls back to yfinance for BTC-USD, ETH-USD, SOL-USD.
@@ -244,9 +270,12 @@ class AlpacaFetcher:
                 try:
                     from alpaca.data.requests import CryptoBarsRequest
                     from alpaca.data.timeframe import TimeFrame
+
                     req = CryptoBarsRequest(
-                        symbol_or_symbols=sym, timeframe=TimeFrame.Day,
-                        start=pd.Timestamp(start), end=pd.Timestamp(end),
+                        symbol_or_symbols=sym,
+                        timeframe=TimeFrame.Day,
+                        start=pd.Timestamp(start),
+                        end=pd.Timestamp(end),
                     )
                     bars = self.crypto_client.get_crypto_bars(req)
                     df = bars.df
@@ -259,26 +288,28 @@ class AlpacaFetcher:
 
                 # Fallback to yfinance for common crypto
                 from crypto_fetcher import YFinanceCryptoFetcher
+
                 yf_fetcher = YFinanceCryptoFetcher()
                 if yf_fetcher.is_available(sym):
                     return yf_fetcher.fetch_bars(sym, start, end)
-                else:
-                    return None
-            else:
-                from alpaca.data.requests import StockBarsRequest
-                from alpaca.data.timeframe import TimeFrame
-                req = StockBarsRequest(
-                    symbol_or_symbols=sym, timeframe=TimeFrame.Day,
-                    start=pd.Timestamp(start), end=pd.Timestamp(end),
-                )
-                bars = self.stock_client.get_stock_bars(req)
+                return None
+            from alpaca.data.requests import StockBarsRequest
+            from alpaca.data.timeframe import TimeFrame
 
-                df = bars.df
-                if df.empty:
-                    return None
-                if isinstance(df.index, pd.MultiIndex):
-                    df = df.droplevel("symbol")
-                return df
+            req = StockBarsRequest(
+                symbol_or_symbols=sym,
+                timeframe=TimeFrame.Day,
+                start=pd.Timestamp(start),
+                end=pd.Timestamp(end),
+            )
+            bars = self.stock_client.get_stock_bars(req)
+
+            df = bars.df
+            if df.empty:
+                return None
+            if isinstance(df.index, pd.MultiIndex):
+                df = df.droplevel("symbol")
+            return df
 
         except Exception as ex:
             logger.debug(f"{sym}: {type(ex).__name__}: {ex}")
@@ -301,8 +332,13 @@ def run_fetch(mode: str = "backfill"):
 
     # Load progress
     prog = {
-        "fetched": [], "failed": [], "skipped": [], "delta_updated": [],
-        "total": 0, "mode": mode, "started": datetime.now().isoformat(),
+        "fetched": [],
+        "failed": [],
+        "skipped": [],
+        "delta_updated": [],
+        "total": 0,
+        "mode": mode,
+        "started": datetime.now().isoformat(),
     }
 
     # Get all tradeable assets
@@ -322,7 +358,7 @@ def run_fetch(mode: str = "backfill"):
 
     for batch, is_crypto in [(stocks, False), (cryptos, True)]:
         label = "CRYPTO" if is_crypto else "STOCKS/ETFs"
-        logger.info(f"\n{'='*60}\n{label} ({len(batch)} symbols)\n{'='*60}")
+        logger.info(f"\n{'=' * 60}\n{label} ({len(batch)} symbols)\n{'=' * 60}")
 
         for i, asset in enumerate(batch):
             sym = asset["symbol"]
@@ -350,11 +386,7 @@ def run_fetch(mode: str = "backfill"):
                     # Merge with existing cache
                     df_old = load_cached(sym, is_crypto)
                     if df_old is not None:
-                        # Fix: match cutoff timezone to index timezone
-                        if df_old.index.tz is None:
-                            cutoff = pd.Timestamp(delta_start)
-                        else:
-                            cutoff = pd.Timestamp(delta_start, tz="UTC").tz_convert(df_old.index.tz)
+                        cutoff = tz_aware_cutoff(delta_start, df_old.index)
                         df_old = df_old[df_old.index < cutoff]
                         df_merged = pd.concat([df_old, df_new]).sort_index()
                         df_merged = df_merged[~df_merged.index.duplicated(keep="last")]
@@ -363,8 +395,15 @@ def run_fetch(mode: str = "backfill"):
 
                     if _atomic_write(_canonical_path(sym, is_crypto), df_merged):
                         prog["delta_updated"].append(sym)
-                        _register(cat, sym, is_crypto, backfill_start, today, len(df_merged),
-                                  _canonical_path(sym, is_crypto))
+                        _register(
+                            cat,
+                            sym,
+                            is_crypto,
+                            backfill_start,
+                            today,
+                            len(df_merged),
+                            _canonical_path(sym, is_crypto),
+                        )
                     else:
                         prog["failed"].append(sym)
                 else:
@@ -381,8 +420,15 @@ def run_fetch(mode: str = "backfill"):
 
                     if _atomic_write(_canonical_path(sym, is_crypto), df):
                         prog["fetched"].append(sym)
-                        _register(cat, sym, is_crypto, backfill_start, today, len(df),
-                                  _canonical_path(sym, is_crypto))
+                        _register(
+                            cat,
+                            sym,
+                            is_crypto,
+                            backfill_start,
+                            today,
+                            len(df),
+                            _canonical_path(sym, is_crypto),
+                        )
                     else:
                         prog["failed"].append(sym)
                 else:
@@ -410,11 +456,13 @@ def run_fetch(mode: str = "backfill"):
     prog["elapsed_sec"] = round(time.time() - t0, 1)
 
     # Save progress
-    json.dump(prog, open(PROGRESS_FILE, "w"), indent=2, default=str)
+    with open(PROGRESS_FILE, "w") as f:
+        json.dump(prog, f, indent=2, default=str)
 
     # Save quality report
     if quality_issues:
-        json.dump(quality_issues, open(QUALITY_FILE, "w"), indent=2, default=str)
+        with open(QUALITY_FILE, "w") as f:
+            json.dump(quality_issues, f, indent=2, default=str)
 
     n_ok = len(prog["fetched"]) + len(prog["delta_updated"])
     n_fail = len(prog["failed"])
@@ -422,18 +470,18 @@ def run_fetch(mode: str = "backfill"):
     total = prog["total"]
 
     print(f"""
-{'='*60}
+{"=" * 60}
   FETCH COMPLETE  ({mode} mode)
-{'='*60}
+{"=" * 60}
   Total assets:     {total:,}
-  New fetched:      {len(prog['fetched']):,}
-  Delta updated:    {len(prog['delta_updated']):,}
+  New fetched:      {len(prog["fetched"]):,}
+  Delta updated:    {len(prog["delta_updated"]):,}
   Skipped (cached): {n_skip:,}
   Failed:           {n_fail:,}
   Quality warnings: {len(quality_issues)}
-  Time:             {prog['elapsed_sec']:.0f}s
+  Time:             {prog["elapsed_sec"]:.0f}s
   Cache:            {CACHE_DIR}
-{'='*60}
+{"=" * 60}
 """)
 
     return prog
@@ -454,17 +502,17 @@ def print_stats():
     unique_syms_cr = len(set(f.parent.name for f in legacy_crypto))
 
     print(f"""
-{'='*60}
+{"=" * 60}
   DATA CACHE STATISTICS
-{'='*60}
+{"=" * 60}
   Stocks/ETFs:    {unique_syms_eq:,} symbols
   Crypto:         {unique_syms_cr:,} symbols
   Total:          {unique_syms_eq + unique_syms_cr:,} symbols
   Canonical:      {len(ohlcv_files) + len(crypto_files):,} daily.parquet files
   Legacy:         {len(legacy_ohlcv) + len(legacy_crypto) - len(ohlcv_files) - len(crypto_files):,} date-range files
-  Disk usage:     {total_size / (1024*1024):.1f} MB
+  Disk usage:     {total_size / (1024 * 1024):.1f} MB
   Cache path:     {CACHE_DIR}
-{'='*60}
+{"=" * 60}
 """)
 
     # Catalogue check
@@ -521,15 +569,15 @@ def run_validation():
 
     n_warn = len(issues_total)
     print(f"""
-{'='*60}
+{"=" * 60}
   DATA QUALITY VALIDATION
-{'='*60}
+{"=" * 60}
   Symbols checked:  {checked}
   Total rows:       {rows_total:,}
   Passed:           {checked - n_warn}
   Warnings:         {n_warn}
   Pass rate:        {(checked - n_warn) / max(checked, 1) * 100:.1f}%
-{'='*60}
+{"=" * 60}
 """)
 
     if issues_total:
@@ -540,7 +588,8 @@ def run_validation():
             print(f"    ... and {len(issues_total) - 20} more")
 
     # Save report
-    json.dump(issues_total, open(QUALITY_FILE, "w"), indent=2, default=str)
+    with open(QUALITY_FILE, "w") as f:
+        json.dump(issues_total, f, indent=2, default=str)
     print(f"\n  Report saved: {QUALITY_FILE}")
 
 
@@ -598,14 +647,14 @@ def migrate_to_canonical():
 # ── CLI ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Alpaca Historical Data Fetcher")
-    parser.add_argument("--update", action="store_true",
-                        help="Delta update: only fetch new bars since last cache")
-    parser.add_argument("--validate", action="store_true",
-                        help="Run quality checks on cached data")
-    parser.add_argument("--stats", action="store_true",
-                        help="Print cache statistics")
-    parser.add_argument("--migrate", action="store_true",
-                        help="Migrate legacy files to canonical format")
+    parser.add_argument(
+        "--update", action="store_true", help="Delta update: only fetch new bars since last cache"
+    )
+    parser.add_argument("--validate", action="store_true", help="Run quality checks on cached data")
+    parser.add_argument("--stats", action="store_true", help="Print cache statistics")
+    parser.add_argument(
+        "--migrate", action="store_true", help="Migrate legacy files to canonical format"
+    )
     args = parser.parse_args()
 
     if args.validate:

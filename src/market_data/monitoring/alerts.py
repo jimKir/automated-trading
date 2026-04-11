@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -31,7 +31,7 @@ class Alert:
     severity: AlertSeverity = AlertSeverity.WARNING
     source: str = "market-data-platform"
     details: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
 
 
 class AlertChannel:
@@ -241,9 +241,9 @@ class AlertManager:
         Returns:
             Number of channels notified.
         """
-        return self.send_alert(Alert(
-            title=title, message=message, severity=AlertSeverity.INFO, details=details
-        ))
+        return self.send_alert(
+            Alert(title=title, message=message, severity=AlertSeverity.INFO, details=details)
+        )
 
     def alert_warning(self, title: str, message: str, **details: Any) -> int:
         """Send a warning alert.
@@ -256,9 +256,9 @@ class AlertManager:
         Returns:
             Number of channels notified.
         """
-        return self.send_alert(Alert(
-            title=title, message=message, severity=AlertSeverity.WARNING, details=details
-        ))
+        return self.send_alert(
+            Alert(title=title, message=message, severity=AlertSeverity.WARNING, details=details)
+        )
 
     def alert_critical(self, title: str, message: str, **details: Any) -> int:
         """Send a critical alert.
@@ -271,9 +271,9 @@ class AlertManager:
         Returns:
             Number of channels notified.
         """
-        return self.send_alert(Alert(
-            title=title, message=message, severity=AlertSeverity.CRITICAL, details=details
-        ))
+        return self.send_alert(
+            Alert(title=title, message=message, severity=AlertSeverity.CRITICAL, details=details)
+        )
 
     @property
     def history(self) -> list[Alert]:

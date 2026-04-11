@@ -13,11 +13,11 @@ Run:
     python run_vol.py --epochs 150         # more LSTM training
 """
 
-import os
-import sys
+import argparse
 import json
 import logging
-import argparse
+import os
+import sys
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -27,43 +27,45 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from vol_engine import (
-    VolatilityPredictor, SECTOR_MAP, UNIVERSE, HORIZONS,
+    HORIZONS,
+    SECTOR_MAP,
+    UNIVERSE,
+    VolatilityPredictor,
 )
-
 
 # ===========================================================================
 # Terminal output styling
 # ===========================================================================
-BOLD  = "\033[1m"
+BOLD = "\033[1m"
 RESET = "\033[0m"
 GREEN = "\033[92m"
-RED   = "\033[91m"
+RED = "\033[91m"
 YELLOW = "\033[93m"
-CYAN  = "\033[96m"
-GREY  = "\033[90m"
+CYAN = "\033[96m"
+GREY = "\033[90m"
 MAGENTA = "\033[95m"
 WHITE = "\033[97m"
 
 REGIME_COLOURS = {
-    "HIGH_VOL":    RED,
-    "ELEVATED":    YELLOW,
-    "NORMAL":      GREEN,
-    "LOW":         CYAN,
-    "COMPRESSED":  GREY,
+    "HIGH_VOL": RED,
+    "ELEVATED": YELLOW,
+    "NORMAL": GREEN,
+    "LOW": CYAN,
+    "COMPRESSED": GREY,
 }
 
 DIRECTION_COLOURS = {
-    "EXPANDING":    RED,
-    "CONTRACTING":  GREEN,
-    "STABLE":       CYAN,
-    "UNKNOWN":      GREY,
+    "EXPANDING": RED,
+    "CONTRACTING": GREEN,
+    "STABLE": CYAN,
+    "UNKNOWN": GREY,
 }
 
 DIRECTION_ARROWS = {
-    "EXPANDING":    "▲",
-    "CONTRACTING":  "▼",
-    "STABLE":       "─",
-    "UNKNOWN":      "?",
+    "EXPANDING": "▲",
+    "CONTRACTING": "▼",
+    "STABLE": "─",
+    "UNKNOWN": "?",
 }
 
 
@@ -92,7 +94,9 @@ def print_sector_summary(result: dict):
     if not sectors:
         return
 
-    print(f"{BOLD}  {'SECTOR':<12} {'#':>3}  {'CURRENT':>9}  {'PREDICTED':>9}  {'DIRECTION':<14}{RESET}")
+    print(
+        f"{BOLD}  {'SECTOR':<12} {'#':>3}  {'CURRENT':>9}  {'PREDICTED':>9}  {'DIRECTION':<14}{RESET}"
+    )
     print(f"  {'─' * 55}")
 
     for sec in sorted(sectors.keys()):
@@ -127,8 +131,10 @@ def print_stock_table(result: dict, top_n: int = 20):
 
     print(f"{BOLD}  TOP {top_n} BY PREDICTED VOLATILITY{RESET}")
     print(f"  {'─' * 78}")
-    print(f"  {'SYMBOL':<8} {'SECTOR':<9} {'CURRENT':>9} {'PREDICTED':>10} {'CHANGE':>8} "
-          f"{'PCTL':>5} {'REGIME':<12} {'DIR':<12}{RESET}")
+    print(
+        f"  {'SYMBOL':<8} {'SECTOR':<9} {'CURRENT':>9} {'PREDICTED':>10} {'CHANGE':>8} "
+        f"{'PCTL':>5} {'REGIME':<12} {'DIR':<12}{RESET}"
+    )
     print(f"  {'─' * 78}")
 
     for info in sorted_stocks[:top_n]:
@@ -150,9 +156,11 @@ def print_stock_table(result: dict, top_n: int = 20):
         dc = DIRECTION_COLOURS.get(direction, GREY)
         arrow = DIRECTION_ARROWS.get(direction, "?")
 
-        print(f"  {sym:<8} {sec:<9} {cur_str:>9} {pred_str:>10} "
-              f"{chg_colour}{chg_str:>8}{RESET} {pctl:>4.0f}% "
-              f"{rc}{regime:<12}{RESET} {dc}{arrow} {direction}{RESET}")
+        print(
+            f"  {sym:<8} {sec:<9} {cur_str:>9} {pred_str:>10} "
+            f"{chg_colour}{chg_str:>8}{RESET} {pctl:>4.0f}% "
+            f"{rc}{regime:<12}{RESET} {dc}{arrow} {direction}{RESET}"
+        )
 
     # Summary stats
     all_preds = [v["predicted_vol"] for v in latest.values() if v.get("predicted_vol")]
@@ -160,8 +168,10 @@ def print_stock_table(result: dict, top_n: int = 20):
         expanding = sum(1 for v in latest.values() if v.get("direction") == "EXPANDING")
         contracting = sum(1 for v in latest.values() if v.get("direction") == "CONTRACTING")
         stable = sum(1 for v in latest.values() if v.get("direction") == "STABLE")
-        print(f"\n  {BOLD}Summary:{RESET} avg predicted vol {sum(all_preds)/len(all_preds):.1f}%  |  "
-              f"{RED}▲ {expanding}{RESET}  {GREEN}▼ {contracting}{RESET}  {CYAN}─ {stable}{RESET}")
+        print(
+            f"\n  {BOLD}Summary:{RESET} avg predicted vol {sum(all_preds) / len(all_preds):.1f}%  |  "
+            f"{RED}▲ {expanding}{RESET}  {GREEN}▼ {contracting}{RESET}  {CYAN}─ {stable}{RESET}"
+        )
 
     print()
 
@@ -197,11 +207,11 @@ def print_model_metrics(result: dict):
             if m.get("mz_beta") and not __import__("math").isnan(m["mz_beta"]):
                 mz_betas.append(m["mz_beta"])
 
-        rmse = f"{sum(rmses)/len(rmses):.4f}" if rmses else "N/A"
-        mae = f"{sum(maes)/len(maes):.4f}" if maes else "N/A"
-        qlike = f"{sum(qlikes)/len(qlikes):.3f}" if qlikes else "N/A"
-        r2 = f"{sum(r2s)/len(r2s):.3f}" if r2s else "N/A"
-        mz = f"{sum(mz_betas)/len(mz_betas):.3f}" if mz_betas else "N/A"
+        rmse = f"{sum(rmses) / len(rmses):.4f}" if rmses else "N/A"
+        mae = f"{sum(maes) / len(maes):.4f}" if maes else "N/A"
+        qlike = f"{sum(qlikes) / len(qlikes):.3f}" if qlikes else "N/A"
+        r2 = f"{sum(r2s) / len(r2s):.3f}" if r2s else "N/A"
+        mz = f"{sum(mz_betas) / len(mz_betas):.3f}" if mz_betas else "N/A"
 
         # Highlight best model
         marker = " ★" if model == "Ensemble" else ""
@@ -260,6 +270,7 @@ def print_alerts(result: dict):
 # HTML Dashboard
 # ===========================================================================
 
+
 def build_dashboard(result: dict) -> str:
     """Build interactive HTML dashboard with Chart.js visualisations."""
 
@@ -306,27 +317,43 @@ def build_dashboard(result: dict) -> str:
                     model_metrics_data[model][k].append(v)
 
     model_labels = sorted(model_metrics_data.keys())
-    model_r2 = [round(__import__("statistics").mean(model_metrics_data[m]["r2"]), 3)
-                if model_metrics_data[m]["r2"] else 0 for m in model_labels]
-    model_rmse = [round(__import__("statistics").mean(model_metrics_data[m]["rmse"]), 4)
-                  if model_metrics_data[m]["rmse"] else 0 for m in model_labels]
+    model_r2 = [
+        round(__import__("statistics").mean(model_metrics_data[m]["r2"]), 3)
+        if model_metrics_data[m]["r2"]
+        else 0
+        for m in model_labels
+    ]
+    model_rmse = [
+        round(__import__("statistics").mean(model_metrics_data[m]["rmse"]), 4)
+        if model_metrics_data[m]["rmse"]
+        else 0
+        for m in model_labels
+    ]
 
     # Scatter data: current vs predicted
     scatter_data = []
     for info in latest.values():
         if info.get("current_vol") and info.get("predicted_vol"):
-            scatter_data.append({
-                "x": info["current_vol"],
-                "y": info["predicted_vol"],
-                "label": info["symbol"],
-                "sector": info["sector"],
-            })
+            scatter_data.append(
+                {
+                    "x": info["current_vol"],
+                    "y": info["predicted_vol"],
+                    "label": info["symbol"],
+                    "sector": info["sector"],
+                }
+            )
 
     # Colour map for sectors
     sector_colours = {
-        "Tech": "#3b82f6", "Energy": "#f59e0b", "Financials": "#10b981",
-        "Health": "#ef4444", "ConDisc": "#8b5cf6", "ConStap": "#06b6d4",
-        "Indust": "#f97316", "REIT": "#ec4899", "Util": "#6b7280",
+        "Tech": "#3b82f6",
+        "Energy": "#f59e0b",
+        "Financials": "#10b981",
+        "Health": "#ef4444",
+        "ConDisc": "#8b5cf6",
+        "ConStap": "#06b6d4",
+        "Indust": "#f97316",
+        "REIT": "#ec4899",
+        "Util": "#6b7280",
         "Comm": "#14b8a6",
     }
 
@@ -392,19 +419,19 @@ def build_dashboard(result: dict) -> str:
     <div class="label">Symbols Analysed</div>
   </div>
   <div class="metric">
-    <div class="value">{sum(1 for v in latest.values() if v.get('direction')=='EXPANDING')}</div>
+    <div class="value">{sum(1 for v in latest.values() if v.get("direction") == "EXPANDING")}</div>
     <div class="label">Vol Expanding</div>
   </div>
   <div class="metric">
-    <div class="value">{sum(1 for v in latest.values() if v.get('direction')=='CONTRACTING')}</div>
+    <div class="value">{sum(1 for v in latest.values() if v.get("direction") == "CONTRACTING")}</div>
     <div class="label">Vol Contracting</div>
   </div>
   <div class="metric">
-    <div class="value">{sum(1 for v in latest.values() if v.get('regime')=='HIGH_VOL')}</div>
+    <div class="value">{sum(1 for v in latest.values() if v.get("regime") == "HIGH_VOL")}</div>
     <div class="label">High Vol Regime</div>
   </div>
   <div class="metric">
-    <div class="value">{round(sum(v.get('predicted_vol',0) or 0 for v in latest.values()) / max(len(latest),1), 1)}%</div>
+    <div class="value">{round(sum(v.get("predicted_vol", 0) or 0 for v in latest.values()) / max(len(latest), 1), 1)}%</div>
     <div class="label">Avg Predicted Vol</div>
   </div>
 </div>
@@ -456,24 +483,30 @@ def build_dashboard(result: dict) -> str:
 """
 
     for info in sorted(latest.values(), key=lambda x: x.get("predicted_vol") or 0, reverse=True):
-        regime_cls = f"vol-{info.get('regime','').lower().replace('_','')}"
+        regime_cls = f"vol-{info.get('regime', '').lower().replace('_', '')}"
         if regime_cls == "vol-highvol":
             regime_cls = "vol-high"
-        dir_cls = f"dir-{info.get('direction','').lower()}"
-        cur = f"{info['current_vol']:.1f}%" if info.get('current_vol') else "N/A"
-        pred = f"{info['predicted_vol']:.1f}%" if info.get('predicted_vol') else "N/A"
-        chg = f"{info.get('vol_change_pct',0):+.1f}%"
-        chg_cls = "vol-high" if info.get('vol_change_pct',0) > 5 else "vol-normal" if info.get('vol_change_pct',0) < -5 else ""
+        dir_cls = f"dir-{info.get('direction', '').lower()}"
+        cur = f"{info['current_vol']:.1f}%" if info.get("current_vol") else "N/A"
+        pred = f"{info['predicted_vol']:.1f}%" if info.get("predicted_vol") else "N/A"
+        chg = f"{info.get('vol_change_pct', 0):+.1f}%"
+        chg_cls = (
+            "vol-high"
+            if info.get("vol_change_pct", 0) > 5
+            else "vol-normal"
+            if info.get("vol_change_pct", 0) < -5
+            else ""
+        )
 
         html += f"""      <tr>
-        <td><strong>{info['symbol']}</strong></td>
-        <td>{info['sector']}</td>
+        <td><strong>{info["symbol"]}</strong></td>
+        <td>{info["sector"]}</td>
         <td>{cur}</td>
         <td><strong>{pred}</strong></td>
         <td class="{chg_cls}">{chg}</td>
-        <td>{info.get('vol_percentile',50):.0f}%</td>
-        <td class="{regime_cls}">{info.get('regime','')}</td>
-        <td class="{dir_cls}">{DIRECTION_ARROWS.get(info.get('direction',''),'?')} {info.get('direction','')}</td>
+        <td>{info.get("vol_percentile", 50):.0f}%</td>
+        <td class="{regime_cls}">{info.get("regime", "")}</td>
+        <td class="{dir_cls}">{DIRECTION_ARROWS.get(info.get("direction", ""), "?")} {info.get("direction", "")}</td>
       </tr>
 """
 
@@ -620,6 +653,7 @@ new Chart(document.getElementById('featureChart'), {{
 # JSON export
 # ===========================================================================
 
+
 def save_json(result: dict, path: str):
     """Save predictions and metrics to JSON."""
     export = {
@@ -635,9 +669,10 @@ def save_json(result: dict, path: str):
         metrics = result.get("metrics", {}).get(sym, {})
         export["predictions"][sym] = {
             **info,
-            "metrics": {m: {k: round(v, 4) if isinstance(v, float) else v
-                            for k, v in met.items()}
-                        for m, met in metrics.items()},
+            "metrics": {
+                m: {k: round(v, 4) if isinstance(v, float) else v for k, v in met.items()}
+                for m, met in metrics.items()
+            },
         }
 
     with open(path, "w") as f:
@@ -649,28 +684,30 @@ def save_json(result: dict, path: str):
 # Main
 # ===========================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="Volatility Prediction Runner")
-    parser.add_argument("--horizon", default="5d", choices=list(HORIZONS.keys()),
-                        help="Prediction horizon (1d, 5d, 10d)")
-    parser.add_argument("--symbols", type=int, default=0,
-                        help="Number of symbols (0 = all)")
-    parser.add_argument("--sector", type=str, default="",
-                        help="Filter to single sector (e.g. Tech, Energy)")
-    parser.add_argument("--top", type=int, default=25,
-                        help="Show top N in terminal output")
-    parser.add_argument("--no-lstm", action="store_true",
-                        help="Skip LSTM model (faster)")
-    parser.add_argument("--no-gbm", action="store_true",
-                        help="Skip GBM model")
-    parser.add_argument("--epochs", type=int, default=80,
-                        help="LSTM training epochs")
-    parser.add_argument("--lookback", type=float, default=3.0,
-                        help="Years of historical data")
-    parser.add_argument("--output-dir", type=str, default=".",
-                        help="Output directory for dashboard and JSON")
-    parser.add_argument("--force-refresh", action="store_true",
-                        help="Bypass data cache and re-download everything")
+    parser.add_argument(
+        "--horizon",
+        default="5d",
+        choices=list(HORIZONS.keys()),
+        help="Prediction horizon (1d, 5d, 10d)",
+    )
+    parser.add_argument("--symbols", type=int, default=0, help="Number of symbols (0 = all)")
+    parser.add_argument(
+        "--sector", type=str, default="", help="Filter to single sector (e.g. Tech, Energy)"
+    )
+    parser.add_argument("--top", type=int, default=25, help="Show top N in terminal output")
+    parser.add_argument("--no-lstm", action="store_true", help="Skip LSTM model (faster)")
+    parser.add_argument("--no-gbm", action="store_true", help="Skip GBM model")
+    parser.add_argument("--epochs", type=int, default=80, help="LSTM training epochs")
+    parser.add_argument("--lookback", type=float, default=3.0, help="Years of historical data")
+    parser.add_argument(
+        "--output-dir", type=str, default=".", help="Output directory for dashboard and JSON"
+    )
+    parser.add_argument(
+        "--force-refresh", action="store_true", help="Bypass data cache and re-download everything"
+    )
     args = parser.parse_args()
 
     # Build symbol list
@@ -682,7 +719,7 @@ def main():
             print(f"Available: {', '.join(sorted(set(SECTOR_MAP.values())))}")
             sys.exit(1)
     if args.symbols > 0:
-        symbols = symbols[:args.symbols]
+        symbols = symbols[: args.symbols]
 
     # Run predictor
     predictor = VolatilityPredictor(

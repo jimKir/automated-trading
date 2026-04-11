@@ -15,9 +15,9 @@ Options:
   --start DATE    Override backtest start date (YYYY-MM-DD)
   --end   DATE    Override backtest end date   (YYYY-MM-DD)
 """
+
 import argparse
 import sys
-import os
 from pathlib import Path
 
 # Add project root to path
@@ -52,12 +52,10 @@ def _load_all_data(config: dict, start: str, end: str) -> dict:
                 pass
         log.info(f"Loaded: {len(all_data)} instruments with data")
         return all_data
-    elif du_enabled:
+    if du_enabled:
         # Use static candidate list from config
         du_cfg = config.get("dynamic_universe", {}).get("candidates", {})
-        all_syms = (du_cfg.get("equities", []) +
-                    du_cfg.get("futures",  []) +
-                    du_cfg.get("crypto",   []))
+        all_syms = du_cfg.get("equities", []) + du_cfg.get("futures", []) + du_cfg.get("crypto", [])
         all_data = {}
         for sym in all_syms:
             try:
@@ -67,16 +65,14 @@ def _load_all_data(config: dict, start: str, end: str) -> dict:
             except Exception:
                 pass
         return all_data
-    else:
-        # Use DataFeed with config universe
-        feed = DataFeed(config)
-        return feed.load_all(start=start, end=end)
+    # Use DataFeed with config universe
+    feed = DataFeed(config)
+    return feed.load_all(start=start, end=end)
 
 
 def run_backtest(config: dict) -> None:
     from backtest.engine import BacktestEngine
-    from backtest.reporter import plot_results, generate_html_report, save_metrics_json
-    from data.feed import DataFeed
+    from backtest.reporter import generate_html_report, plot_results, save_metrics_json
 
     log.info("Mode: BACKTEST")
     bt_cfg = config.get("backtest", {})
@@ -88,8 +84,9 @@ def run_backtest(config: dict) -> None:
 
     # Fetch benchmark
     from data.feed import fetch_yfinance as _fyf
-    bench_sym  = bt_cfg.get("benchmark", "SPY")
-    _bd        = _fyf([bench_sym], start, end)
+
+    bench_sym = bt_cfg.get("benchmark", "SPY")
+    _bd = _fyf([bench_sym], start, end)
     bench_data = {bench_sym: _bd.get(bench_sym)}
     benchmark = bench_data.get(bench_sym)
 
@@ -103,34 +100,35 @@ def run_backtest(config: dict) -> None:
     chart_path = plot_results(metrics, out_dir)
     html_path = generate_html_report(metrics, out_dir, chart_path)
 
-    log.info(f"\n{'='*55}")
-    log.info(f" Backtest complete!")
+    log.info(f"\n{'=' * 55}")
+    log.info(" Backtest complete!")
     log.info(f"  Chart : {chart_path}")
     log.info(f"  Report: {html_path}")
     log.info(f"  JSON  : {out_dir}/metrics.json")
-    log.info(f"{'='*55}\n")
+    log.info(f"{'=' * 55}\n")
     _print_summary(metrics)
 
 
 def run_comparison(config: dict) -> None:
     """Run baseline vs vol-targeted vs EWS side-by-side comparison."""
     import copy
-    from data.feed import DataFeed
-    from backtest.engine import BacktestEngine
-    from backtest.reporter import generate_comparison_report
     from pathlib import Path
 
+    from backtest.engine import BacktestEngine
+    from backtest.reporter import generate_comparison_report
+    from data.feed import DataFeed
+
     log.info("Mode: COMPARISON (Baseline vs Vol-Targeted vs EWS+VT)")
-    feed   = DataFeed(config)
+    feed = DataFeed(config)
     bt_cfg = config.get("backtest", {})
-    start  = bt_cfg.get("start_date", "2018-01-01")
-    end    = bt_cfg.get("end_date",   "2025-12-31")
+    start = bt_cfg.get("start_date", "2018-01-01")
+    end = bt_cfg.get("end_date", "2025-12-31")
 
     log.info(f"Fetching market data {start} → {end} ...")
-    all_data   = feed.load_all(start=start, end=end)
-    bench_sym  = bt_cfg.get("benchmark", "SPY")
+    all_data = feed.load_all(start=start, end=end)
+    bench_sym = bt_cfg.get("benchmark", "SPY")
     bench_data = feed.load([bench_sym], start=start, end=end, source="yfinance")
-    benchmark  = bench_data.get(bench_sym)
+    benchmark = bench_data.get(bench_sym)
 
     out_dir = config.get("system", {}).get("results_dir", "results")
     Path(out_dir).mkdir(parents=True, exist_ok=True)
@@ -138,19 +136,19 @@ def run_comparison(config: dict) -> None:
     # Run 1 — Baseline (no vol targeting, no EWS)
     cfg1 = copy.deepcopy(config)
     cfg1.setdefault("vol_targeting", {})["enabled"] = False
-    cfg1.setdefault("ews",           {})["enabled"] = False
+    cfg1.setdefault("ews", {})["enabled"] = False
     m_base = BacktestEngine(cfg1).run(all_data, benchmark, run_label="Baseline")
 
     # Run 2 — Vol targeting only
     cfg2 = copy.deepcopy(config)
     cfg2.setdefault("vol_targeting", {})["enabled"] = True
-    cfg2.setdefault("ews",           {})["enabled"] = False
+    cfg2.setdefault("ews", {})["enabled"] = False
     m_vt = BacktestEngine(cfg2).run(all_data, benchmark, run_label="Vol Targeting")
 
     # Run 3 — Vol targeting + EWS (full system)
     cfg3 = copy.deepcopy(config)
     cfg3.setdefault("vol_targeting", {})["enabled"] = True
-    cfg3.setdefault("ews",           {})["enabled"] = True
+    cfg3.setdefault("ews", {})["enabled"] = True
     m_full = BacktestEngine(cfg3).run(all_data, benchmark, run_label="VT + EWS")
 
     # Print three-way comparison
@@ -164,26 +162,27 @@ def run_comparison(config: dict) -> None:
 def _print_three_way(base: dict, vt: dict, full: dict) -> None:
     """Print a three-way metric comparison to the log."""
     from utils.logger import get_logger
+
     l = get_logger("Compare")
     rows = [
-        ("Total Return (%)",     "total_return_pct",          True),
-        ("Ann. Return (%)",      "ann_return_pct",            True),
-        ("Ann. Volatility (%)",  "ann_volatility_pct",        False),
-        ("Sharpe Ratio",         "sharpe_ratio",              True),
-        ("Sortino Ratio",        "sortino_ratio",             True),
-        ("Calmar Ratio",         "calmar_ratio",              True),
-        ("Max Drawdown (%)",     "max_drawdown_pct",          False),
-        ("MDD Duration (days)",  "max_drawdown_duration_days",False),
-        ("Win Rate (%)",         "win_rate_pct",              True),
-        ("VaR 99% (%)",          "var_hist_99_pct",           False),
-        ("CVaR 99% (%)",         "cvar_hist_99_pct",          False),
-        ("Omega Ratio",          "omega_ratio",               True),
+        ("Total Return (%)", "total_return_pct", True),
+        ("Ann. Return (%)", "ann_return_pct", True),
+        ("Ann. Volatility (%)", "ann_volatility_pct", False),
+        ("Sharpe Ratio", "sharpe_ratio", True),
+        ("Sortino Ratio", "sortino_ratio", True),
+        ("Calmar Ratio", "calmar_ratio", True),
+        ("Max Drawdown (%)", "max_drawdown_pct", False),
+        ("MDD Duration (days)", "max_drawdown_duration_days", False),
+        ("Win Rate (%)", "win_rate_pct", True),
+        ("VaR 99% (%)", "var_hist_99_pct", False),
+        ("CVaR 99% (%)", "cvar_hist_99_pct", False),
+        ("Omega Ratio", "omega_ratio", True),
     ]
-    l.info("\n" + "="*80)
+    l.info("\n" + "=" * 80)
     l.info("  THREE-WAY COMPARISON")
-    l.info("="*80)
+    l.info("=" * 80)
     l.info(f"  {'Metric':<28} {'Baseline':>12} {'Vol Target':>12} {'VT+EWS':>12}")
-    l.info("-"*80)
+    l.info("-" * 80)
     for label, key, hb in rows:
         bv = base.get(key)
         vv = vt.get(key)
@@ -194,7 +193,7 @@ def _print_three_way(base: dict, vt: dict, full: dict) -> None:
             l.info(f"  {label:<28} {bv:>12.4f} {vv:>12.4f} {fv:>12.4f}")
         except Exception:
             pass
-    l.info("="*80)
+    l.info("=" * 80)
 
 
 def run_validation(config: dict) -> None:
@@ -204,26 +203,28 @@ def run_validation(config: dict) -> None:
       Method 2 — Sensitivity analysis (7 target_vol values)
       Method 3 — Permutation test (500 shuffles, p-value)
     """
-    from data.feed import DataFeed
+    import json
+    from pathlib import Path
+
     from backtest.engine import BacktestEngine
     from backtest.wf_validator import run_full_validation
-    from pathlib import Path
-    import json
+    from data.feed import DataFeed
 
     log.info("Mode: VALIDATE (vol targeting overfitting test)")
-    feed   = DataFeed(config)
+    feed = DataFeed(config)
     bt_cfg = config.get("backtest", {})
-    start  = bt_cfg.get("start_date", "2018-01-01")
-    end    = bt_cfg.get("end_date",   "2025-12-31")
+    start = bt_cfg.get("start_date", "2018-01-01")
+    end = bt_cfg.get("end_date", "2025-12-31")
 
     log.info(f"Fetching market data {start} → {end} ...")
     all_data = feed.load_all(start=start, end=end)
 
     # First run a baseline backtest to get the equity return series
     import copy
+
     cfg_base = copy.deepcopy(config)
     cfg_base.setdefault("vol_targeting", {})["enabled"] = False
-    cfg_base.setdefault("ews",           {})["enabled"] = False
+    cfg_base.setdefault("ews", {})["enabled"] = False
     metrics = BacktestEngine(cfg_base).run(all_data, run_label="Baseline for validation")
     returns = metrics.get("returns")
 
@@ -255,17 +256,23 @@ def run_validation(config: dict) -> None:
         json.dump(perm_clean, f, indent=2)
     log.info(f"Permutation test saved: {perm_path}")
 
-    print("\n" + "="*65)
+    print("\n" + "=" * 65)
     print("  OVERFITTING VALIDATION RESULTS")
-    print("="*65)
-    print(f"  Method 1 Walk-Forward:   {'PASS ✓' if summary['method1_wf_pass'] else 'FAIL ✗'}  "
-          f"({summary['method1_folds_improved']} folds improved)")
-    print(f"  Method 2 Sensitivity:    {'PASS ✓' if summary['method2_sens_pass'] else 'FAIL ✗'}  "
-          f"({summary['method2_beat_baseline']} target vols beat baseline)")
-    print(f"  Method 3 Permutation:    {'PASS ✓' if summary['method3_perm_pass'] else 'FAIL ✗'}  "
-          f"(p={summary['method3_p_value']:.4f})")
+    print("=" * 65)
+    print(
+        f"  Method 1 Walk-Forward:   {'PASS ✓' if summary['method1_wf_pass'] else 'FAIL ✗'}  "
+        f"({summary['method1_folds_improved']} folds improved)"
+    )
+    print(
+        f"  Method 2 Sensitivity:    {'PASS ✓' if summary['method2_sens_pass'] else 'FAIL ✗'}  "
+        f"({summary['method2_beat_baseline']} target vols beat baseline)"
+    )
+    print(
+        f"  Method 3 Permutation:    {'PASS ✓' if summary['method3_perm_pass'] else 'FAIL ✗'}  "
+        f"(p={summary['method3_p_value']:.4f})"
+    )
     print(f"  OVERALL: {summary['verdict']}")
-    print("="*65)
+    print("=" * 65)
     print(f"\n  Walk-forward table: {wf_path}")
     print(f"  Sensitivity table:  {sens_path}")
     print(f"  Permutation JSON:   {perm_path}")
@@ -273,16 +280,19 @@ def run_validation(config: dict) -> None:
 
 def run_paper(config: dict) -> None:
     import copy
+
     cfg = copy.deepcopy(config)
     cfg["system"]["mode"] = "paper"
     log.info("Mode: PAPER TRADING")
     from execution.live_engine import LiveEngine
+
     engine = LiveEngine(cfg)
     engine.start(loop_interval_seconds=300)  # check every 5 minutes
 
 
 def run_live(config: dict) -> None:
     import copy
+
     cfg = copy.deepcopy(config)
     cfg["system"]["mode"] = "live"
     log.warning("⚠  Mode: LIVE TRADING WITH REAL MONEY ⚠")
@@ -292,14 +302,16 @@ def run_live(config: dict) -> None:
         log.info("Aborted.")
         return
     from execution.live_engine import LiveEngine
+
     engine = LiveEngine(cfg)
     engine.start(loop_interval_seconds=60)
 
 
 def run_signals(config: dict) -> None:
+    from datetime import datetime, timedelta
+
     from data.feed import DataFeed
     from strategy.signals import SignalGenerator
-    from datetime import datetime, timedelta
 
     log.info("Mode: SIGNALS")
     feed = DataFeed(config)
@@ -357,8 +369,8 @@ def _print_summary(metrics: dict) -> None:
     if stress:
         print("\n  STRESS SCENARIOS (scaled to strategy vol):")
         for name, impact in stress.items():
-            print(f"  {name[:55]:<55}  {impact*100:>+7.1f}%")
-    print("")
+            print(f"  {name[:55]:<55}  {impact * 100:>+7.1f}%")
+    print()
 
 
 def main() -> None:
@@ -381,13 +393,13 @@ def main() -> None:
         config.setdefault("backtest", {})["end_date"] = args.end
 
     dispatch = {
-        "backtest":  run_backtest,
-        "paper":     run_paper,
-        "live":      run_live,
-        "signals":   run_signals,
-        "compare":   run_comparison,
-        "validate":  run_validation,
-        "report":    lambda c: log.info("Re-run backtest to regenerate report"),
+        "backtest": run_backtest,
+        "paper": run_paper,
+        "live": run_live,
+        "signals": run_signals,
+        "compare": run_comparison,
+        "validate": run_validation,
+        "report": lambda c: log.info("Re-run backtest to regenerate report"),
     }
     dispatch[args.mode](config)
 

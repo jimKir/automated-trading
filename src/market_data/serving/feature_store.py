@@ -5,8 +5,7 @@ from __future__ import annotations
 import io
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -28,7 +27,7 @@ class FeatureSetMetadata:
     name: str
     version: str
     features: list[str]
-    created_at: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
     row_count: int = 0
     symbol_count: int = 0
     date_range: tuple[str, str] | None = None
@@ -123,7 +122,8 @@ class FeatureStore:
 
         # Build metadata
         feature_cols = [
-            c for c in features_df.columns
+            c
+            for c in features_df.columns
             if c not in ("timestamp_utc", "symbol_id", "ingestion_time")
         ]
         date_range = None
@@ -138,7 +138,9 @@ class FeatureStore:
             version=version,
             features=feature_cols,
             row_count=len(features_df),
-            symbol_count=features_df["symbol_id"].nunique() if "symbol_id" in features_df.columns else 1,
+            symbol_count=features_df["symbol_id"].nunique()
+            if "symbol_id" in features_df.columns
+            else 1,
             date_range=date_range,
         )
 
@@ -215,10 +217,7 @@ class FeatureStore:
         # Ensure features exist
         available_features = [f for f in config.features if f in df.columns]
         if not available_features:
-            raise ValueError(
-                f"None of the requested features found. "
-                f"Available: {list(df.columns)}"
-            )
+            raise ValueError(f"None of the requested features found. Available: {list(df.columns)}")
 
         # Create target column (forward return)
         if config.target not in df.columns:

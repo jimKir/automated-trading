@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
@@ -16,42 +14,48 @@ from market_data.storage.cloud_storage import StorageBackend
 logger = structlog.get_logger(__name__)
 
 # Normalized equity trades schema
-TRADES_SCHEMA = pa.schema([
-    pa.field("timestamp_utc", pa.int64()),        # UTC nanoseconds
-    pa.field("symbol_id", pa.int32()),             # Internal symbol ID (FK)
-    pa.field("price", pa.float64()),               # Trade price
-    pa.field("size", pa.int32()),                   # Trade size (shares)
-    pa.field("exchange_id", pa.int8()),             # Exchange code
-    pa.field("conditions", pa.string()),            # Trade conditions
-    pa.field("sequence_number", pa.int64()),        # Exchange sequence number
-    pa.field("ingestion_time", pa.timestamp("ns")), # When record was ingested
-])
+TRADES_SCHEMA = pa.schema(
+    [
+        pa.field("timestamp_utc", pa.int64()),  # UTC nanoseconds
+        pa.field("symbol_id", pa.int32()),  # Internal symbol ID (FK)
+        pa.field("price", pa.float64()),  # Trade price
+        pa.field("size", pa.int32()),  # Trade size (shares)
+        pa.field("exchange_id", pa.int8()),  # Exchange code
+        pa.field("conditions", pa.string()),  # Trade conditions
+        pa.field("sequence_number", pa.int64()),  # Exchange sequence number
+        pa.field("ingestion_time", pa.timestamp("ns")),  # When record was ingested
+    ]
+)
 
 # Normalized OHLCV bars schema
-OHLCV_SCHEMA = pa.schema([
-    pa.field("timestamp_utc", pa.int64()),
-    pa.field("symbol_id", pa.int32()),
-    pa.field("open", pa.float64()),
-    pa.field("high", pa.float64()),
-    pa.field("low", pa.float64()),
-    pa.field("close", pa.float64()),
-    pa.field("volume", pa.int64()),
-    pa.field("vwap", pa.float64()),
-    pa.field("trade_count", pa.int32()),
-    pa.field("ingestion_time", pa.timestamp("ns")),
-])
+OHLCV_SCHEMA = pa.schema(
+    [
+        pa.field("timestamp_utc", pa.int64()),
+        pa.field("symbol_id", pa.int32()),
+        pa.field("open", pa.float64()),
+        pa.field("high", pa.float64()),
+        pa.field("low", pa.float64()),
+        pa.field("close", pa.float64()),
+        pa.field("volume", pa.int64()),
+        pa.field("vwap", pa.float64()),
+        pa.field("trade_count", pa.int32()),
+        pa.field("ingestion_time", pa.timestamp("ns")),
+    ]
+)
 
 # Normalized quotes schema
-QUOTES_SCHEMA = pa.schema([
-    pa.field("timestamp_utc", pa.int64()),
-    pa.field("symbol_id", pa.int32()),
-    pa.field("bid_price", pa.float64()),
-    pa.field("bid_size", pa.int32()),
-    pa.field("ask_price", pa.float64()),
-    pa.field("ask_size", pa.int32()),
-    pa.field("exchange_id", pa.int8()),
-    pa.field("ingestion_time", pa.timestamp("ns")),
-])
+QUOTES_SCHEMA = pa.schema(
+    [
+        pa.field("timestamp_utc", pa.int64()),
+        pa.field("symbol_id", pa.int32()),
+        pa.field("bid_price", pa.float64()),
+        pa.field("bid_size", pa.int32()),
+        pa.field("ask_price", pa.float64()),
+        pa.field("ask_size", pa.int32()),
+        pa.field("exchange_id", pa.int8()),
+        pa.field("ingestion_time", pa.timestamp("ns")),
+    ]
+)
 
 SCHEMA_MAP: dict[str, pa.Schema] = {
     "trades": TRADES_SCHEMA,
@@ -303,10 +307,7 @@ class AnalyticsLake:
         if schema_name:
             prefix = f"{prefix}/{schema_name}"
 
-        return [
-            f for f in self.storage.list_files(prefix)
-            if f.endswith(".parquet")
-        ]
+        return [f for f in self.storage.list_files(prefix) if f.endswith(".parquet")]
 
     def _build_path(
         self,
@@ -321,6 +322,5 @@ class AnalyticsLake:
         Format: <base_path>/<asset_class>/<schema>/<year>/<month>/<symbol_id>.parquet
         """
         return (
-            f"{self.base_path}/{asset_class}/{schema_name}/"
-            f"{year}/{month:02d}/{symbol_id}.parquet"
+            f"{self.base_path}/{asset_class}/{schema_name}/{year}/{month:02d}/{symbol_id}.parquet"
         )

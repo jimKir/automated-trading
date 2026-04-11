@@ -5,22 +5,21 @@ Runs the strategy in real-time with a configurable broker.
 Loops at a configurable interval, fetches latest data,
 generates signals, computes orders, and executes.
 """
+
 from __future__ import annotations
 
-import time
 import signal
-import sys
+import time
 from datetime import datetime, timedelta
-from typing import Dict, Optional
 
+import numpy as np
 import pandas as pd
-import pandas as _pd
 
 from core.portfolio import Portfolio
-from risk.manager import RiskManager
-from strategy.signals import SignalGenerator
 from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
+from risk.manager import RiskManager
+from strategy.signals import SignalGenerator
 from utils.logger import get_logger
 
 log = get_logger("LiveEngine")
@@ -37,6 +36,7 @@ def get_broker(config: dict) -> BrokerBase:
                   → PaperBroker  fallback (safety net)
     """
     import os
+
     mode = config.get("system", {}).get("mode", "paper")
     brokers_cfg = config.get("brokers", {})
 
@@ -49,29 +49,33 @@ def get_broker(config: dict) -> BrokerBase:
     if mode == "paper":
         if has_alpaca:
             from execution.alpaca_broker import AlpacaBroker
+
             log.info("Paper mode → using Alpaca broker (paper URL)")
             return AlpacaBroker(config)
-        else:
-            from execution.paper_broker import PaperBroker
-            log.info("Paper mode → using local PaperBroker (no Alpaca keys found)")
-            return PaperBroker(config)
-    elif mode == "live":
+        from execution.paper_broker import PaperBroker
+
+        log.info("Paper mode → using local PaperBroker (no Alpaca keys found)")
+        return PaperBroker(config)
+    if mode == "live":
         if has_alpaca:
             from execution.alpaca_broker import AlpacaBroker
+
             log.info("Live mode → using Alpaca broker")
             return AlpacaBroker(config)
         # Fallback to IBKR for equities/futures
         ibkr_cfg = brokers_cfg.get("ibkr", {})
         if ibkr_cfg.get("account"):
             from execution.ibkr_broker import IBKRBroker
+
             log.info("Live mode → using IBKR broker")
             return IBKRBroker(config)
         from execution.paper_broker import PaperBroker
+
         log.warning("Live mode but no broker credentials — falling back to PaperBroker!")
         return PaperBroker(config)
-    else:
-        from execution.paper_broker import PaperBroker
-        return PaperBroker(config)
+    from execution.paper_broker import PaperBroker
+
+    return PaperBroker(config)
 
 
 class LiveEngine:
@@ -88,19 +92,21 @@ class LiveEngine:
         self._vol_engine = None
         try:
             from volatility_prediction.vol_engine import VolatilityPredictionEngine
+
             self._vol_engine = VolatilityPredictionEngine()
             log.info("Vol-engine loaded (HAR+GBM ensemble) — priority vol forecaster")
         except Exception as _e:
             log.warning(f"Vol-engine unavailable ({_e}) — will fall back to H2O/EWMA")
         self._running = False
         self._rebalance_freq = config.get("strategy", {}).get("rebalance_frequency", "weekly")
-        self._last_rebalance: Optional[datetime] = None
+        self._last_rebalance: datetime | None = None
 
         # Intraday Shock Detector
         self._isd = None
         if config.get("intraday_shock", {}).get("enabled", False):
             try:
                 from core.intraday_shock import IntradayShockDetector
+
                 self._isd = IntradayShockDetector(config)
                 log.info("Intraday shock detector enabled")
             except Exception as e:
@@ -111,6 +117,7 @@ class LiveEngine:
         if config.get("ews", {}).get("enabled", False):
             try:
                 from regime.ews import EarlyWarningSystem
+
                 self._ews = EarlyWarningSystem(config)
                 log.info("EWS enabled for live/paper trading")
             except Exception as e:
@@ -187,6 +194,7 @@ class LiveEngine:
         if self._isd is not None:
             try:
                 import yfinance as yf
+
                 vix_open = float(yf.Ticker("^VIX").history(period="2d")["Close"].iloc[-1])
                 self._isd.reset_day(vix_open, account.equity, datetime.utcnow().date())
             except Exception:
@@ -215,7 +223,10 @@ class LiveEngine:
         if self._isd is not None:
             try:
                 import yfinance as yf
-                vix_now   = float(yf.Ticker("^VIX").history(period="1d", interval="5m")["Close"].iloc[-1])
+
+                vix_now = float(
+                    yf.Ticker("^VIX").history(period="1d", interval="5m")["Close"].iloc[-1]
+                )
                 isd_scale, isd_state, isd_reason = self._isd.check(vix_now, account.equity)
                 if isd_scale < 1.0:
                     log.warning(f"ISD: {isd_state.value} | scale={isd_scale:.0%} | {isd_reason}")
@@ -231,7 +242,7 @@ class LiveEngine:
 
         # Check if it's time to rebalance
         if not self._should_rebalance(now):
-            log.debug(f"Skipping cycle — next rebalance not due yet")
+            log.debug("Skipping cycle — next rebalance not due yet")
             return
 
         log.info(f"=== Trading Cycle @ {now.strftime('%Y-%m-%d %H:%M:%S')} UTC ===")
@@ -247,7 +258,7 @@ class LiveEngine:
 
         # Generate signals
         signals = self.signal_gen.generate_latest(all_data)
-        log.info(f"Signals: { {k: f'{v:+.3f}' for k,v in signals.items() if abs(v) > 0.05} }")
+        log.info(f"Signals: { {k: f'{v:+.3f}' for k, v in signals.items() if abs(v) > 0.05} }")
 
         # Get current prices
         prices = {}
@@ -260,7 +271,7 @@ class LiveEngine:
         equity = account.equity
 
         # Get EWS scale factor
-        ews_scale  = 1.0
+        ews_scale = 1.0
         ews_colour = "GREEN"
         if self._ews is not None:
             try:
@@ -272,7 +283,8 @@ class LiveEngine:
                 if self._vol_engine is not None:
                     try:
                         for sym, df in all_data.items():
-                            if len(df) < 30: continue
+                            if len(df) < 30:
+                                continue
                             ve_vol = self._vol_engine.predict_one(sym, df)
                             if ve_vol and 0.01 < ve_vol < 2.0:
                                 target = 0.15
@@ -286,21 +298,22 @@ class LiveEngine:
                 log.warning(f"EWS live scoring failed: {e}")
 
         # Compute target weights (scaled by EWS)
-        max_pos  = self.config.get("risk", {}).get("max_position_pct", 0.15)
+        max_pos = self.config.get("risk", {}).get("max_position_pct", 0.15)
         max_heat = self.config.get("capital", {}).get("max_portfolio_heat", 0.40)
 
         # v15b: Combined scale = min of independent layers (not multiplicative!)
         # Matches backtest engine logic. Floor at 50% to prevent going fully flat.
         combined_scale = max(min(ews_scale, isd_scale), 0.50)
         if combined_scale < 1.0:
-            log.info(f"Combined scale: min(EWS={ews_scale:.0%}, ISD={isd_scale:.0%}) = {combined_scale:.0%}")
+            log.info(
+                f"Combined scale: min(EWS={ews_scale:.0%}, ISD={isd_scale:.0%}) = {combined_scale:.0%}"
+            )
 
         # Apply per-symbol vol-engine scaling to signals
         # High predicted vol → smaller signal → smaller position (same logic as backtest)
         if hasattr(self, "_sym_vol_scales_live") and self._sym_vol_scales_live:
             signals = {
-                sym: sig * self._sym_vol_scales_live.get(sym, 1.0)
-                for sym, sig in signals.items()
+                sym: sig * self._sym_vol_scales_live.get(sym, 1.0) for sym, sig in signals.items()
             }
             log.debug(f"Vol-engine signal scaling applied: {len(self._sym_vol_scales_live)} syms")
 
@@ -338,11 +351,13 @@ class LiveEngine:
         # Inject macro data for regime switching (VIX + SPY needed for bull/bear detection)
         try:
             import yfinance as _yf
+
             _macro_syms = ["^VIX", "SPY", "HYG", "LQD"]
             _macro_data = {}
             for _ms in _macro_syms:
-                _mdf = _yf.download(_ms, start=start_date, end=end_date,
-                                    auto_adjust=True, progress=False)
+                _mdf = _yf.download(
+                    _ms, start=start_date, end=end_date, auto_adjust=True, progress=False
+                )
                 if not _mdf.empty:
                     if isinstance(_mdf.columns, _pd.MultiIndex):
                         _mdf.columns = _mdf.columns.get_level_values(0)
@@ -356,7 +371,7 @@ class LiveEngine:
         temp_portfolio.cash = account.cash
         target_weights = temp_portfolio.compute_target_weights(
             signals,
-            max_position_pct=max_pos  * combined_scale,
+            max_position_pct=max_pos * combined_scale,
             max_portfolio_heat=max_heat * combined_scale,
         )
 
@@ -380,9 +395,11 @@ class LiveEngine:
 
             # ── Pre-trade safety guards ──────────────────────────────────
             max_shares = self.config.get("execution", {}).get("max_order_shares", 10000)
-            min_price  = self.config.get("execution", {}).get("min_price_sanity", 0.10)
+            min_price = self.config.get("execution", {}).get("min_price_sanity", 0.10)
             if prices[sym] < min_price:
-                log.warning(f"SKIP {sym}: price ${prices[sym]:.4f} below min_price_sanity ${min_price}")
+                log.warning(
+                    f"SKIP {sym}: price ${prices[sym]:.4f} below min_price_sanity ${min_price}"
+                )
                 continue
             if qty_abs > max_shares:
                 log.warning(f"CLAMP {sym}: qty {qty_abs:.1f} → {max_shares} (max_order_shares)")
@@ -403,7 +420,9 @@ class LiveEngine:
             if filled.status == OrderStatus.REJECTED:
                 log.warning(f"REJECTED → {sym} (broker rejected order)")
                 continue
-            log.info(f"FILLED → {sym} avg_px=${filled.avg_fill_price:.4f} status={filled.status.value}")
+            log.info(
+                f"FILLED → {sym} avg_px=${filled.avg_fill_price:.4f} status={filled.status.value}"
+            )
 
         # Set stop losses for open positions
         updated_positions = self.broker.get_positions()
@@ -435,6 +454,7 @@ class LiveEngine:
 
         if self._rebalance_freq == "daily":
             return elapsed >= timedelta(hours=20)
+<<<<<<< Updated upstream
 
         elif self._rebalance_freq == "weekly":
             return elapsed >= timedelta(days=5) and now.weekday() == 4  # Friday
@@ -443,6 +463,11 @@ class LiveEngine:
             return elapsed >= timedelta(days=14)
 
         elif self._rebalance_freq == "monthly":
+=======
+        if self._rebalance_freq == "weekly":
+            return elapsed >= timedelta(days=5) and now.weekday() == 4  # Friday
+        if self._rebalance_freq == "monthly":
+>>>>>>> Stashed changes
             return elapsed >= timedelta(days=25) and now.day <= 3
 
         elif self._rebalance_freq == "adaptive":

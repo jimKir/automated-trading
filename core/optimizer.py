@@ -75,9 +75,8 @@ and bear_sensitivity_pct to a very small value (e.g. 0.001).
 
 All three parameters are fully configurable in config/settings.yaml.
 """
-from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
@@ -104,10 +103,10 @@ class PortfolioOptimizer:
 
     def __init__(self, config: dict):
         opt_cfg = config.get("optimizer", {})
-        self.method             = opt_cfg.get("method", "risk_parity")  # risk_parity | min_variance | signal
-        self.vol_window         = opt_cfg.get("vol_window", 21)          # rolling vol lookback
-        self.cov_window         = opt_cfg.get("cov_window", 63)          # covariance lookback (min-var only)
-        self.max_crypto_pct     = opt_cfg.get("max_crypto_pct", 0.10)   # hard crypto cap (10%)
+        self.method = opt_cfg.get("method", "risk_parity")  # risk_parity | min_variance | signal
+        self.vol_window = opt_cfg.get("vol_window", 21)  # rolling vol lookback
+        self.cov_window = opt_cfg.get("cov_window", 63)  # covariance lookback (min-var only)
+        self.max_crypto_pct = opt_cfg.get("max_crypto_pct", 0.10)  # hard crypto cap (10%)
         # ── Dynamic bear heat multiplier ─────────────────────────────────────
         # Legacy single-value multiplier is replaced by a continuous function.
         # bear_heat_min      : floor multiplier at maximum bear depth (default 0.60)
@@ -115,13 +114,15 @@ class PortfolioOptimizer:
         # bear_sensitivity_pct: distance below MA200 (as %) at which floor is reached (default 0.15)
         #
         # Back-compat: if only bear_heat_multiplier is set (legacy), use it as min with max=1.0
-        legacy_mult             = opt_cfg.get("bear_heat_multiplier", None)
-        self.bear_heat_min      = opt_cfg.get("bear_heat_min",  legacy_mult if legacy_mult is not None else 0.60)
-        self.bear_heat_max      = opt_cfg.get("bear_heat_max",  1.00)
+        legacy_mult = opt_cfg.get("bear_heat_multiplier", None)
+        self.bear_heat_min = opt_cfg.get(
+            "bear_heat_min", legacy_mult if legacy_mult is not None else 0.60
+        )
+        self.bear_heat_max = opt_cfg.get("bear_heat_max", 1.00)
         self.rp_concentration_cap = opt_cfg.get("rp_concentration_cap", 2.0)
-        self.bear_sensitivity   = opt_cfg.get("bear_sensitivity_pct", 0.15)   # 15% below MA200 = floor
+        self.bear_sensitivity = opt_cfg.get("bear_sensitivity_pct", 0.15)  # 15% below MA200 = floor
         self.use_regime_scaling = opt_cfg.get("regime_scaling", True)
-        self.enabled            = opt_cfg.get("enabled", True)
+        self.enabled = opt_cfg.get("enabled", True)
 
         log.info(
             f"Optimizer: method={self.method} | "
@@ -137,13 +138,13 @@ class PortfolioOptimizer:
 
     def compute_weights(
         self,
-        signals:          Dict[str, float],
-        price_history:    Dict[str, pd.DataFrame],
+        signals: dict[str, float],
+        price_history: dict[str, pd.DataFrame],
         max_position_pct: float,
         max_portfolio_heat: float,
-        as_of_date:       Optional[pd.Timestamp] = None,
-        spy_data:         Optional[pd.DataFrame] = None,
-    ) -> Dict[str, float]:
+        as_of_date: pd.Timestamp | None = None,
+        spy_data: pd.DataFrame | None = None,
+    ) -> dict[str, float]:
         """
         Compute optimised target weights from signals + price history.
 
@@ -167,12 +168,10 @@ class PortfolioOptimizer:
         # Only process non-trivial signals
         active = {k: v for k, v in signals.items() if abs(v) > 0.05}
         if not active:
-            return {k: 0.0 for k in signals}
+            return dict.fromkeys(signals, 0.0)
 
         # ── Step 1: Regime-aware heat scaling ─────────────────────────────
-        effective_heat = self._apply_regime_scaling(
-            max_portfolio_heat, spy_data, as_of_date
-        )
+        effective_heat = self._apply_regime_scaling(max_portfolio_heat, spy_data, as_of_date)
 
         # ── Step 2: Signal-proportional base (momentum driver) ─────────────
         # For momentum strategy, signal strength is the primary allocation driver.
@@ -180,16 +179,16 @@ class PortfolioOptimizer:
         sig_weights = self._signal_proportional_weights(active)
 
         # ── Step 3: Apply signal direction ────────────────────────────────
-        signed_weights: Dict[str, float] = {
-            sym: bw * np.sign(active.get(sym, 0))
-            for sym, bw in sig_weights.items()
+        signed_weights: dict[str, float] = {
+            sym: bw * np.sign(active.get(sym, 0)) for sym, bw in sig_weights.items()
         }
 
         # ── Step 4: Scale to portfolio heat budget ─────────────────────────
         total_abs = sum(abs(w) for w in signed_weights.values())
         if total_abs > 0:
-            signed_weights = {k: v * (effective_heat / total_abs)
-                              for k, v in signed_weights.items()}
+            signed_weights = {
+                k: v * (effective_heat / total_abs) for k, v in signed_weights.items()
+            }
 
         # ── Step 5: Risk parity concentration cap (optional) ────────────────
         # Caps any position at N× its risk-parity budget (configurable).
@@ -225,15 +224,15 @@ class PortfolioOptimizer:
 
     def _risk_parity_weights(
         self,
-        signals:       Dict[str, float],
-        price_history: Dict[str, pd.DataFrame],
-        as_of_date:    Optional[pd.Timestamp],
-    ) -> Dict[str, float]:
+        signals: dict[str, float],
+        price_history: dict[str, pd.DataFrame],
+        as_of_date: pd.Timestamp | None,
+    ) -> dict[str, float]:
         """
         Inverse-volatility weighting.
         Assets with lower realised vol get more weight.
         """
-        vols: Dict[str, float] = {}
+        vols: dict[str, float] = {}
 
         for sym in signals:
             if sym not in price_history:
@@ -247,18 +246,15 @@ class PortfolioOptimizer:
                 vols[sym] = 1.0
                 continue
             # Use recent window vol (not full history — avoids looking too far back)
-            vol = float(rets.iloc[-self.vol_window:].std() * np.sqrt(252))
+            vol = float(rets.iloc[-self.vol_window :].std() * np.sqrt(252))
             vols[sym] = max(vol, 0.01)  # floor at 1% to avoid division by near-zero
 
         # Inverse vol weights
         inv_vols = {sym: 1.0 / v for sym, v in vols.items()}
         total_inv = sum(inv_vols.values())
-        weights   = {sym: iv / total_inv for sym, iv in inv_vols.items()}
+        weights = {sym: iv / total_inv for sym, iv in inv_vols.items()}
 
-        log.debug(
-            f"RiskParity vols: " +
-            ", ".join(f"{s}={vols[s]:.1%}" for s in sorted(vols)[:6])
-        )
+        log.debug("RiskParity vols: " + ", ".join(f"{s}={vols[s]:.1%}" for s in sorted(vols)[:6]))
         return weights
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -267,10 +263,10 @@ class PortfolioOptimizer:
 
     def _min_variance_weights(
         self,
-        signals:       Dict[str, float],
-        price_history: Dict[str, pd.DataFrame],
-        as_of_date:    Optional[pd.Timestamp],
-    ) -> Dict[str, float]:
+        signals: dict[str, float],
+        price_history: dict[str, pd.DataFrame],
+        as_of_date: pd.Timestamp | None,
+    ) -> dict[str, float]:
         """
         Minimum variance portfolio using Ledoit-Wolf shrinkage covariance.
         Falls back to risk parity if insufficient data.
@@ -279,7 +275,7 @@ class PortfolioOptimizer:
 
         # Build returns matrix
         returns_list = []
-        valid_syms   = []
+        valid_syms = []
         for sym in syms:
             if sym not in price_history:
                 continue
@@ -288,7 +284,7 @@ class PortfolioOptimizer:
                 close = close[close.index <= as_of_date]
             rets = close.pct_change().dropna()
             if len(rets) >= self.cov_window:
-                returns_list.append(rets.iloc[-self.cov_window:].rename(sym))
+                returns_list.append(rets.iloc[-self.cov_window :].rename(sym))
                 valid_syms.append(sym)
 
         if len(valid_syms) < 2:
@@ -300,6 +296,7 @@ class PortfolioOptimizer:
 
         try:
             from sklearn.covariance import LedoitWolf
+
             lw = LedoitWolf().fit(ret_df.values)
             cov = lw.covariance_ * 252  # annualise
 
@@ -309,6 +306,7 @@ class PortfolioOptimizer:
             from scipy.optimize import minimize
 
             n = len(valid_syms)
+
             # Objective: minimise w^T Σ w
             def portfolio_var(w):
                 return float(w @ cov @ w)
@@ -324,9 +322,13 @@ class PortfolioOptimizer:
             w0 = np.ones(n) / n
 
             result = minimize(
-                portfolio_var, w0, jac=portfolio_var_grad,
-                method="SLSQP", bounds=bounds, constraints=constraints,
-                options={"ftol": 1e-9, "maxiter": 500}
+                portfolio_var,
+                w0,
+                jac=portfolio_var_grad,
+                method="SLSQP",
+                bounds=bounds,
+                constraints=constraints,
+                options={"ftol": 1e-9, "maxiter": 500},
             )
 
             if result.success:
@@ -337,9 +339,8 @@ class PortfolioOptimizer:
                         opt_weights[sym] = 0.0
                 log.debug(f"MinVar converged: {len(valid_syms)} assets")
                 return opt_weights
-            else:
-                log.debug(f"MinVar failed to converge — falling back to risk parity")
-                return self._risk_parity_weights(signals, price_history, as_of_date)
+            log.debug("MinVar failed to converge — falling back to risk parity")
+            return self._risk_parity_weights(signals, price_history, as_of_date)
 
         except ImportError:
             log.warning("sklearn/scipy not available — falling back to risk parity")
@@ -352,14 +353,12 @@ class PortfolioOptimizer:
     # Method 3: Signal-proportional (original, kept as fallback)
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _signal_proportional_weights(
-        self, signals: Dict[str, float]
-    ) -> Dict[str, float]:
+    def _signal_proportional_weights(self, signals: dict[str, float]) -> dict[str, float]:
         """Original method: weight proportional to signal strength."""
         total = sum(abs(v) for v in signals.values())
         if total == 0:
             n = len(signals)
-            return {k: 1.0 / n for k in signals}
+            return dict.fromkeys(signals, 1.0 / n)
         return {k: abs(v) / total for k, v in signals.items()}
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -368,19 +367,19 @@ class PortfolioOptimizer:
 
     def _apply_crypto_cap(
         self,
-        weights:        Dict[str, float],
+        weights: dict[str, float],
         portfolio_heat: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Enforce hard crypto allocation cap.
         If crypto weights exceed max_crypto_pct of portfolio heat,
         scale them down and redistribute freed weight proportionally to non-crypto.
         """
-        crypto_syms   = [s for s in weights if _classify_asset(s) == "crypto"]
+        crypto_syms = [s for s in weights if _classify_asset(s) == "crypto"]
         noncrypto_syms = [s for s in weights if _classify_asset(s) != "crypto"]
 
         crypto_weight = sum(abs(weights.get(s, 0)) for s in crypto_syms)
-        cap           = self.max_crypto_pct  # as fraction of total (not heat)
+        cap = self.max_crypto_pct  # as fraction of total (not heat)
 
         if crypto_weight <= cap or not crypto_syms:
             return weights
@@ -414,9 +413,9 @@ class PortfolioOptimizer:
 
     def _apply_regime_scaling(
         self,
-        max_heat:   float,
-        spy_data:   Optional[pd.DataFrame],
-        as_of_date: Optional[pd.Timestamp],
+        max_heat: float,
+        spy_data: pd.DataFrame | None,
+        as_of_date: pd.Timestamp | None,
     ) -> float:
         """
         Scale portfolio heat dynamically based on SPY distance from 200-day MA.
@@ -444,9 +443,9 @@ class PortfolioOptimizer:
             if len(close) < 200:
                 return max_heat
 
-            spy_now   = float(close.iloc[-1])
-            ma200     = float(close.rolling(200).mean().iloc[-1])
-            deviation = (spy_now - ma200) / ma200   # positive = above MA, negative = below
+            spy_now = float(close.iloc[-1])
+            ma200 = float(close.rolling(200).mean().iloc[-1])
+            deviation = (spy_now - ma200) / ma200  # positive = above MA, negative = below
 
             # v15: Full-range interpolation supporting bear_heat_max > 1.0 (bull boost)
             # When deviation ≤ -sensitivity → t = 0.0 → multiplier = bear_heat_min
@@ -466,9 +465,11 @@ class PortfolioOptimizer:
                 t_bull = np.clip(deviation / bull_thresh, 0.0, 1.0)
                 multiplier = 1.0 + (self.bear_heat_max - 1.0) * t_bull
 
-            effective  = max_heat * multiplier
+            effective = max_heat * multiplier
 
-            regime_label = f"BULL (+{deviation:.1%})" if deviation >= 0 else f"BEAR ({deviation:+.1%})"
+            regime_label = (
+                f"BULL (+{deviation:.1%})" if deviation >= 0 else f"BEAR ({deviation:+.1%})"
+            )
             log.debug(
                 f"Regime: {regime_label} | SPY={spy_now:.2f} MA200={ma200:.2f} "
                 f"dev={deviation:+.2%} → mult={multiplier:.3f} "
@@ -483,9 +484,9 @@ class PortfolioOptimizer:
 
     def regime_multiplier(
         self,
-        spy_data:   Optional[pd.DataFrame],
-        as_of_date: Optional[pd.Timestamp] = None,
-    ) -> Tuple[float, float, str]:
+        spy_data: pd.DataFrame | None,
+        as_of_date: pd.Timestamp | None = None,
+    ) -> tuple[float, float, str]:
         """
         Public helper: returns (multiplier, deviation, regime_label) for diagnostics.
         Useful for reporting and the what-if analyser.
@@ -498,12 +499,16 @@ class PortfolioOptimizer:
                 close = close[close.index <= as_of_date]
             if len(close) < 200:
                 return 1.0, 0.0, "INSUFFICIENT_HISTORY"
-            spy_now   = float(close.iloc[-1])
-            ma200     = float(close.rolling(200).mean().iloc[-1])
+            spy_now = float(close.iloc[-1])
+            ma200 = float(close.rolling(200).mean().iloc[-1])
             deviation = (spy_now - ma200) / ma200
-            t          = np.clip((deviation + self.bear_sensitivity) / self.bear_sensitivity, 0.0, 1.0)
+            t = np.clip((deviation + self.bear_sensitivity) / self.bear_sensitivity, 0.0, 1.0)
             multiplier = self.bear_heat_min + (self.bear_heat_max - self.bear_heat_min) * t
-            label = "BULL" if deviation >= 0 else ("MILD_BEAR" if deviation > -self.bear_sensitivity / 2 else "DEEP_BEAR")
+            label = (
+                "BULL"
+                if deviation >= 0
+                else ("MILD_BEAR" if deviation > -self.bear_sensitivity / 2 else "DEEP_BEAR")
+            )
             return round(multiplier, 4), round(deviation, 4), label
         except Exception:
             return 1.0, 0.0, "ERROR"
@@ -514,10 +519,10 @@ class PortfolioOptimizer:
 
     def explain(
         self,
-        signals:        Dict[str, float],
-        price_history:  Dict[str, pd.DataFrame],
-        as_of_date:     Optional[pd.Timestamp] = None,
-        spy_data:       Optional[pd.DataFrame] = None,
+        signals: dict[str, float],
+        price_history: dict[str, pd.DataFrame],
+        as_of_date: pd.Timestamp | None = None,
+        spy_data: pd.DataFrame | None = None,
     ) -> pd.DataFrame:
         """
         Return a DataFrame explaining each position's weight breakdown.
@@ -530,13 +535,15 @@ class PortfolioOptimizer:
                 close = price_history[sym]["Close"]
                 if as_of_date is not None:
                     close = close[close.index <= as_of_date]
-                rets = close.pct_change().dropna().iloc[-self.vol_window:]
+                rets = close.pct_change().dropna().iloc[-self.vol_window :]
                 if len(rets) > 5:
                     vol = float(rets.std() * np.sqrt(252))
-            rows.append({
-                "symbol":      sym,
-                "signal":      round(sig, 4),
-                "ann_vol":     round(vol, 4) if not np.isnan(vol) else None,
-                "asset_class": _classify_asset(sym),
-            })
+            rows.append(
+                {
+                    "symbol": sym,
+                    "signal": round(sig, 4),
+                    "ann_vol": round(vol, 4) if not np.isnan(vol) else None,
+                    "asset_class": _classify_asset(sym),
+                }
+            )
         return pd.DataFrame(rows).sort_values("signal", ascending=False)

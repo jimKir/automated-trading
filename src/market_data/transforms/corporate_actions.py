@@ -22,7 +22,7 @@ class SplitRecord:
     symbol_id: int
     ex_date: str
     split_from: float  # e.g., 1 (old shares)
-    split_to: float    # e.g., 4 (new shares)
+    split_to: float  # e.g., 4 (new shares)
 
 
 @dataclass

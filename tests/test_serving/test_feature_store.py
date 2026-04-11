@@ -9,7 +9,6 @@ from market_data.serving.feature_store import (
     TrainingDatasetConfig,
 )
 from market_data.storage.cloud_storage import LocalStorageBackend
-from market_data.transforms.features import FeatureEngineer
 
 
 class TestFeatureStore:
@@ -36,9 +35,7 @@ class TestFeatureStore:
     ) -> None:
         store = FeatureStore(storage=local_storage)
         store.compute_and_store(sample_ohlcv_df, "test_features")
-        loaded = store.load_features(
-            "test_features", "1.0.0", columns=["close", "sma_20"]
-        )
+        loaded = store.load_features("test_features", "1.0.0", columns=["close", "sma_20"])
         assert list(loaded.columns) == ["close", "sma_20"]
 
     def test_get_metadata(

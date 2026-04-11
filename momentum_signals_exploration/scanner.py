@@ -6,11 +6,8 @@ Efficiently scans 500-5000 symbols for momentum every hour.
 Cost: $0 (Alpaca free tier)
 """
 
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
 import logging
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,7 +16,7 @@ logger = logging.getLogger(__name__)
 class MomentumScanner:
     """Core momentum scanning engine."""
 
-    def __init__(self, data_source='alpaca'):
+    def __init__(self, data_source="alpaca"):
         """
         Initialize scanner.
 
@@ -29,14 +26,16 @@ class MomentumScanner:
         self.data_source = data_source
         self.results = {}
 
-        if data_source == 'alpaca':
+        if data_source == "alpaca":
             from alpaca_trade_api import REST
+
             self.api = REST()
-        elif data_source == 'databento':
+        elif data_source == "databento":
             import databento as db
+
             self.api = db.Historical()
 
-    def fetch_hourly_bars(self, symbols: List[str], limit: int = 5) -> Dict:
+    def fetch_hourly_bars(self, symbols: list[str], limit: int = 5) -> dict:
         """
         Fetch hourly bars for all symbols.
 
@@ -47,12 +46,11 @@ class MomentumScanner:
         Returns:
             Dict with OHLCV data for each symbol
         """
-        if self.data_source == 'alpaca':
+        if self.data_source == "alpaca":
             return self._fetch_alpaca(symbols, limit)
-        else:
-            return self._fetch_databento(symbols, limit)
+        return self._fetch_databento(symbols, limit)
 
-    def _fetch_alpaca(self, symbols: List[str], limit: int) -> Dict:
+    def _fetch_alpaca(self, symbols: list[str], limit: int) -> dict:
         """Fetch from Alpaca API using current API (get_bars instead of deprecated get_barset)."""
         logger.info(f"Fetching {len(symbols)} symbols from Alpaca...")
 
@@ -63,12 +61,7 @@ class MomentumScanner:
             bars_dict = {}
             for symbol in symbols:
                 try:
-                    bars = self.api.get_bars(
-                        symbol,
-                        timeframe='1h',
-                        start=start_time,
-                        end=end_time
-                    )
+                    bars = self.api.get_bars(symbol, timeframe="1h", start=start_time, end=end_time)
 
                     if bars is None or len(bars) == 0:
                         logger.debug(f"No data for {symbol}")
@@ -78,14 +71,14 @@ class MomentumScanner:
                     bars_list = []
                     for bar in bars:
                         # Handle Bar object from alpaca-trade-api
-                        if hasattr(bar, '__dict__'):
+                        if hasattr(bar, "__dict__"):
                             bar_dict = {
-                                'open': float(bar.open),
-                                'high': float(bar.high),
-                                'low': float(bar.low),
-                                'close': float(bar.close),
-                                'volume': int(bar.volume),
-                                'timestamp': bar.timestamp
+                                "open": float(bar.open),
+                                "high": float(bar.high),
+                                "low": float(bar.low),
+                                "close": float(bar.close),
+                                "volume": int(bar.volume),
+                                "timestamp": bar.timestamp,
                             }
                         elif isinstance(bar, dict):
                             bar_dict = bar
@@ -107,7 +100,7 @@ class MomentumScanner:
             logger.error(f"✗ Fetch failed: {e}")
             raise
 
-    def _fetch_databento(self, symbols: List[str], limit: int) -> Dict:
+    def _fetch_databento(self, symbols: list[str], limit: int) -> dict:
         """Fetch from DataBento API."""
         logger.info(f"Fetching {len(symbols)} symbols from DataBento...")
 
@@ -116,19 +109,19 @@ class MomentumScanner:
             start_time = end_time - timedelta(hours=limit)
 
             data = self.api.timeseries.get_range(
-                dataset='GLBX.MBO',
+                dataset="GLBX.MBO",
                 symbols=symbols,
                 start=start_time.isoformat(),
                 end=end_time.isoformat(),
-                timeframe='1h'
+                timeframe="1h",
             )
-            logger.info(f"✓ Fetched data")
+            logger.info("✓ Fetched data")
             return data
         except Exception as e:
             logger.error(f"✗ Fetch failed: {e}")
             raise
 
-    def calculate_momentum(self, bars: Dict) -> Dict:
+    def calculate_momentum(self, bars: dict) -> dict:
         """
         Calculate momentum metrics for each symbol.
 
@@ -151,16 +144,20 @@ class MomentumScanner:
 
                     # Handle both dict and object formats
                     if isinstance(last_bar, dict):
-                        open_price = last_bar.get('open') or last_bar.get('o')
-                        close_price = last_bar.get('close') or last_bar.get('c')
-                        prev_close = prev_bar.get('close') or prev_bar.get('c')
-                        volume = last_bar.get('volume') or last_bar.get('v')
+                        open_price = last_bar.get("open") or last_bar.get("o")
+                        close_price = last_bar.get("close") or last_bar.get("c")
+                        prev_close = prev_bar.get("close") or prev_bar.get("c")
+                        volume = last_bar.get("volume") or last_bar.get("v")
                     else:
                         # Object format
-                        open_price = getattr(last_bar, 'open', None) or getattr(last_bar, 'o', None)
-                        close_price = getattr(last_bar, 'close', None) or getattr(last_bar, 'c', None)
-                        prev_close = getattr(prev_bar, 'close', None) or getattr(prev_bar, 'c', None)
-                        volume = getattr(last_bar, 'volume', None) or getattr(last_bar, 'v', None)
+                        open_price = getattr(last_bar, "open", None) or getattr(last_bar, "o", None)
+                        close_price = getattr(last_bar, "close", None) or getattr(
+                            last_bar, "c", None
+                        )
+                        prev_close = getattr(prev_bar, "close", None) or getattr(
+                            prev_bar, "c", None
+                        )
+                        volume = getattr(last_bar, "volume", None) or getattr(last_bar, "v", None)
 
                 elif isinstance(bar_data, dict) and len(bar_data) >= 2:
                     # Dict format
@@ -171,15 +168,19 @@ class MomentumScanner:
                     prev_bar = bars_list[-2]
 
                     if isinstance(last_bar, dict):
-                        open_price = last_bar.get('open') or last_bar.get('o')
-                        close_price = last_bar.get('close') or last_bar.get('c')
-                        prev_close = prev_bar.get('close') or prev_bar.get('c')
-                        volume = last_bar.get('volume') or last_bar.get('v')
+                        open_price = last_bar.get("open") or last_bar.get("o")
+                        close_price = last_bar.get("close") or last_bar.get("c")
+                        prev_close = prev_bar.get("close") or prev_bar.get("c")
+                        volume = last_bar.get("volume") or last_bar.get("v")
                     else:
-                        open_price = getattr(last_bar, 'open', None) or getattr(last_bar, 'o', None)
-                        close_price = getattr(last_bar, 'close', None) or getattr(last_bar, 'c', None)
-                        prev_close = getattr(prev_bar, 'close', None) or getattr(prev_bar, 'c', None)
-                        volume = getattr(last_bar, 'volume', None) or getattr(last_bar, 'v', None)
+                        open_price = getattr(last_bar, "open", None) or getattr(last_bar, "o", None)
+                        close_price = getattr(last_bar, "close", None) or getattr(
+                            last_bar, "c", None
+                        )
+                        prev_close = getattr(prev_bar, "close", None) or getattr(
+                            prev_bar, "c", None
+                        )
+                        volume = getattr(last_bar, "volume", None) or getattr(last_bar, "v", None)
                 else:
                     continue
 
@@ -192,13 +193,13 @@ class MomentumScanner:
                 hourly_return = (close_price - prev_close) / prev_close
 
                 momentum_scores[symbol] = {
-                    'intra_momentum': intra_hour_momentum,  # This hour open->close
-                    'hourly_return': hourly_return,         # Previous close->current close
-                    'combined_momentum': intra_hour_momentum + hourly_return,
-                    'price': close_price,
-                    'volume': volume,
-                    'open': open_price,
-                    'close': close_price,
+                    "intra_momentum": intra_hour_momentum,  # This hour open->close
+                    "hourly_return": hourly_return,  # Previous close->current close
+                    "combined_momentum": intra_hour_momentum + hourly_return,
+                    "price": close_price,
+                    "volume": volume,
+                    "open": open_price,
+                    "close": close_price,
                 }
             except (KeyError, TypeError, IndexError, AttributeError) as e:
                 logger.debug(f"Error processing {symbol}: {e}")
@@ -208,8 +209,7 @@ class MomentumScanner:
         self.results = momentum_scores
         return momentum_scores
 
-    def rank_by_momentum(self, metric: str = 'intra_momentum',
-                         top_n: int = 20) -> List[Tuple]:
+    def rank_by_momentum(self, metric: str = "intra_momentum", top_n: int = 20) -> list[tuple]:
         """
         Rank symbols by momentum metric.
 
@@ -220,26 +220,19 @@ class MomentumScanner:
         Returns:
             List of (symbol, metrics_dict) tuples, sorted by metric
         """
-        ranked = sorted(
-            self.results.items(),
-            key=lambda x: x[1][metric],
-            reverse=True
-        )
+        ranked = sorted(self.results.items(), key=lambda x: x[1][metric], reverse=True)
         return ranked[:top_n]
 
-    def get_top_gainers(self, top_n: int = 20) -> List[Tuple]:
+    def get_top_gainers(self, top_n: int = 20) -> list[tuple]:
         """Get top gainers by intra-hour momentum."""
-        return self.rank_by_momentum('intra_momentum', top_n)
+        return self.rank_by_momentum("intra_momentum", top_n)
 
-    def get_top_losers(self, top_n: int = 20) -> List[Tuple]:
+    def get_top_losers(self, top_n: int = 20) -> list[tuple]:
         """Get top losers by intra-hour momentum."""
-        ranked = sorted(
-            self.results.items(),
-            key=lambda x: x[1]['intra_momentum']
-        )
+        ranked = sorted(self.results.items(), key=lambda x: x[1]["intra_momentum"])
         return ranked[:top_n]
 
-    def format_results(self, results: List[Tuple]) -> str:
+    def format_results(self, results: list[tuple]) -> str:
         """
         Format results for display.
 
@@ -251,15 +244,16 @@ class MomentumScanner:
         """
         output = []
         output.append("=" * 80)
-        output.append(f"{'Symbol':<8} {'Intra %':<10} {'Hourly %':<10} "
-                     f"{'Price':<10} {'Volume':<15}")
+        output.append(
+            f"{'Symbol':<8} {'Intra %':<10} {'Hourly %':<10} {'Price':<10} {'Volume':<15}"
+        )
         output.append("-" * 80)
 
         for symbol, metrics in results:
             output.append(
                 f"{symbol:<8} "
-                f"{metrics['intra_momentum']*100:>8.2f}% "
-                f"{metrics['hourly_return']*100:>8.2f}% "
+                f"{metrics['intra_momentum'] * 100:>8.2f}% "
+                f"{metrics['hourly_return'] * 100:>8.2f}% "
                 f"${metrics['price']:>8.2f} "
                 f"{metrics['volume']:>13,.0f}"
             )
@@ -267,8 +261,7 @@ class MomentumScanner:
         output.append("=" * 80)
         return "\n".join(output)
 
-    def run_full_scan(self, symbols: List[str],
-                     top_n: int = 20) -> Tuple[List[Tuple], List[Tuple]]:
+    def run_full_scan(self, symbols: list[str], top_n: int = 20) -> tuple[list[tuple], list[tuple]]:
         """
         Run complete scan: fetch -> calculate -> rank.
 

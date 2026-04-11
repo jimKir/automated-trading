@@ -21,7 +21,11 @@ Cost: $0 — metadata queries only.
 Usage:
     PYTHONPATH=. python diagnostics/check_live_vs_historical.py
 """
-import os, sys, warnings
+
+import os
+import sys
+import warnings
+
 warnings.filterwarnings("ignore")
 sys.path.insert(0, ".")
 
@@ -32,7 +36,8 @@ KEY = os.environ.get("DATABENTO_KEY", "")
 try:
     import databento as db
 except ImportError:
-    print("databento not installed"); sys.exit(1)
+    print("databento not installed")
+    sys.exit(1)
 
 print()
 print("=" * 68)
@@ -78,25 +83,39 @@ print("  " + "─" * 55)
 last_good = None
 first_bad = None
 
-from datetime import date, datetime, timedelta
 import numpy as np
 
-_HOLIDAYS = np.array(["2025-11-27","2025-11-28","2025-12-25","2026-01-01",
-                       "2026-01-19","2026-02-16","2026-04-03"], dtype="datetime64[D]")
+_HOLIDAYS = np.array(
+    [
+        "2025-11-27",
+        "2025-11-28",
+        "2025-12-25",
+        "2026-01-01",
+        "2026-01-19",
+        "2026-02-16",
+        "2026-04-03",
+    ],
+    dtype="datetime64[D]",
+)
+
 
 def is_td(d):
-    return bool(np.is_busday(np.datetime64(d,"D"), holidays=_HOLIDAYS))
+    return bool(np.is_busday(np.datetime64(d, "D"), holidays=_HOLIDAYS))
+
 
 d = date(2025, 10, 28)
 while d <= date(2025, 11, 7):
     if is_td(d):
         try:
             start_dt = datetime(d.year, d.month, d.day, 19, 50, 0)
-            end_dt   = datetime(d.year, d.month, d.day, 20,  1, 0)
+            end_dt = datetime(d.year, d.month, d.day, 20, 1, 0)
             store = client.timeseries.get_range(
-                dataset="XNAS.ITCH", schema="imbalance",
-                start=start_dt, end=end_dt,
-                symbols=["AAPL"], limit=1,
+                dataset="XNAS.ITCH",
+                schema="imbalance",
+                start=start_dt,
+                end=end_dt,
+                symbols=["AAPL"],
+                limit=1,
             )
             df = store.to_df()
             has = not df.empty
@@ -128,7 +147,7 @@ try:
     print("  Live client created — checking available datasets...")
     try:
         # Attempt a metadata query on the live client
-        subs = live.subscriptions if hasattr(live, 'subscriptions') else None
+        subs = live.subscriptions if hasattr(live, "subscriptions") else None
         if subs:
             print(f"  Live subscriptions: {subs}")
         else:
@@ -167,9 +186,9 @@ if last_good and first_bad:
     print()
     print("  RECOMMENDED ACTION:")
     print("  Email Databento support with this info:")
-    print(f"    'XNAS.ITCH imbalance schema returns 0 rows for all dates")
+    print("    'XNAS.ITCH imbalance schema returns 0 rows for all dates")
     print(f"     after {last_good}. Dataset range API claims data through today.")
-    print(f"     Please advise on processing status or feed availability.'")
+    print("     Please advise on processing status or feed availability.'")
     print()
     print("  Support: https://databento.com/contact  or  support@databento.com")
 print("=" * 68)

@@ -10,14 +10,10 @@ Requirements:
 Paper trading:  port=7497 (TWS) or 4002 (Gateway)
 Live trading:   port=7496 (TWS) or 4001 (Gateway)
 """
+
 from __future__ import annotations
 
-import time
-from typing import Dict, List, Optional
-
-from execution.broker_base import (
-    BrokerBase, Order, OrderSide, OrderStatus, OrderType, AccountInfo
-)
+from execution.broker_base import AccountInfo, BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from utils.logger import get_logger
 
 log = get_logger("IBKRBroker")
@@ -37,6 +33,7 @@ class IBKRBroker(BrokerBase):
     def connect(self) -> bool:
         try:
             from ib_insync import IB
+
             self.ib = IB()
             self.ib.connect(self.host, self.port, clientId=self.client_id, readonly=False)
             log.info(f"IBKR connected: {self.host}:{self.port} (paper={self.paper})")
@@ -51,7 +48,6 @@ class IBKRBroker(BrokerBase):
             log.info("IBKR disconnected")
 
     def get_account(self) -> AccountInfo:
-        from ib_insync import AccountValue
         vals = {v.tag: v.value for v in self.ib.accountValues(self.account_id)}
         equity = float(vals.get("NetLiquidation", 0))
         cash = float(vals.get("AvailableFunds", 0))
@@ -67,10 +63,10 @@ class IBKRBroker(BrokerBase):
             positions=positions,
         )
 
-    def get_position(self, symbol: str) -> Optional[dict]:
+    def get_position(self, symbol: str) -> dict | None:
         return self.get_positions().get(symbol)
 
-    def get_positions(self) -> Dict[str, dict]:
+    def get_positions(self) -> dict[str, dict]:
         positions = {}
         for pos in self.ib.positions(self.account_id):
             sym = pos.contract.symbol
@@ -83,7 +79,8 @@ class IBKRBroker(BrokerBase):
 
     def _make_contract(self, symbol: str):
         """Build the appropriate IBKR contract for a symbol."""
-        from ib_insync import Stock, Future, Crypto, Forex
+        from ib_insync import Crypto, Future, Stock
+
         # Crypto
         if symbol.endswith("-USD") or symbol in ("BTC-USD", "ETH-USD", "SOL-USD"):
             base = symbol.replace("-USD", "")
@@ -104,7 +101,8 @@ class IBKRBroker(BrokerBase):
         return Stock(symbol, "SMART", "USD")
 
     def place_order(self, order: Order) -> Order:
-        from ib_insync import MarketOrder, LimitOrder, StopOrder
+        from ib_insync import LimitOrder, MarketOrder, StopOrder
+
         contract = self._make_contract(order.symbol)
         self.ib.qualifyContracts(contract)
 
@@ -140,7 +138,6 @@ class IBKRBroker(BrokerBase):
         return order
 
     def cancel_order(self, order_id: str) -> bool:
-        from ib_insync import Trade
         for trade in self.ib.openTrades():
             if str(trade.order.orderId) == order_id:
                 self.ib.cancelOrder(trade.order)
@@ -148,7 +145,7 @@ class IBKRBroker(BrokerBase):
                 return True
         return False
 
-    def get_order_status(self, order_id: str) -> Optional[Order]:
+    def get_order_status(self, order_id: str) -> Order | None:
         for trade in self.ib.trades():
             if str(trade.order.orderId) == order_id:
                 o = Order(
@@ -157,13 +154,16 @@ class IBKRBroker(BrokerBase):
                     quantity=trade.order.totalQuantity,
                 )
                 o.order_id = order_id
-                o.status = OrderStatus.FILLED if trade.orderStatus.status == "Filled" else OrderStatus.PENDING
+                o.status = (
+                    OrderStatus.FILLED
+                    if trade.orderStatus.status == "Filled"
+                    else OrderStatus.PENDING
+                )
                 o.avg_fill_price = trade.orderStatus.avgFillPrice
                 return o
         return None
 
     def get_latest_price(self, symbol: str) -> float:
-        from ib_insync import util
         contract = self._make_contract(symbol)
         try:
             self.ib.qualifyContracts(contract)
@@ -176,12 +176,14 @@ class IBKRBroker(BrokerBase):
             log.warning(f"[IBKR] Price error {symbol}: {e}")
             return 0.0
 
-    def get_latest_prices(self, symbols: List[str]) -> Dict[str, float]:
+    def get_latest_prices(self, symbols: list[str]) -> dict[str, float]:
         return {sym: self.get_latest_price(sym) for sym in symbols}
 
     def is_market_open(self) -> bool:
         from datetime import datetime, time as dtime
+
         import pytz
+
         et = pytz.timezone("America/New_York")
         now = datetime.now(et).time()
         return dtime(9, 30) <= now <= dtime(16, 0)

@@ -7,11 +7,16 @@ returns real data. Uses limit=1 probes (free metadata-level cost).
 Usage:
     PYTHONPATH=. python diagnostics/find_imbalance_cutoff.py
 """
-import os, sys, warnings
+
+import os
+import sys
+import warnings
+
 warnings.filterwarnings("ignore")
 sys.path.insert(0, ".")
 
 from datetime import date, datetime, timedelta
+
 import numpy as np
 
 KEY = os.environ.get("DATABENTO_KEY", "")
@@ -19,19 +24,37 @@ KEY = os.environ.get("DATABENTO_KEY", "")
 try:
     import databento as db
 except ImportError:
-    print("databento not installed"); sys.exit(1)
+    print("databento not installed")
+    sys.exit(1)
 
 client = db.Historical(key=KEY)
 
-_US_HOLIDAYS = np.array([
-    "2025-01-01","2025-01-09","2025-01-20","2025-02-17","2025-04-18",
-    "2025-05-26","2025-06-19","2025-07-04","2025-09-01",
-    "2025-11-27","2025-11-28","2025-12-25",
-    "2026-01-01","2026-01-19","2026-02-16","2026-04-03",
-], dtype="datetime64[D]")
+_US_HOLIDAYS = np.array(
+    [
+        "2025-01-01",
+        "2025-01-09",
+        "2025-01-20",
+        "2025-02-17",
+        "2025-04-18",
+        "2025-05-26",
+        "2025-06-19",
+        "2025-07-04",
+        "2025-09-01",
+        "2025-11-27",
+        "2025-11-28",
+        "2025-12-25",
+        "2026-01-01",
+        "2026-01-19",
+        "2026-02-16",
+        "2026-04-03",
+    ],
+    dtype="datetime64[D]",
+)
+
 
 def is_td(d: date) -> bool:
     return bool(np.is_busday(np.datetime64(d, "D"), holidays=_US_HOLIDAYS))
+
 
 def prev_td(d: date) -> date:
     d -= timedelta(days=1)
@@ -39,22 +62,25 @@ def prev_td(d: date) -> date:
         d -= timedelta(days=1)
     return d
 
+
 def has_data(d: date) -> bool:
     """True if XNAS.ITCH imbalance returns >=1 row for date d."""
     try:
         start = datetime(d.year, d.month, d.day, 19, 50, 0)
-        end   = datetime(d.year, d.month, d.day, 20,  1, 0)
+        end = datetime(d.year, d.month, d.day, 20, 1, 0)
         store = client.timeseries.get_range(
             dataset="XNAS.ITCH",
             schema="imbalance",
-            start=start, end=end,
-            symbols=["AAPL"],   # single symbol — cheapest possible probe
+            start=start,
+            end=end,
+            symbols=["AAPL"],  # single symbol — cheapest possible probe
             limit=1,
         )
         df = store.to_df()
         return not df.empty
     except Exception:
         return False
+
 
 print()
 print("=" * 55)
@@ -95,7 +121,7 @@ if last_good and first_bad:
     print()
     # Check if the gap is total or intermittent
     print("[2/2] Spot-checking later dates for any recovery:")
-    spot = [date(2025,12,1), date(2026,1,5), date(2026,2,2), date(2026,3,2)]
+    spot = [date(2025, 12, 1), date(2026, 1, 5), date(2026, 2, 2), date(2026, 3, 2)]
     for sd in spot:
         r = has_data(sd)
         print(f"  {sd!s:<14} {'✅ yes' if r else '❌ no'}")
