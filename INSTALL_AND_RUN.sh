@@ -47,6 +47,17 @@ if ! python3 -c "import pandas, alpaca, pyarrow" 2>/dev/null; then
     exit 1
 fi
 
+# Install package in editable mode so all imports work
+pip install -e . --quiet
+echo "✓ Package installed (editable mode)"
+
+# Fallback: if editable install fails, add repo root to Python path via .pth file
+if ! python -c "from core.portfolio import Portfolio" 2>/dev/null; then
+    SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+    echo "$(pwd)" > "$SITE_PACKAGES/trading_system.pth"
+    echo "✓ Added repo root to Python path via .pth file"
+fi
+
 # ── Route command ────────────────────────────────────────────
 CMD="${1:-backfill}"
 

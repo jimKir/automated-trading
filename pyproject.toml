@@ -46,7 +46,9 @@ all = ["market-data-platform[azure,aws,gcs,dev]"]
 market-data = "market_data.cli:cli"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["core*", "regime*", "strategy*", "execution*", "risk*", "data*", "backtest*", "utils*", "config*", "flows*", "models*"]
+exclude = ["venv*", ".venv*", "tests*", "*.egg-info*", "results*", "diagnostics*"]
 
 # ============================================================
 #  Ruff — linter + formatter (replaces flake8, isort, black)
