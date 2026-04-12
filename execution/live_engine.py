@@ -553,3 +553,60 @@ class LiveEngine:
                 return elapsed >= timedelta(days=14)
 
         return elapsed >= timedelta(hours=24)
+
+
+if __name__ == "__main__":
+    import argparse
+    import logging
+    import yaml
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description="Automated Trading Engine")
+    parser.add_argument("--mode", choices=["paper", "live", "dry_run"], default="paper")
+    parser.add_argument("--config", default="config/settings.yaml")
+    parser.add_argument("--loop-interval", type=int, default=60)
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger("live_engine.__main__")
+
+    config_path = Path(args.config)
+    if not config_path.exists():
+        logger.error(f"Config not found: {config_path}")
+        raise SystemExit(1)
+
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    if "system" not in config:
+        config["system"] = {}
+    config["system"]["mode"] = args.mode
+    dry_run = (args.mode == "dry_run")
+
+    logger.info("=" * 60)
+    logger.info("  AUTOMATED TRADING ENGINE")
+    logger.info(f"  Mode:      {args.mode.upper()}")
+    logger.info(f"  Config:    {config_path}")
+    logger.info(f"  Rebalance: {config.get('rebalance_frequency', 'adaptive')}")
+    logger.info(f"  Universe:  {config.get('universe', [])}")
+    logger.info(f"  Interval:  {args.loop_interval}s")
+    logger.info("=" * 60)
+
+    try:
+        engine = LiveEngine(config=config, dry_run=dry_run)
+        # Call whichever method actually starts the loop
+        start_method = getattr(engine, 'start', None) or getattr(engine, 'run', None)
+        if start_method is None:
+            logger.error("LiveEngine has no start() or run() method")
+            raise SystemExit(1)
+        start_method(loop_interval_seconds=args.loop_interval)
+    except KeyboardInterrupt:
+        logger.info("Stopped by user (Ctrl+C)")
+    except Exception as e:
+        logger.critical(f"Engine crashed: {e}", exc_info=True)
+        raise SystemExit(1)

@@ -48,7 +48,7 @@ databento>=0.36.0
 alpaca-py>=0.25.0
 
 # H2O AutoML (vol forecaster + meta-learner)
-h2o>=3.46.0
+# h2o>=3.46.0  # optional: H2O AutoML vol forecaster — heavy dep, not wired in live engine
 
 # Earnings NLP
 vaderSentiment>=3.3.2
