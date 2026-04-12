@@ -35,7 +35,7 @@ def run():
     from alpaca.trading.enums import OrderStatus as OS
     c = TradingClient(key, sec, paper=True)
     acct = c.get_account(); pos = c.get_all_positions()
-    ords = c.get_orders(filter=GetOrdersRequest(status=OS.ALL, limit=5))
+    ords = c.get_orders(filter=GetOrdersRequest(limit=5))
     eq = float(acct.equity); le = float(acct.last_equity); td = eq - le
     BAR = "=" * 52
     print(f"\n{B(BAR)}")
