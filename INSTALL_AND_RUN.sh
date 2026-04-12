@@ -40,16 +40,11 @@ source venv/bin/activate
 
 # Ensure core packages
 pip install --upgrade pip --quiet 2>/dev/null
-pip install alpaca-py pandas pyarrow python-dotenv pytz requests numpy --quiet 2>/dev/null
 
-if ! python3 -c "import pandas, alpaca, pyarrow" 2>/dev/null; then
-    echo "❌ Package install failed."
-    exit 1
-fi
-
-# Install package in editable mode so all imports work
-pip install -e . --quiet
-echo "✓ Package installed (editable mode)"
+# Install all dependencies from requirements.txt, then register the package
+pip install --quiet -r requirements.txt
+pip install --quiet -e .
+echo "✓ All dependencies installed"
 
 # Fallback: if editable install fails, add repo root to Python path via .pth file
 if ! python -c "from core.portfolio import Portfolio" 2>/dev/null; then

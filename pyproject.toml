@@ -9,6 +9,9 @@ description = "Market Data Ingestion and Storage Platform"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = [
+    # Keep in sync with requirements.txt
+    # Run: pip install -e ".[dev]" for development
+    # Run: pip install -r requirements.txt for direct install
     "pyarrow>=15.0.0",
     "pandas>=2.2.0",
     "prometheus-client>=0.20.0",
@@ -22,14 +25,28 @@ dependencies = [
     "aiofiles>=23.2.0",
     "tenacity>=8.2.0",
     "numpy>=1.26.0",
+    # --- Trading dependencies (synced from requirements.txt) ---
+    "yfinance>=0.2.40",
+    "scipy>=1.12.0",
+    "matplotlib>=3.8.0",
+    "ccxt>=4.3.0",
+    "alpaca-trade-api==3.2.0",
+    "alpaca-py>=0.25.0",
+    "scikit-learn>=1.4.0",
+    "pandas-datareader>=0.10.0",
+    "pytz>=2024.1",
+    "requests>=2.31.0",
+    "tqdm>=4.66.0",
+    "vaderSentiment>=3.3.2",
+    "databento>=0.36.0",
 ]
 
 [project.optional-dependencies]
-vendors = ["databento>=0.35.0", "alpaca-py>=0.21.0"]
+vendors = ["databento>=0.36.0", "alpaca-py>=0.25.0"]
 orchestration = ["prefect>=2.14.0"]
 polars = ["polars>=0.20.0"]
 azure = ["azure-storage-blob>=12.19.0", "azure-identity>=1.15.0"]
-aws = ["s3fs>=2024.2.0", "boto3>=1.34.0"]
+aws = ["s3fs>=2024.3.1", "boto3>=1.34.0"]
 gcs = ["gcsfs>=2024.2.0"]
 dev = [
     "pytest>=8.0.0",
