@@ -337,3 +337,21 @@ class MacroStressScorer:
         start = (_now - timedelta(days=90)).strftime("%Y-%m-%d")
         series = self.compute_series(start, end)
         return float(series.iloc[-1]) if not series.empty else 0.0
+
+# ── Kalshi integration ────────────────────────────────────────────────────────
+
+def get_kalshi_enriched_score(base_score: float) -> float:
+    """
+    Enriches base FRED macro score with Kalshi prediction market signals.
+    Returns base_score unchanged if Kalshi unavailable.
+    """
+    try:
+        from regime.kalshi_macro_feed import KalshiMacroFeed, enrich_macro_score
+        feed = KalshiMacroFeed()
+        signals = feed.get_macro_signals()
+        enriched = enrich_macro_score(base_score, signals, kalshi_weight=0.25)
+        return enriched
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Kalshi enrichment failed: {e}")
+        return base_score
