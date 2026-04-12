@@ -168,17 +168,38 @@ class DataStore:
             return None
 
     def _load_from_local(self, fname: str) -> Optional[pd.DataFrame]:
-        """Load parquet from local disk."""
-        path = self.local_dir / fname
-        if not path.exists():
-            # Try alternative naming conventions
-            for alt in [fname.lower(), fname.upper()]:
-                alt_path = self.local_dir / alt
-                if alt_path.exists():
-                    return pd.read_parquet(alt_path)
-            logger.debug(f"[DataStore] Not found locally: {fname}")
-            return None
-        return pd.read_parquet(path)
+        """Load parquet from local disk — tries multiple naming conventions."""
+        # Build list of candidate filenames to try
+        base = fname.replace('.parquet', '')
+        candidates = [
+            fname,                                          # BTC_USD.parquet (canonical)
+            base.replace('_', '-') + '.parquet',            # BTC-USD.parquet
+            base.split('_')[0] + '.parquet',                # BTC.parquet (no suffix)
+            base.lower() + '.parquet',                      # btc_usd.parquet
+            base.upper() + '.parquet',                      # BTC_USD.parquet
+            base.lower().replace('_', '-') + '.parquet',    # btc-usd.parquet
+            base.split('_')[0].upper() + '.parquet',        # BTC.parquet (uppercase, no suffix)
+            base.replace('=', '_') + '.parquet',            # ES_F.parquet (futures)
+            base.replace('=F', '') + '.parquet',            # ES.parquet (futures without F)
+            base.lstrip('^') + '.parquet',                  # VIX.parquet (strip ^ prefix)
+        ]
+        # Deduplicate while preserving order
+        seen = set()
+        unique_candidates = []
+        for c in candidates:
+            if c not in seen:
+                seen.add(c)
+                unique_candidates.append(c)
+
+        for candidate in unique_candidates:
+            path = self.local_dir / candidate
+            if path.exists():
+                if candidate != fname:
+                    logger.debug(f"[DataStore] {fname} -> found as {candidate}")
+                return pd.read_parquet(path)
+
+        logger.debug(f"[DataStore] Not found locally: {fname}")
+        return None
 
     def _load_from_s3(self, fname: str) -> Optional[pd.DataFrame]:
         """Load parquet from S3 using s3fs or boto3 fallback."""
