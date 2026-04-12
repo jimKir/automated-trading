@@ -17,23 +17,26 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
+from data.data_store import get_store
+
 DATA_DIR = Path("data/historical/daily")
 RESULTS_DIR = Path("results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
 
 def load_prices(syms, start="2017-01-01", end="2026-12-31"):
-    """Load multi-asset Close prices from parquet."""
+    """Load multi-asset Close prices from DataStore (local or S3)."""
+    store = get_store()
     frames = {}
     for sym in syms:
-        p = DATA_DIR / f"{sym}.parquet"
-        if not p.exists():
+        df = store.load(sym)
+        if df is None:
             continue
-        df = pd.read_parquet(p)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [c[0] for c in df.columns]
         df.columns = [c.capitalize() for c in df.columns]
-        df.index = pd.to_datetime(df.index).tz_localize(None)
+        if hasattr(df.index, 'tz') and df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
+        else:
+            df.index = pd.to_datetime(df.index).tz_localize(None)
         frames[sym] = df["Close"]
     prices = pd.DataFrame(frames).dropna(how="all")
     prices = prices[(prices.index >= start) & (prices.index <= end)]

@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from data.data_store import get_store
 from utils.logger import get_logger
 
 log = get_logger("FXAnomaly")
@@ -41,19 +42,20 @@ class FXAnomalyDetector:
         self._cache: dict[str, pd.Series] = {}
 
     def _load(self, sym: str) -> pd.Series | None:
-        """Load Close price series from local parquet store."""
+        """Load Close price series from DataStore (local or S3)."""
         if sym in self._cache:
             return self._cache[sym]
-        p = self._data_dir / f"{sym}.parquet"
-        if not p.exists():
-            log.debug(f"FXAnomaly: {sym}.parquet not found")
-            return None
         try:
-            df = pd.read_parquet(p)
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = [c[0] for c in df.columns]
+            store = get_store()
+            df = store.load(sym)
+            if df is None:
+                log.debug(f"FXAnomaly: {sym} not found in DataStore")
+                return None
             df.columns = [c.capitalize() for c in df.columns]
-            df.index = pd.to_datetime(df.index).tz_localize(None)
+            if hasattr(df.index, 'tz') and df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+            else:
+                df.index = pd.to_datetime(df.index).tz_localize(None)
             s = df["Close"].rename(sym)
             self._cache[sym] = s
             return s

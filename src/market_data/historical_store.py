@@ -39,25 +39,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from data.data_store import get_store
+
 log = logging.getLogger("HistoricalStore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-<<<<<<< Updated upstream
-REPO_ROOT    = Path(__file__).parent.parent.parent
-DATA_DIR     = REPO_ROOT / "data" / "historical"
-DAILY_DIR    = DATA_DIR / "daily"
-MACRO_DIR    = DATA_DIR / "macro"
-META_FILE    = DATA_DIR / "metadata.json"
-ALERT_EMAIL  = os.environ.get("ALERT_EMAIL", "")
-=======
 REPO_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = REPO_ROOT / "data" / "historical"
 DAILY_DIR = DATA_DIR / "daily"
 MACRO_DIR = DATA_DIR / "macro"
 META_FILE = DATA_DIR / "metadata.json"
-ALERT_EMAIL = "kiritsis.di@gmail.com"
->>>>>>> Stashed changes
+ALERT_EMAIL = os.environ.get("ALERT_EMAIL", "")
 
 # ── Universe ───────────────────────────────────────────────────────────────────
 EQUITY_SYMS = [
@@ -201,6 +194,19 @@ def parquet_path(sym: str, kind: str = "daily") -> Path:
 
 
 def load_parquet(sym: str, kind: str = "daily") -> pd.DataFrame | None:
+    # For daily data, try DataStore first (supports S3 transparently)
+    if kind == "daily":
+        try:
+            store = get_store()
+            df = store.load(sym)
+            if df is not None:
+                df.index = pd.to_datetime(df.index)
+                df.index.name = "date"
+                return df.sort_index()
+        except Exception:
+            pass  # fall through to local path
+
+    # Fallback to direct local path (macro dir or if DataStore fails)
     p = parquet_path(sym, kind)
     if not p.exists():
         return None

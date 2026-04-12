@@ -53,6 +53,21 @@ if ! python -c "from core.portfolio import Portfolio" 2>/dev/null; then
     echo "✓ Added repo root to Python path via .pth file"
 fi
 
+# ── Sync data from S3 if available and local data is empty ────
+if [ ! "$(ls -A data/historical/daily/*.parquet 2>/dev/null)" ]; then
+    echo "No local parquet data found in data/historical/daily/."
+
+    # Check if AWS CLI is available and S3 bucket is accessible
+    if command -v aws &>/dev/null && aws s3 ls s3://trading-data-380277571671-eu-north-1-an/historical/daily/ &>/dev/null 2>&1; then
+        echo "Syncing data from S3 (faster than yfinance redownload)..."
+        mkdir -p data/historical/daily
+        aws s3 sync s3://trading-data-380277571671-eu-north-1-an/historical/daily/ data/historical/daily/ --quiet
+        echo "✓ Data synced from S3"
+    else
+        echo "S3 not available — data will be downloaded via yfinance on first run."
+    fi
+fi
+
 # ── Route command ────────────────────────────────────────────
 CMD="${1:-backfill}"
 

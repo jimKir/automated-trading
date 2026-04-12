@@ -53,6 +53,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from data.data_store import get_store
 from regime.order_flow_anomaly import OrderFlowAnomalyDetector
 from utils.logger import get_logger
 
@@ -197,19 +198,20 @@ class ChoppyRegimeDetector:
     # ── Data loading ──────────────────────────────────────────────────────────
 
     def _load(self, sym: str) -> Optional[pd.Series]:
-        """Load a Close price series from the local parquet store."""
+        """Load a Close price series from DataStore (local or S3)."""
         if sym in self._cache:
             return self._cache[sym]
-        p = self._data_dir / f"{sym}.parquet"
-        if not p.exists():
-            log.debug(f"ChoppyRegime: {sym}.parquet not found at {p}")
-            return None
         try:
-            df = pd.read_parquet(p)
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = [c[0] for c in df.columns]
+            store = get_store()
+            df = store.load(sym)
+            if df is None:
+                log.debug(f"ChoppyRegime: {sym} not found in DataStore")
+                return None
             df.columns = [c.capitalize() for c in df.columns]
-            df.index   = pd.to_datetime(df.index).tz_localize(None)
+            if hasattr(df.index, 'tz') and df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+            else:
+                df.index = pd.to_datetime(df.index).tz_localize(None)
             s = df["Close"].rename(sym)
             self._cache[sym] = s
             return s
@@ -218,19 +220,20 @@ class ChoppyRegimeDetector:
             return None
 
     def _load_vol(self, sym: str) -> Optional[pd.Series]:
-        """Load Volume series."""
+        """Load Volume series from DataStore (local or S3)."""
         key = f"vol_{sym}"
         if key in self._cache:
             return self._cache[key]
-        p = self._data_dir / f"{sym}.parquet"
-        if not p.exists():
-            return None
         try:
-            df = pd.read_parquet(p)
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = [c[0] for c in df.columns]
+            store = get_store()
+            df = store.load(sym)
+            if df is None:
+                return None
             df.columns = [c.capitalize() for c in df.columns]
-            df.index   = pd.to_datetime(df.index).tz_localize(None)
+            if hasattr(df.index, 'tz') and df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+            else:
+                df.index = pd.to_datetime(df.index).tz_localize(None)
             s = df["Volume"].rename(key)
             self._cache[key] = s
             return s
@@ -581,19 +584,20 @@ class ChoppyRegimeDetector:
         """
         try:
             # Build all_prices dict for the detector
+            store = get_store()
             all_prices = {}
             for col in prices.columns:
                 # The detector expects DataFrames with High/Low/Close/Volume columns
-                # We only have Close prices in the main prices DF; use parquet store for full OHLCV
-                p = self._data_dir / f"{col}.parquet"
-                if not p.exists():
-                    continue
+                # We only have Close prices in the main prices DF; use DataStore for full OHLCV
                 try:
-                    df = pd.read_parquet(p)
-                    if isinstance(df.columns, pd.MultiIndex):
-                        df.columns = [c[0] for c in df.columns]
+                    df = store.load(col)
+                    if df is None:
+                        continue
                     df.columns = [c.capitalize() for c in df.columns]
-                    df.index = pd.to_datetime(df.index).tz_localize(None)
+                    if hasattr(df.index, 'tz') and df.index.tz is not None:
+                        df.index = df.index.tz_localize(None)
+                    else:
+                        df.index = pd.to_datetime(df.index).tz_localize(None)
                     all_prices[col] = df
                 except Exception:
                     continue

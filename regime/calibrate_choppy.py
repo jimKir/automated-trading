@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from data.data_store import get_store
 from regime.choppy_regime import ChoppyRegimeDetector
 from utils.logger import get_logger
 
@@ -40,29 +41,35 @@ PERIODS = {
 
 
 def load_prices() -> tuple:
-    """Load SPY prices and VIX from parquet store."""
-    spy_path = _DATA_DIR / "SPY.parquet"
-    vix_path = _DATA_DIR / "VIX.parquet"
+    """Load SPY prices and VIX from DataStore (local or S3)."""
+    store = get_store()
 
-    spy_df = pd.read_parquet(spy_path)
-    vix_df = pd.read_parquet(vix_path)
+    spy_df = store.load("SPY")
+    vix_df = store.load("VIX")
+
+    if spy_df is None or vix_df is None:
+        raise FileNotFoundError("SPY or VIX data not found in DataStore")
 
     for df in [spy_df, vix_df]:
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [c[0] for c in df.columns]
         df.columns = [c.capitalize() for c in df.columns]
-        df.index = pd.to_datetime(df.index).tz_localize(None)
+        if hasattr(df.index, 'tz') and df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
+        else:
+            df.index = pd.to_datetime(df.index).tz_localize(None)
 
     # Build price DataFrame for all available instruments
+    all_symbols = store.list_available()
     all_prices = {}
-    for p in _DATA_DIR.glob("*.parquet"):
-        sym = p.stem
+    for sym in all_symbols:
         try:
-            _df = pd.read_parquet(p)
-            if isinstance(_df.columns, pd.MultiIndex):
-                _df.columns = [c[0] for c in _df.columns]
+            _df = store.load(sym)
+            if _df is None:
+                continue
             _df.columns = [c.capitalize() for c in _df.columns]
-            _df.index = pd.to_datetime(_df.index).tz_localize(None)
+            if hasattr(_df.index, 'tz') and _df.index.tz is not None:
+                _df.index = _df.index.tz_localize(None)
+            else:
+                _df.index = pd.to_datetime(_df.index).tz_localize(None)
             all_prices[sym] = _df["Close"]
         except Exception:
             continue

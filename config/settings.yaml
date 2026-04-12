@@ -3,6 +3,18 @@
 #  TRADING SYSTEM — MASTER CONFIGURATION
 # ============================================================
 
+# ============================================================
+# DATA SOURCE CONFIGURATION
+# Controls where parquet data is loaded from: local disk or S3.
+# Override with DATA_SOURCE env var (s3 / local / auto).
+# ============================================================
+data:
+  source: auto          # auto / local / s3
+  s3_bucket: trading-data-380277571671-eu-north-1-an
+  s3_prefix: historical/daily
+  s3_region: eu-north-1
+  local_dir: data/historical/daily
+
 system:
   mode: paper               # backtest | paper | live
   log_level: INFO

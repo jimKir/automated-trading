@@ -72,7 +72,34 @@ sudo dnf install python3.11 python3.11-pip git java-17-amazon-corretto -y
 git clone https://github.com/jimKir/automated-trading.git
 cd automated-trading
 pip3.11 install -r requirements.txt
+
+# Sync historical data from S3 (much faster than yfinance redownload)
+aws s3 sync s3://trading-data-380277571671-eu-north-1-an/historical/daily/ data/historical/daily/
+
+# Or set DATA_SOURCE=s3 to read directly from S3 (no local copy needed on EC2)
+export DATA_SOURCE=s3
 ```
+
+### 3a. IAM policy for S3 data access
+
+Attach this policy to the EC2 instance role or ECS task role:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:DeleteObject"],
+    "Resource": [
+      "arn:aws:s3:::trading-data-380277571671-eu-north-1-an",
+      "arn:aws:s3:::trading-data-380277571671-eu-north-1-an/*"
+    ]
+  }]
+}
+```
+
+On EC2/ECS the system auto-detects the environment and reads from S3 without configuration.
+Set `DATA_SOURCE=s3` explicitly to force S3 mode, or `DATA_SOURCE=local` to use local files.
 
 ### 4. Store credentials in AWS Secrets Manager
 
@@ -266,6 +293,7 @@ All costs exclude data transfer and Secrets Manager (~$0.40/secret/month).
 | `BINANCE_API_SECRET` | No | Binance crypto trading |
 | `IBKR_HOST` | No | Interactive Brokers TWS host (default 127.0.0.1) |
 | `IBKR_PORT` | No | 7497 (TWS paper) / 7496 (TWS live) / 4002 (Gateway paper) |
+| `DATA_SOURCE` | No | `s3` (read data from S3), `local` (local disk), or auto-detect on EC2 |
 | `AWS_REGION` | No | Required if using Secrets Manager or SES (default: us-east-1) |
 | `S3_BUCKET` | No | S3 bucket for daily report uploads |
 | `SES_SENDER` | No | SES sender email for daily reports |
