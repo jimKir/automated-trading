@@ -278,19 +278,20 @@ def run_validation(config: dict) -> None:
     print(f"  Permutation JSON:   {perm_path}")
 
 
-def run_paper(config: dict) -> None:
+def run_paper(config: dict, loop_interval: int | None = None) -> None:
     import copy
 
     cfg = copy.deepcopy(config)
     cfg["system"]["mode"] = "paper"
-    log.info("Mode: PAPER TRADING")
+    interval = loop_interval or 300
+    log.info(f"Mode: PAPER TRADING (loop every {interval}s)")
     from execution.live_engine import LiveEngine
 
     engine = LiveEngine(cfg)
-    engine.start(loop_interval_seconds=300)  # check every 5 minutes
+    engine.start(loop_interval_seconds=interval)
 
 
-def run_live(config: dict) -> None:
+def run_live(config: dict, loop_interval: int | None = None) -> None:
     import copy
 
     cfg = copy.deepcopy(config)
@@ -301,10 +302,11 @@ def run_live(config: dict) -> None:
     if confirm.strip() != "CONFIRM LIVE TRADING":
         log.info("Aborted.")
         return
+    interval = loop_interval or 60
     from execution.live_engine import LiveEngine
 
     engine = LiveEngine(cfg)
-    engine.start(loop_interval_seconds=60)
+    engine.start(loop_interval_seconds=interval)
 
 
 def run_signals(config: dict) -> None:
@@ -383,6 +385,12 @@ def main() -> None:
     parser.add_argument("--config", default="config/settings.yaml", help="Config file path")
     parser.add_argument("--start", default=None, help="Backtest start date YYYY-MM-DD")
     parser.add_argument("--end", default=None, help="Backtest end date YYYY-MM-DD")
+    parser.add_argument(
+        "--loop-interval",
+        type=int,
+        default=None,
+        help="Loop interval in seconds for paper/live modes",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -392,16 +400,18 @@ def main() -> None:
     if args.end:
         config.setdefault("backtest", {})["end_date"] = args.end
 
-    dispatch = {
-        "backtest": run_backtest,
-        "paper": run_paper,
-        "live": run_live,
-        "signals": run_signals,
-        "compare": run_comparison,
-        "validate": run_validation,
-        "report": lambda c: log.info("Re-run backtest to regenerate report"),
-    }
-    dispatch[args.mode](config)
+    if args.mode in ("paper", "live"):
+        dispatch_fn = run_paper if args.mode == "paper" else run_live
+        dispatch_fn(config, loop_interval=args.loop_interval)
+    else:
+        dispatch = {
+            "backtest": run_backtest,
+            "signals": run_signals,
+            "compare": run_comparison,
+            "validate": run_validation,
+            "report": lambda c: log.info("Re-run backtest to regenerate report"),
+        }
+        dispatch[args.mode](config)
 
 
 if __name__ == "__main__":

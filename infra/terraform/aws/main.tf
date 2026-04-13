@@ -268,8 +268,7 @@ resource "aws_ecs_task_definition" "trading" {
     essential = true
 
     command = [
-      "python", "execution/live_engine.py",
-      "--mode", var.trading_mode,
+      "python", "main.py", var.trading_mode,
       "--loop-interval", "60"
     ]
 
@@ -303,7 +302,7 @@ resource "aws_ecs_task_definition" "trading" {
     }
 
     healthCheck = {
-      command     = ["CMD-SHELL", "pgrep -f live_engine.py || exit 1"]
+      command     = ["CMD-SHELL", "pgrep -f 'main.py|live_engine.py' || exit 1"]
       interval    = 30
       timeout     = 5
       retries     = 3

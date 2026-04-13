@@ -9,8 +9,16 @@ generates signals, computes orders, and executes.
 from __future__ import annotations
 
 import signal
+import sys
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+# Ensure project root is on sys.path so top-level packages (core, data, …)
+# resolve when this file is invoked directly (e.g. from an ECS task command).
+_project_root = str(Path(__file__).resolve().parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 import numpy as np
 import pandas as pd
