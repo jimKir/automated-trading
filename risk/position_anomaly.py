@@ -54,6 +54,7 @@ Integration
   The portfolio-level ChoppyRegimeDetector scale is applied SEPARATELY (as now).
   These two layers are independent — no double-counting from shared EWS features.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -70,27 +71,36 @@ warnings.filterwarnings("ignore")
 
 # ── Asset class taxonomy ──────────────────────────────────────────────────────
 
+
 class AssetClass(Enum):
-    CRYPTO     = "crypto"       # BTC-USD, ETH-USD — high vol, high sensitivity
-    EQUITY     = "equity"       # individual stocks — moderate sensitivity
-    ETF_EQUITY = "etf_equity"   # SPY, QQQ, IWM — index ETFs, light sensitivity
-    ETF_HEDGE  = "etf_hedge"    # TLT, GLD, SHY — counter-cyclical, never cut
-    COMMODITY  = "commodity"    # OIL, COPPER futures — moderate-high sensitivity
-    FX         = "fx"           # DXY, JPY, EUR — low sensitivity
-    UNKNOWN    = "unknown"      # default
+    CRYPTO = "crypto"  # BTC-USD, ETH-USD — high vol, high sensitivity
+    EQUITY = "equity"  # individual stocks — moderate sensitivity
+    ETF_EQUITY = "etf_equity"  # SPY, QQQ, IWM — index ETFs, light sensitivity
+    ETF_HEDGE = "etf_hedge"  # TLT, GLD, SHY — counter-cyclical, never cut
+    COMMODITY = "commodity"  # OIL, COPPER futures — moderate-high sensitivity
+    FX = "fx"  # DXY, JPY, EUR — low sensitivity
+    UNKNOWN = "unknown"  # default
 
 
 # ── Classification rules ──────────────────────────────────────────────────────
 
-_CRYPTO_SYMBOLS    = {"BTC-USD", "ETH-USD", "BTC", "ETH", "BTC/USD", "ETH/USD",
-                      "BTCUSD", "ETHUSD"}
-_ETF_HEDGE_SYMBOLS = {"TLT", "SHY", "IEF", "GLD", "SGOL", "IAU", "SHV",
-                      "USFR", "BKLN", "AGG", "BND"}
-_ETF_EQUITY_SYMS   = {"SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "MDY",
-                      "SPDW", "EEM", "EFA"}
-_COMMODITY_SYMS    = {"OIL", "CL=F", "GC=F", "COPPER", "HG=F", "NG=F", "GOLD"}
-_FX_SYMS           = {"DXY", "DX-Y.NYB", "JPY", "JPY=X", "EURUSD", "EURUSD=X",
-                      "UUP"}
+_CRYPTO_SYMBOLS = {"BTC-USD", "ETH-USD", "BTC", "ETH", "BTC/USD", "ETH/USD", "BTCUSD", "ETHUSD"}
+_ETF_HEDGE_SYMBOLS = {
+    "TLT",
+    "SHY",
+    "IEF",
+    "GLD",
+    "SGOL",
+    "IAU",
+    "SHV",
+    "USFR",
+    "BKLN",
+    "AGG",
+    "BND",
+}
+_ETF_EQUITY_SYMS = {"SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "MDY", "SPDW", "EEM", "EFA"}
+_COMMODITY_SYMS = {"OIL", "CL=F", "GC=F", "COPPER", "HG=F", "NG=F", "GOLD"}
+_FX_SYMS = {"DXY", "DX-Y.NYB", "JPY", "JPY=X", "EURUSD", "EURUSD=X", "UUP"}
 
 
 def classify(symbol: str) -> AssetClass:
@@ -118,86 +128,90 @@ def classify(symbol: str) -> AssetClass:
 
 _CLASS_CONFIG: dict[AssetClass, dict] = {
     AssetClass.CRYPTO: {
-        "sensitivity":     1.40,          # aggressive — crypto drawdowns are severe
-        "floor":           0.10,          # allow up to 90% cut
-        "vol_baseline":    0.035,         # ~35-40% ann vol / √252 ≈ 0.022-0.025 daily
+        "sensitivity": 1.40,  # aggressive — crypto drawdowns are severe
+        "floor": 0.10,  # allow up to 90% cut
+        "vol_baseline": 0.035,  # ~35-40% ann vol / √252 ≈ 0.022-0.025 daily
         # score_baseline: subtracted before sensitivity is applied so the scorer
         # is silent during crypto's "normal" level of churn/DD. Calibrated from
         # BTC/ETH 2024 bull-year score_mean≈0.16. Only cuts when score EXCEEDS
         # this baseline, making it insensitive to crypto's inherent high-vol noise.
         # WF-validated: 0.16 (BTC 2024 score_mean) — safe, confirmed OOS.
-        "score_baseline":  0.16,
+        "score_baseline": 0.16,
         "feature_weights": {
-            "vol_spike":       0.40,      # primary: WF showed G1 most discriminating
-            "momentum_churn":  0.15,      # reduced (regime-relative z-score, less chronic)
-            "dd_from_peak":    0.30,      # increased (g3 ceiling now 0.25 — WF-validated)
-            "portfolio_stress":0.15,      # kept — macro context still useful
+            "vol_spike": 0.40,  # primary: WF showed G1 most discriminating
+            "momentum_churn": 0.15,  # reduced (regime-relative z-score, less chronic)
+            "dd_from_peak": 0.30,  # increased (g3 ceiling now 0.25 — WF-validated)
+            "portfolio_stress": 0.15,  # kept — macro context still useful
         },
     },
     AssetClass.EQUITY: {
-        "sensitivity":     0.50,          # WF-validated (was 0.65 — overcutting in calm markets)
-        "floor":           0.40,
-        "vol_baseline":    0.015,
+        "sensitivity": 0.50,  # WF-validated (was 0.65 — overcutting in calm markets)
+        "floor": 0.40,
+        "vol_baseline": 0.015,
         # WF bull_scale_mean=0.91 across all 4 folds → 9% avg trim in bull markets
-        "score_baseline":  0.0,           # equities don't need baseline offset (no chronic noise)
+        "score_baseline": 0.0,  # equities don't need baseline offset (no chronic noise)
         "feature_weights": {
-            "vol_spike":       0.25,
-            "momentum_churn":  0.30,      # choppy price action most important
-            "dd_from_peak":    0.20,
-            "portfolio_stress":0.25,      # portfolio macro context matters more for equities
+            "vol_spike": 0.25,
+            "momentum_churn": 0.30,  # choppy price action most important
+            "dd_from_peak": 0.20,
+            "portfolio_stress": 0.25,  # portfolio macro context matters more for equities
         },
     },
     AssetClass.ETF_EQUITY: {
-        "sensitivity":     0.50,          # WF-validated (same as equity; diversification already in floor)
-        "floor":           0.55,
-        "vol_baseline":    0.011,
+        "sensitivity": 0.50,  # WF-validated (same as equity; diversification already in floor)
+        "floor": 0.55,
+        "vol_baseline": 0.011,
         # WF bull_scale_mean=0.90 — appropriately light trimming of index ETFs
         "feature_weights": {
-            "vol_spike":       0.20,
-            "momentum_churn":  0.35,
-            "dd_from_peak":    0.15,
-            "portfolio_stress":0.30,
+            "vol_spike": 0.20,
+            "momentum_churn": 0.35,
+            "dd_from_peak": 0.15,
+            "portfolio_stress": 0.30,
         },
     },
     AssetClass.ETF_HEDGE: {
-        "sensitivity":     0.0,           # never scale down hedges
-        "floor":           1.00,          # always full exposure
-        "vol_baseline":    0.008,
+        "sensitivity": 0.0,  # never scale down hedges
+        "floor": 1.00,  # always full exposure
+        "vol_baseline": 0.008,
         "feature_weights": {
-            "vol_spike": 1.0, "momentum_churn": 0.0,
-            "dd_from_peak": 0.0, "portfolio_stress": 0.0,
+            "vol_spike": 1.0,
+            "momentum_churn": 0.0,
+            "dd_from_peak": 0.0,
+            "portfolio_stress": 0.0,
         },
     },
     AssetClass.COMMODITY: {
-        "sensitivity":     0.50,          # WF-validated (was 0.75 — overcutting; floor already low at 0.35)
-        "floor":           0.35,
-        "vol_baseline":    0.020,
+        "sensitivity": 0.50,  # WF-validated (was 0.75 — overcutting; floor already low at 0.35)
+        "floor": 0.35,
+        "vol_baseline": 0.020,
         # WF bull_scale_mean=0.90 — protective but not chronically trimming
         "feature_weights": {
-            "vol_spike":       0.40,      # commodity vol spikes primary
-            "momentum_churn":  0.20,
-            "dd_from_peak":    0.25,
-            "portfolio_stress":0.15,
+            "vol_spike": 0.40,  # commodity vol spikes primary
+            "momentum_churn": 0.20,
+            "dd_from_peak": 0.25,
+            "portfolio_stress": 0.15,
         },
     },
     AssetClass.FX: {
-        "sensitivity":     0.30,
-        "floor":           0.60,
-        "vol_baseline":    0.006,
+        "sensitivity": 0.30,
+        "floor": 0.60,
+        "vol_baseline": 0.006,
         "feature_weights": {
-            "vol_spike":       0.30,
-            "momentum_churn":  0.25,
-            "dd_from_peak":    0.15,
-            "portfolio_stress":0.30,
+            "vol_spike": 0.30,
+            "momentum_churn": 0.25,
+            "dd_from_peak": 0.15,
+            "portfolio_stress": 0.30,
         },
     },
     AssetClass.UNKNOWN: {
-        "sensitivity":     0.50,
-        "floor":           0.50,
-        "vol_baseline":    0.015,
+        "sensitivity": 0.50,
+        "floor": 0.50,
+        "vol_baseline": 0.015,
         "feature_weights": {
-            "vol_spike": 0.25, "momentum_churn": 0.25,
-            "dd_from_peak": 0.25, "portfolio_stress": 0.25,
+            "vol_spike": 0.25,
+            "momentum_churn": 0.25,
+            "dd_from_peak": 0.25,
+            "portfolio_stress": 0.25,
         },
     },
 }
@@ -225,26 +239,26 @@ _CLASS_CONFIG: dict[AssetClass, dict] = {
 #   Under old ceiling=3.0: p95 scored only 0.19-0.20 → G1 was functionally deaf
 #   Under WF ceiling=1.55: p95 scores 0.71-0.74 → properly sensitive
 _VOL_SPIKE_BASELINE = 1.00
-_VOL_SPIKE_CEILING  = 1.55
+_VOL_SPIKE_CEILING = 1.55
 
 # G2: Momentum churn — REGIME-RELATIVE (replaces absolute TNR threshold)
 # Each asset's TNR is z-scored against its own 252d rolling mean.
 # Z-score > 0 = currently churning more than usual = higher score.
 # Ceiling: z_churn = 2.0 (2 std devs above own baseline) → score = 1.
 # This makes G2 asset-agnostic and eliminates chronic crypto over-firing.
-_CHURN_ZSCORE_CEILING  = 2.0   # z-score above own baseline → score = 1
-_CHURN_ZSCORE_BASELINE = 0.0   # at own baseline → score = 0
+_CHURN_ZSCORE_CEILING = 2.0  # z-score above own baseline → score = 1
+_CHURN_ZSCORE_BASELINE = 0.0  # at own baseline → score = 0
 
 # G3: Drawdown from 20d peak
 # WF-validated: 0.25 for crypto (own max typically 35-66%),
 #               0.10 for equity (SPY 2022 max DD 25%)
-_DD_BASELINE          = 0.00   # 0% drawdown from peak = score 0
-_DD_CEILING_CRYPTO    = 0.25   # WF-validated (crypto p90 = 16-21%, ceiling above that)
-_DD_CEILING_EQUITY    = 0.15   # WF-validated (equity/ETF/commodity p90 = 10-13%, ceiling above)
-                                # was 0.10 — too tight, G3 over-fired in normal trading
+_DD_BASELINE = 0.00  # 0% drawdown from peak = score 0
+_DD_CEILING_CRYPTO = 0.25  # WF-validated (crypto p90 = 16-21%, ceiling above that)
+_DD_CEILING_EQUITY = 0.15  # WF-validated (equity/ETF/commodity p90 = 10-13%, ceiling above)
+# was 0.10 — too tight, G3 over-fired in normal trading
 
 # Smoothing
-_EMA_SPAN = 3    # 3-day EMA — faster than portfolio-level (5d) for individual positions
+_EMA_SPAN = 3  # 3-day EMA — faster than portfolio-level (5d) for individual positions
 
 
 class PositionAnomalyScorer:
@@ -279,8 +293,8 @@ class PositionAnomalyScorer:
         baseline_window        : Rolling window for vol baseline (days).
         """
         self._port_score = portfolio_choppy_score
-        self._vw  = vol_window
-        self._bw  = baseline_window
+        self._vw = vol_window
+        self._bw = baseline_window
         # Per-symbol score cache (smoothed)
         self._score_cache: dict[str, pd.Series] = {}
 
@@ -307,8 +321,9 @@ class PositionAnomalyScorer:
         rv60 = ret.rolling(self._bw).std().replace(0, np.nan)
         vol_ratio = rv20 / rv60
         # Score: (ratio - baseline) / (ceiling - baseline), clipped [0,1]
-        feat["vol_spike"] = ((vol_ratio - _VOL_SPIKE_BASELINE) /
-                             (_VOL_SPIKE_CEILING - _VOL_SPIKE_BASELINE)).clip(0, 1)
+        feat["vol_spike"] = (
+            (vol_ratio - _VOL_SPIKE_BASELINE) / (_VOL_SPIKE_CEILING - _VOL_SPIKE_BASELINE)
+        ).clip(0, 1)
 
         # G2: Momentum churn — REGIME-RELATIVE z-score (WF-validated fix)
         # Problem with absolute TNR: crypto TNR is naturally low due to high vol,
@@ -317,11 +332,11 @@ class PositionAnomalyScorer:
         # of chronic over-cutting.
         # Fix: z-score TNR against its own 252d rolling mean/std, so score measures
         # "how much MORE churning than this asset normally shows" — asset-class-agnostic.
-        net_ret   = close.pct_change(self._vw).abs()
-        path_vol  = rv20 * np.sqrt(self._vw)
-        tnr       = (net_ret / path_vol.replace(0, np.nan)).fillna(1.0).clip(0, 3)
-        tnr_mean  = tnr.rolling(252, min_periods=60).mean()
-        tnr_std   = tnr.rolling(252, min_periods=60).std().replace(0, np.nan)
+        net_ret = close.pct_change(self._vw).abs()
+        path_vol = rv20 * np.sqrt(self._vw)
+        tnr = (net_ret / path_vol.replace(0, np.nan)).fillna(1.0).clip(0, 3)
+        tnr_mean = tnr.rolling(252, min_periods=60).mean()
+        tnr_std = tnr.rolling(252, min_periods=60).std().replace(0, np.nan)
         # Invert: low TNR relative to own baseline = high churn relative to normal
         tnr_zscore = ((tnr_mean - tnr) / tnr_std).fillna(0)  # positive = churning MORE
         feat["momentum_churn"] = (tnr_zscore / _CHURN_ZSCORE_CEILING).clip(0, 1)
@@ -329,9 +344,9 @@ class PositionAnomalyScorer:
         dd_ceil = _DD_CEILING_CRYPTO if asset_class == AssetClass.CRYPTO else _DD_CEILING_EQUITY
 
         # G3: Drawdown from 20d rolling high
-        high_20d  = close.rolling(self._vw).max()
-        dd_20d    = (close - high_20d) / high_20d.replace(0, np.nan)  # negative = below peak
-        dd_score  = ((-dd_20d) / dd_ceil).clip(0, 1)   # invert: deep DD = high score
+        high_20d = close.rolling(self._vw).max()
+        dd_20d = (close - high_20d) / high_20d.replace(0, np.nan)  # negative = below peak
+        dd_score = ((-dd_20d) / dd_ceil).clip(0, 1)  # invert: deep DD = high score
         feat["dd_from_peak"] = dd_score
 
         return feat.fillna(0).clip(0, 1)
@@ -347,18 +362,18 @@ class PositionAnomalyScorer:
         Blend all four features → raw score → EMA-smoothed → scale factor.
         Returns a pd.Series of score values ∈ [0,1], aligned to close.index.
         """
-        cfg    = _CLASS_CONFIG[asset_class]
-        fw     = cfg["feature_weights"]
-        feat   = self._compute_sym_features(close, asset_class)
+        cfg = _CLASS_CONFIG[asset_class]
+        fw = cfg["feature_weights"]
+        feat = self._compute_sym_features(close, asset_class)
 
         port_sc = float(portfolio_score) if portfolio_score is not None else 0.0
 
         # Weighted blend
         score = (
-            fw.get("vol_spike",        0) * feat["vol_spike"] +
-            fw.get("momentum_churn",   0) * feat["momentum_churn"] +
-            fw.get("dd_from_peak",     0) * feat["dd_from_peak"] +
-            fw.get("portfolio_stress", 0) * port_sc
+            fw.get("vol_spike", 0) * feat["vol_spike"]
+            + fw.get("momentum_churn", 0) * feat["momentum_churn"]
+            + fw.get("dd_from_peak", 0) * feat["dd_from_peak"]
+            + fw.get("portfolio_stress", 0) * port_sc
         )
         score = score.clip(0, 1)
 
@@ -379,10 +394,10 @@ class PositionAnomalyScorer:
         cuts when conditions genuinely deteriorate ABOVE the asset's own norm.
         WF-calibrated: crypto baseline=0.16 (BTC 2024 bull-year score_mean).
         """
-        cfg      = _CLASS_CONFIG[asset_class]
+        cfg = _CLASS_CONFIG[asset_class]
         baseline = cfg.get("score_baseline", 0.0)
-        excess   = max(0.0, score - baseline)
-        raw      = 1.0 - cfg["sensitivity"] * excess
+        excess = max(0.0, score - baseline)
+        raw = 1.0 - cfg["sensitivity"] * excess
         return float(np.clip(raw, cfg["floor"], 1.0))
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -432,7 +447,7 @@ class PositionAnomalyScorer:
 
                 close = df_c["Close"].loc[:date]
                 if len(close) < max(self._bw, self._vw) + 5:
-                    result[sym] = 1.0   # insufficient history — no opinion
+                    result[sym] = 1.0  # insufficient history — no opinion
                     continue
 
                 ac = classify(sym)
@@ -491,7 +506,7 @@ class PositionAnomalyScorer:
                 if len(close) < self._bw + 5:
                     result[sym] = 1.0
                     continue
-                ac    = classify(sym)
+                ac = classify(sym)
                 score = self._compute_sym_score(sym, close, ac, portfolio_score).iloc[-1]
                 result[sym] = self._score_to_scale(float(score), ac)
             except Exception as e:
@@ -513,7 +528,9 @@ class PositionAnomalyScorer:
         """
         ac = classify(symbol)
         # Use mean portfolio score across history if series provided
-        port_sc = float(portfolio_score_series.mean()) if portfolio_score_series is not None else 0.0
+        port_sc = (
+            float(portfolio_score_series.mean()) if portfolio_score_series is not None else 0.0
+        )
         score_s = self._compute_sym_score(symbol, close, ac, port_sc)
         scale_s = score_s.apply(lambda s: self._score_to_scale(s, ac))
         return score_s, scale_s
@@ -525,21 +542,24 @@ class PositionAnomalyScorer:
         """Return a DataFrame showing asset class configuration."""
         rows = []
         for ac, cfg in _CLASS_CONFIG.items():
-            rows.append({
-                "asset_class": ac.value,
-                "sensitivity": cfg["sensitivity"],
-                "floor":       cfg["floor"],
-                "max_cut_pct": f"{(1 - cfg['floor'])*100:.0f}%",
-                "vol_baseline_daily": f"{cfg['vol_baseline']*100:.1f}%",
-            })
+            rows.append(
+                {
+                    "asset_class": ac.value,
+                    "sensitivity": cfg["sensitivity"],
+                    "floor": cfg["floor"],
+                    "max_cut_pct": f"{(1 - cfg['floor']) * 100:.0f}%",
+                    "vol_baseline_daily": f"{cfg['vol_baseline'] * 100:.1f}%",
+                }
+            )
         return pd.DataFrame(rows)
 
 
 # ── Module-level helpers ──────────────────────────────────────────────────────
 
+
 def apply_position_scales(
     signals: dict[str, float],
-    scales:  dict[str, float],
+    scales: dict[str, float],
 ) -> dict[str, float]:
     """
     Multiply signal weights by per-symbol anomaly scales.

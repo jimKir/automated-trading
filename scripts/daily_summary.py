@@ -24,6 +24,7 @@ Environment variables (for --email):
 
 Run daily after US market close via GitHub Actions or local cron.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,11 +43,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-PAPER_STATE     = ROOT / "results" / "paper_state.json"
-SCORECARD_FILE  = ROOT / "results" / "paper_monitor.json"
-OOS_RESULTS     = ROOT / "results" / "wf_12m_oos_results.json"
-OOS_RETURNS     = ROOT / "results" / "wf_12m_strat_returns.csv"
-PERIODS_YEAR    = 252
+PAPER_STATE = ROOT / "results" / "paper_state.json"
+SCORECARD_FILE = ROOT / "results" / "paper_monitor.json"
+OOS_RESULTS = ROOT / "results" / "wf_12m_oos_results.json"
+OOS_RETURNS = ROOT / "results" / "wf_12m_strat_returns.csv"
+PERIODS_YEAR = 252
 
 RECIPIENTS = ["kiritsis.di@gmail.com", "o.zoumpou@gmail.com"]
 INITIAL_CAPITAL = 25_000
@@ -55,6 +56,7 @@ INITIAL_CAPITAL = 25_000
 # ═════════════════════════════════════════════════════════════════════════════
 #  Data Loading
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def load_equity_history() -> pd.DataFrame:
     """Load equity curve from paper_state.json."""
@@ -104,6 +106,7 @@ def try_alpaca_snapshot() -> dict | None:
         return None
     try:
         from alpaca.trading.client import TradingClient
+
         client = TradingClient(api_key=api_key, secret_key=api_secret, paper=True)
         account = client.get_account()
         return {
@@ -122,6 +125,7 @@ def try_alpaca_snapshot() -> dict | None:
 # ═════════════════════════════════════════════════════════════════════════════
 #  Metric Computation
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def compute_all_metrics(equity_df: pd.DataFrame, alpaca: dict | None = None) -> dict:
     """Compute comprehensive performance, capital, and risk metrics."""
@@ -275,7 +279,8 @@ def compute_all_metrics(equity_df: pd.DataFrame, alpaca: dict | None = None) -> 
         "system_uptime_pct": uptime_pct,
         "backtest_correlation": backtest_corr,
         "days_since_peak": int((equities.index[-1] - equities.index[cum.idxmax()]).days)
-            if hasattr(cum.idxmax(), "date") else 0,
+        if hasattr(cum.idxmax(), "date")
+        else 0,
     }
 
     return result
@@ -318,6 +323,7 @@ def _compute_correlation(paper_ret: pd.Series, oos_ret: pd.Series | None) -> flo
 #  HTML Generation
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def _colour(val: float, good_positive: bool = True, threshold: float = 0) -> str:
     """Return CSS colour based on value."""
     if good_positive:
@@ -326,12 +332,14 @@ def _colour(val: float, good_positive: bool = True, threshold: float = 0) -> str
 
 
 def _card(label: str, value: str, colour: str = "#c9d1d9", sub: str = "") -> str:
-    sub_html = f'<div style="color:#8b949e;font-size:12px;margin-top:2px;">{sub}</div>' if sub else ""
+    sub_html = (
+        f'<div style="color:#8b949e;font-size:12px;margin-top:2px;">{sub}</div>' if sub else ""
+    )
     return (
         f'<div style="background:#161b22;border-radius:8px;padding:16px;border:1px solid #30363d;">'
         f'<div style="font-size:12px;color:#8b949e;margin-bottom:4px;">{label}</div>'
         f'<div style="font-size:22px;font-weight:bold;color:{colour};">{value}</div>'
-        f'{sub_html}</div>'
+        f"{sub_html}</div>"
     )
 
 
@@ -367,15 +375,27 @@ def generate_html(metrics: dict, scorecard: dict | None, oos_ref: dict | None) -
 
     cards_html = (
         '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;">'
-        + _card("Portfolio Equity", f"${cap['current_equity']:,.2f}",
-                sub=f"Peak: ${cap['peak_equity']:,.2f}")
-        + _card("Daily P&L", f"{cap['pnl_daily_pct']:+.2f}%", pnl_col,
-                sub=f"${cap['pnl_daily']:+,.2f}")
-        + _card("Total P&L", f"{cap['pnl_total_pct']:+.2f}%", tot_col,
-                sub=f"${cap['pnl_total']:+,.2f} from ${cap['initial_equity']:,.0f}")
-        + _card("Current Drawdown", f"{risk['current_drawdown_pct']:.2f}%", dd_col,
-                sub=f"Max: {risk['max_drawdown_pct']:.2f}% | {risk['days_since_peak']}d from peak")
-        + '</div>'
+        + _card(
+            "Portfolio Equity",
+            f"${cap['current_equity']:,.2f}",
+            sub=f"Peak: ${cap['peak_equity']:,.2f}",
+        )
+        + _card(
+            "Daily P&L", f"{cap['pnl_daily_pct']:+.2f}%", pnl_col, sub=f"${cap['pnl_daily']:+,.2f}"
+        )
+        + _card(
+            "Total P&L",
+            f"{cap['pnl_total_pct']:+.2f}%",
+            tot_col,
+            sub=f"${cap['pnl_total']:+,.2f} from ${cap['initial_equity']:,.0f}",
+        )
+        + _card(
+            "Current Drawdown",
+            f"{risk['current_drawdown_pct']:.2f}%",
+            dd_col,
+            sub=f"Max: {risk['max_drawdown_pct']:.2f}% | {risk['days_since_peak']}d from peak",
+        )
+        + "</div>"
     )
 
     # ── Go-Live Scorecard (if available) ──
@@ -383,11 +403,15 @@ def generate_html(metrics: dict, scorecard: dict | None, oos_ref: dict | None) -
     if scorecard and "criteria" in scorecard:
         sc_rows = ""
         for c in scorecard["criteria"]:
-            sc_col = "#f85149" if c["status"] == "FAILING" else (
-                "#3fb950" if c["status"] == "PASSED" else "#8b949e"
+            sc_col = (
+                "#f85149"
+                if c["status"] == "FAILING"
+                else ("#3fb950" if c["status"] == "PASSED" else "#8b949e")
             )
-            icon = "\u2717" if c["status"] == "FAILING" else (
-                "\u2713" if c["status"] == "PASSED" else "\u2014"
+            icon = (
+                "\u2717"
+                if c["status"] == "FAILING"
+                else ("\u2713" if c["status"] == "PASSED" else "\u2014")
             )
             sc_rows += (
                 f'<tr style="border-bottom:1px solid #30363d;">'
@@ -396,7 +420,7 @@ def generate_html(metrics: dict, scorecard: dict | None, oos_ref: dict | None) -
                 f'<td style="padding:6px 8px;">{c["threshold"]}</td>'
                 f'<td style="padding:6px 8px;">{c["current"]}</td>'
                 f'<td style="padding:6px 8px;color:{sc_col};font-weight:bold;">{icon} {c["status"]}</td>'
-                f'</tr>'
+                f"</tr>"
             )
         scorecard_html = f"""
         <h2 style="color:#79c0ff;margin-top:28px;">Go-Live Scorecard</h2>
@@ -417,51 +441,78 @@ def generate_html(metrics: dict, scorecard: dict | None, oos_ref: dict | None) -
     perf_rows = (
         _metric_row("Trading Days", str(perf["n_trading_days"]))
         + _metric_row("Period", f"{perf['start_date']} \u2192 {perf['end_date']}")
-        + _metric_row("Total Return", f"{perf['total_return_pct']:+.2f}%",
-                      _colour(perf["total_return_pct"]))
-        + _metric_row("CAGR", f"{perf['cagr_pct']:+.2f}%",
-                      _colour(perf["cagr_pct"]))
+        + _metric_row(
+            "Total Return", f"{perf['total_return_pct']:+.2f}%", _colour(perf["total_return_pct"])
+        )
+        + _metric_row("CAGR", f"{perf['cagr_pct']:+.2f}%", _colour(perf["cagr_pct"]))
         + _metric_row("Ann. Volatility", f"{perf['ann_volatility_pct']:.2f}%")
-        + _metric_row("Sharpe Ratio", f"{perf['sharpe_ratio']:.3f}",
-                      _colour(perf["sharpe_ratio"] - 0.5))
-        + _metric_row("Sortino Ratio", f"{perf['sortino_ratio']:.3f}",
-                      _colour(perf["sortino_ratio"] - 0.5))
+        + _metric_row(
+            "Sharpe Ratio", f"{perf['sharpe_ratio']:.3f}", _colour(perf["sharpe_ratio"] - 0.5)
+        )
+        + _metric_row(
+            "Sortino Ratio", f"{perf['sortino_ratio']:.3f}", _colour(perf["sortino_ratio"] - 0.5)
+        )
         + _metric_row("Calmar Ratio", f"{perf['calmar_ratio']:.3f}")
-        + _metric_row("Profit Factor", f"{perf['profit_factor']:.2f}",
-                      _colour(perf["profit_factor"] - 1.0))
-        + _metric_row("Win Rate", f"{perf['win_rate_pct']:.1f}%  ({perf['win_days']}W / {perf['loss_days']}L / {perf['flat_days']}F)",
-                      _colour(perf["win_rate_pct"] - 50))
-        + _metric_row("Avg Win / Avg Loss",
-                      f"{perf['avg_win_pct']:+.3f}% / {perf['avg_loss_pct']:+.3f}%")
-        + _metric_row("Best Day",
-                      f"{perf['best_day_return_pct']:+.3f}% ({perf['best_day_date']})",
-                      "#3fb950")
-        + _metric_row("Worst Day",
-                      f"{perf['worst_day_return_pct']:+.3f}% ({perf['worst_day_date']})",
-                      "#f85149")
-        + _metric_row("Rolling 5d Return", f"{perf['rolling_5d_return_pct']:+.2f}%",
-                      _colour(perf["rolling_5d_return_pct"]))
-        + _metric_row("Rolling 20d Return", f"{perf['rolling_20d_return_pct']:+.2f}%",
-                      _colour(perf["rolling_20d_return_pct"]))
+        + _metric_row(
+            "Profit Factor", f"{perf['profit_factor']:.2f}", _colour(perf["profit_factor"] - 1.0)
+        )
+        + _metric_row(
+            "Win Rate",
+            f"{perf['win_rate_pct']:.1f}%  ({perf['win_days']}W / {perf['loss_days']}L / {perf['flat_days']}F)",
+            _colour(perf["win_rate_pct"] - 50),
+        )
+        + _metric_row(
+            "Avg Win / Avg Loss", f"{perf['avg_win_pct']:+.3f}% / {perf['avg_loss_pct']:+.3f}%"
+        )
+        + _metric_row(
+            "Best Day", f"{perf['best_day_return_pct']:+.3f}% ({perf['best_day_date']})", "#3fb950"
+        )
+        + _metric_row(
+            "Worst Day",
+            f"{perf['worst_day_return_pct']:+.3f}% ({perf['worst_day_date']})",
+            "#f85149",
+        )
+        + _metric_row(
+            "Rolling 5d Return",
+            f"{perf['rolling_5d_return_pct']:+.2f}%",
+            _colour(perf["rolling_5d_return_pct"]),
+        )
+        + _metric_row(
+            "Rolling 20d Return",
+            f"{perf['rolling_20d_return_pct']:+.2f}%",
+            _colour(perf["rolling_20d_return_pct"]),
+        )
     )
 
     # ── Risk Table ──
-    corr_str = f"{risk['backtest_correlation']:.3f}" if risk["backtest_correlation"] is not None else "N/A"
+    corr_str = (
+        f"{risk['backtest_correlation']:.3f}" if risk["backtest_correlation"] is not None else "N/A"
+    )
     risk_rows = (
-        _metric_row("Max Drawdown", f"{risk['max_drawdown_pct']:.2f}%",
-                    _colour(risk["max_drawdown_pct"] - 15, good_positive=False))
-        + _metric_row("Current Drawdown", f"{risk['current_drawdown_pct']:.2f}%",
-                      _colour(risk["current_drawdown_pct"], good_positive=False))
+        _metric_row(
+            "Max Drawdown",
+            f"{risk['max_drawdown_pct']:.2f}%",
+            _colour(risk["max_drawdown_pct"] - 15, good_positive=False),
+        )
+        + _metric_row(
+            "Current Drawdown",
+            f"{risk['current_drawdown_pct']:.2f}%",
+            _colour(risk["current_drawdown_pct"], good_positive=False),
+        )
         + _metric_row("Days Since Peak", str(risk["days_since_peak"]))
         + _metric_row("DD Recovery Episodes", f"{risk['dd_recovery_episodes']} (>5% recovered)")
         + _metric_row("VaR (95%)", f"{risk['var_95_pct']:.3f}%", "#f85149")
         + _metric_row("CVaR / Expected Shortfall (95%)", f"{risk['cvar_95_pct']:.3f}%", "#f85149")
         + _metric_row("Max Consecutive Losses", str(risk["max_consecutive_losses"]))
         + _metric_row("Max Consecutive Wins", str(risk["max_consecutive_wins"]))
-        + _metric_row("System Uptime", f"{risk['system_uptime_pct']:.1f}%",
-                      _colour(risk["system_uptime_pct"] - 95))
-        + _metric_row("Backtest Correlation", corr_str,
-                      _colour((risk["backtest_correlation"] or 0) - 0.6))
+        + _metric_row(
+            "System Uptime",
+            f"{risk['system_uptime_pct']:.1f}%",
+            _colour(risk["system_uptime_pct"] - 95),
+        )
+        + _metric_row(
+            "Backtest Correlation", corr_str, _colour((risk["backtest_correlation"] or 0) - 0.6)
+        )
     )
 
     # ── Capital Table ──
@@ -538,6 +589,7 @@ def generate_html(metrics: dict, scorecard: dict | None, oos_ref: dict | None) -
 #  Email
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def send_email(html: str, report_date: str, metrics: dict) -> None:
     """Send the daily summary via Gmail SMTP."""
     smtp_user = os.environ.get("SMTP_USER", "")
@@ -574,6 +626,7 @@ def send_email(html: str, report_date: str, metrics: dict) -> None:
 #  Console Output
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def print_summary(metrics: dict, verbose: bool = False) -> None:
     """Print a compact summary to stdout."""
     if not metrics["has_data"]:
@@ -585,42 +638,49 @@ def print_summary(metrics: dict, verbose: bool = False) -> None:
     perf = metrics["performance"]
     risk = metrics["risk"]
 
-    print(f"\n{'='*65}")
+    print(f"\n{'=' * 65}")
     print(f"  DAILY PERFORMANCE SUMMARY — {metrics['report_date']}")
-    print(f"{'='*65}")
-    print(f"  Equity:  ${cap['current_equity']:,.2f}  "
-          f"(peak: ${cap['peak_equity']:,.2f})")
+    print(f"{'=' * 65}")
+    print(f"  Equity:  ${cap['current_equity']:,.2f}  (peak: ${cap['peak_equity']:,.2f})")
     print(f"  Daily:   {cap['pnl_daily_pct']:+.2f}%  (${cap['pnl_daily']:+,.2f})")
     print(f"  Total:   {cap['pnl_total_pct']:+.2f}%  (${cap['pnl_total']:+,.2f})")
-    print("-"*65)
-    print(f"  Sharpe: {perf['sharpe_ratio']:.3f}  |  "
-          f"Sortino: {perf['sortino_ratio']:.3f}  |  "
-          f"Calmar: {perf['calmar_ratio']:.3f}")
-    print(f"  Win Rate: {perf['win_rate_pct']:.1f}%  |  "
-          f"Profit Factor: {perf['profit_factor']:.2f}")
-    print(f"  Max DD: {risk['max_drawdown_pct']:.2f}%  |  "
-          f"Current DD: {risk['current_drawdown_pct']:.2f}%")
-    print(f"  VaR(95%): {risk['var_95_pct']:.3f}%  |  "
-          f"CVaR(95%): {risk['cvar_95_pct']:.3f}%")
-    print(f"  Uptime: {risk['system_uptime_pct']:.1f}%  |  "
-          f"BT Corr: {risk['backtest_correlation'] or 'N/A'}")
+    print("-" * 65)
+    print(
+        f"  Sharpe: {perf['sharpe_ratio']:.3f}  |  "
+        f"Sortino: {perf['sortino_ratio']:.3f}  |  "
+        f"Calmar: {perf['calmar_ratio']:.3f}"
+    )
+    print(f"  Win Rate: {perf['win_rate_pct']:.1f}%  |  Profit Factor: {perf['profit_factor']:.2f}")
+    print(
+        f"  Max DD: {risk['max_drawdown_pct']:.2f}%  |  "
+        f"Current DD: {risk['current_drawdown_pct']:.2f}%"
+    )
+    print(f"  VaR(95%): {risk['var_95_pct']:.3f}%  |  CVaR(95%): {risk['cvar_95_pct']:.3f}%")
+    print(
+        f"  Uptime: {risk['system_uptime_pct']:.1f}%  |  "
+        f"BT Corr: {risk['backtest_correlation'] or 'N/A'}"
+    )
 
     if verbose:
-        print("-"*65)
-        print(f"  CAGR: {perf['cagr_pct']:+.2f}%  |  "
-              f"Vol: {perf['ann_volatility_pct']:.2f}%")
+        print("-" * 65)
+        print(f"  CAGR: {perf['cagr_pct']:+.2f}%  |  Vol: {perf['ann_volatility_pct']:.2f}%")
         print(f"  Best:  {perf['best_day_return_pct']:+.3f}% ({perf['best_day_date']})")
         print(f"  Worst: {perf['worst_day_return_pct']:+.3f}% ({perf['worst_day_date']})")
-        print(f"  5d: {perf['rolling_5d_return_pct']:+.2f}%  |  "
-              f"20d: {perf['rolling_20d_return_pct']:+.2f}%")
-        print(f"  Max consec loss: {risk['max_consecutive_losses']}  |  "
-              f"Max consec win: {risk['max_consecutive_wins']}")
+        print(
+            f"  5d: {perf['rolling_5d_return_pct']:+.2f}%  |  "
+            f"20d: {perf['rolling_20d_return_pct']:+.2f}%"
+        )
+        print(
+            f"  Max consec loss: {risk['max_consecutive_losses']}  |  "
+            f"Max consec win: {risk['max_consecutive_wins']}"
+        )
     print()
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  Main
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def main():
     parser = argparse.ArgumentParser(description="Daily performance summary")

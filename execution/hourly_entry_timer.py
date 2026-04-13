@@ -22,6 +22,7 @@ Usage:
         current_time=datetime_now,
     )
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, time
@@ -38,16 +39,26 @@ _BYPASS_SYMBOLS = {"GLD", "TLT", "SHY", "XLU", "XLP"}
 
 # Crypto session window (UTC): only enter BTC/ETH during 14:00-17:00 UTC
 # This corresponds to US market open overlap with European close
-_CRYPTO_SYMBOLS = {"BTC-USD", "ETH-USD", "BTC/USD", "ETH/USD", "BTCUSD", "ETHUSD",
-                   "BTC", "ETH", "SOL-USD", "SOL"}
-_CRYPTO_WINDOW_START = time(14, 0)   # 14:00 UTC
-_CRYPTO_WINDOW_END   = time(17, 0)   # 17:00 UTC
+_CRYPTO_SYMBOLS = {
+    "BTC-USD",
+    "ETH-USD",
+    "BTC/USD",
+    "ETH/USD",
+    "BTCUSD",
+    "ETHUSD",
+    "BTC",
+    "ETH",
+    "SOL-USD",
+    "SOL",
+}
+_CRYPTO_WINDOW_START = time(14, 0)  # 14:00 UTC
+_CRYPTO_WINDOW_END = time(17, 0)  # 17:00 UTC
 
 # Equity timing: prefer 12:00 ET (16:00 UTC in winter, 17:00 UTC in summer)
 # Fallback: 13:05 ET regardless of VWAP position
-_EQUITY_PREFERRED_HOUR = 12   # noon ET
-_EQUITY_FALLBACK_HOUR  = 13   # 1:05pm ET
-_EQUITY_FALLBACK_MIN   = 5
+_EQUITY_PREFERRED_HOUR = 12  # noon ET
+_EQUITY_FALLBACK_HOUR = 13  # 1:05pm ET
+_EQUITY_FALLBACK_MIN = 5
 
 
 class HourlyEntryTimer:
@@ -62,8 +73,12 @@ class HourlyEntryTimer:
     BYPASS_SYMBOLS = _BYPASS_SYMBOLS
     EQUITY_FALLBACK_HOUR = _EQUITY_FALLBACK_HOUR
     CRYPTO_WINDOWS = {
-        'BTC/USD': (14, 17), 'BTCUSD': (14, 17), 'BTC-USD': (14, 17),
-        'ETH/USD': (17, 20), 'ETHUSD': (17, 20), 'ETH-USD': (17, 20),
+        "BTC/USD": (14, 17),
+        "BTCUSD": (14, 17),
+        "BTC-USD": (14, 17),
+        "ETH/USD": (17, 20),
+        "ETHUSD": (17, 20),
+        "ETH-USD": (17, 20),
     }
     CRYPTO_HARD_STOP_UTC = 20
 
@@ -124,15 +139,22 @@ class HourlyEntryTimer:
         """
         # Convert to proper Eastern Time (handles EDT/EST automatically)
         from zoneinfo import ZoneInfo
-        et_tz = ZoneInfo('America/New_York')
-        current_et = current_time.astimezone(et_tz) if current_time.tzinfo else current_time.replace(tzinfo=UTC).astimezone(et_tz)
+
+        et_tz = ZoneInfo("America/New_York")
+        current_et = (
+            current_time.astimezone(et_tz)
+            if current_time.tzinfo
+            else current_time.replace(tzinfo=UTC).astimezone(et_tz)
+        )
         et_hour = current_et.hour
 
         # Hard fallback: 13:05 ET or later → enter now regardless
         if et_hour > _EQUITY_FALLBACK_HOUR or (
             et_hour == _EQUITY_FALLBACK_HOUR and current_time.minute >= _EQUITY_FALLBACK_MIN
         ):
-            log.debug(f"{symbol}: fallback time reached ({et_hour}:{current_time.minute:02d} ET) — enter now")
+            log.debug(
+                f"{symbol}: fallback time reached ({et_hour}:{current_time.minute:02d} ET) — enter now"
+            )
             return True
 
         # Before preferred hour: wait

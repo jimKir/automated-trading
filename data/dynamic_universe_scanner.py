@@ -27,6 +27,7 @@ Usage:
     result = scanner.scan(choppy_score=0.10)
     print(result.candidates)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -37,16 +38,26 @@ log = get_logger("DynamicUniverseScanner")
 
 # Core universe symbols (not eligible for dynamic scanning)
 _CORE_UNIVERSE = {
-    "SPY", "QQQ", "IWM", "GLD", "TLT", "SHY", "XLU", "XLP",
-    "BTC-USD", "ETH-USD", "BTC/USD", "ETH/USD",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "GLD",
+    "TLT",
+    "SHY",
+    "XLU",
+    "XLP",
+    "BTC-USD",
+    "ETH-USD",
+    "BTC/USD",
+    "ETH/USD",
 }
 
 # Choppy regime gates
 _CHOPPY_GATES = {
-    "GREEN":  3,   # up to 3 dynamic names
-    "YELLOW": 2,   # up to 2 dynamic names
-    "ORANGE": 1,   # max 1 name
-    "RED":    0,   # no dynamic names
+    "GREEN": 3,  # up to 3 dynamic names
+    "YELLOW": 2,  # up to 2 dynamic names
+    "ORANGE": 1,  # max 1 name
+    "RED": 0,  # no dynamic names
 }
 
 
@@ -107,6 +118,7 @@ class DynamicUniverseScanner:
             return True
         try:
             from alpaca.trading.client import TradingClient
+
             self._trading_client = TradingClient(
                 api_key=self.api_key,
                 secret_key=self.secret_key,
@@ -170,8 +182,10 @@ class DynamicUniverseScanner:
 
         # Filter: tradeable, not in exclude set
         tradeable = [
-            a for a in assets
-            if a.tradable and a.status == "active"
+            a
+            for a in assets
+            if a.tradable
+            and a.status == "active"
             and a.symbol not in exclude
             and not a.symbol.endswith(".")  # skip test symbols
         ]
@@ -184,8 +198,20 @@ class DynamicUniverseScanner:
         # In paper mode dry-run, we return a limited set of well-known liquid names
         # that pass our basic criteria.
         well_known_liquid = [
-            "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA",
-            "AVGO", "JPM", "V", "MA", "UNH", "HD", "PG",
+            "AAPL",
+            "MSFT",
+            "NVDA",
+            "AMZN",
+            "GOOGL",
+            "META",
+            "TSLA",
+            "AVGO",
+            "JPM",
+            "V",
+            "MA",
+            "UNH",
+            "HD",
+            "PG",
         ]
 
         for sym in well_known_liquid:
@@ -193,12 +219,14 @@ class DynamicUniverseScanner:
                 continue
             if len(candidates) >= max_names:
                 break
-            candidates.append(ScanCandidate(
-                symbol=sym,
-                avg_dollar_volume=50_000_000,  # placeholder
-                momentum_20d=0.02,
-                realized_vol_20d=0.25,
-            ))
+            candidates.append(
+                ScanCandidate(
+                    symbol=sym,
+                    avg_dollar_volume=50_000_000,  # placeholder
+                    momentum_20d=0.02,
+                    realized_vol_20d=0.25,
+                )
+            )
 
         n_rejected = n_screened - len(candidates)
 

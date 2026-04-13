@@ -12,6 +12,7 @@ Outputs:
     - Suggested threshold updates for CALIBRATION dict
     - Updated data/regime_params_validated.json with choppy_thresholds_v4
 """
+
 from __future__ import annotations
 
 import json
@@ -31,10 +32,10 @@ _PARAMS_FILE = _REPO_ROOT / "data" / "regime_params_validated.json"
 
 # Reference periods for calibration
 PERIODS = {
-    "2020_covid":    ("2020-02-01", "2020-06-30"),
-    "2022_bear":     ("2022-01-01", "2022-12-31"),
-    "2024_calm":     ("2024-01-01", "2024-12-31"),
-    "2025_choppy":   ("2025-01-01", "2025-12-31"),
+    "2020_covid": ("2020-02-01", "2020-06-30"),
+    "2022_bear": ("2022-01-01", "2022-12-31"),
+    "2024_calm": ("2024-01-01", "2024-12-31"),
+    "2025_choppy": ("2025-01-01", "2025-12-31"),
     "2026_q1_tariff": ("2026-01-01", "2026-04-10"),
 }
 
@@ -51,7 +52,7 @@ def load_prices() -> tuple:
 
     for df in [spy_df, vix_df]:
         df.columns = [c.capitalize() for c in df.columns]
-        if hasattr(df.index, 'tz') and df.index.tz is not None:
+        if hasattr(df.index, "tz") and df.index.tz is not None:
             df.index = df.index.tz_localize(None)
         else:
             df.index = pd.to_datetime(df.index).tz_localize(None)
@@ -65,7 +66,7 @@ def load_prices() -> tuple:
             if _df is None:
                 continue
             _df.columns = [c.capitalize() for c in _df.columns]
-            if hasattr(_df.index, 'tz') and _df.index.tz is not None:
+            if hasattr(_df.index, "tz") and _df.index.tz is not None:
                 _df.index = _df.index.tz_localize(None)
             else:
                 _df.index = pd.to_datetime(_df.index).tz_localize(None)
@@ -84,9 +85,7 @@ def calibrate():
     prices_df, vix_series = load_prices()
 
     detector = ChoppyRegimeDetector()
-    score_series, _groups_df = detector.score_series(
-        prices_df, vix_series, return_groups=True
-    )
+    score_series, _groups_df = detector.score_series(prices_df, vix_series, return_groups=True)
 
     log.info("=== Choppy Regime Calibration Results ===")
     for label, (start, end) in PERIODS.items():

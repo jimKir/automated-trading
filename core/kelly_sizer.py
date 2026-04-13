@@ -49,19 +49,21 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class KellyConfig:
     """Configuration for KellySizer.
 
     YAML key: ``kelly``
     """
+
     enabled: bool = True
-    fraction: float = 0.25          # fraction of full Kelly to use
-    min_history_days: int = 63      # rolling window; fallback below this
+    fraction: float = 0.25  # fraction of full Kelly to use
+    min_history_days: int = 63  # rolling window; fallback below this
     max_position_pct: float = 0.15  # per-symbol cap as fraction of portfolio
-    max_portfolio_heat: float = 1.0 # gross exposure cap (100 % of capital)
-    ic_window: int = 63             # rolling IC estimation window (days)
-    ic_lag: int = 10                # forward-return horizon matching signal IC peak
+    max_portfolio_heat: float = 1.0  # gross exposure cap (100 % of capital)
+    ic_window: int = 63  # rolling IC estimation window (days)
+    ic_lag: int = 10  # forward-return horizon matching signal IC peak
 
     @classmethod
     def from_dict(cls, cfg: dict) -> KellyConfig:
@@ -80,6 +82,7 @@ class KellyConfig:
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
+
 
 class KellySizer:
     """Kelly-fractional position sizer for a cross-sectional signal portfolio.
@@ -193,9 +196,7 @@ class KellySizer:
         if hist is None or len(hist) < cfg.min_history_days:
             # Fallback: use signal magnitude directly
             size = abs(signal) * cfg.max_position_pct
-            logger.debug(
-                "%s: insufficient history → fallback size=%.4f", symbol, size
-            )
+            logger.debug("%s: insufficient history → fallback size=%.4f", symbol, size)
             return float(np.clip(size, 0.0, cfg.max_position_pct))
 
         # --- Estimate p from rolling IC ---
@@ -213,7 +214,11 @@ class KellySizer:
 
         logger.debug(
             "%s: p=%.3f b=%.3f kelly_raw=%.4f kelly_size=%.4f",
-            symbol, p, b, kelly_raw, kelly_size,
+            symbol,
+            p,
+            b,
+            kelly_raw,
+            kelly_size,
         )
         return kelly_size
 
@@ -255,7 +260,7 @@ class KellySizer:
         If computation fails, defaults to p = 0.5 (coin-flip, Kelly → 0).
         """
         try:
-            tail = returns.iloc[-window - lag:]
+            tail = returns.iloc[-window - lag :]
             if len(tail) < window:
                 return 0.5
 
@@ -268,6 +273,7 @@ class KellySizer:
 
             # Spearman rank correlation (IC proxy)
             from scipy.stats import spearmanr
+
             ic, _ = spearmanr(past_rets.values, fwd_rets)
 
             if np.isnan(ic):

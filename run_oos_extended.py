@@ -6,6 +6,7 @@ NO refitting. Parameters read from data/regime_params_validated.json.
 
 Sub-period breakdown: 2023 / 2024 / 2025 / Q1-2026
 """
+
 from __future__ import annotations
 
 import json
@@ -23,36 +24,36 @@ warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).parent))
 
 # ── Constants ────────────────────────────────────────────────────────────────
-IS_END        = "2022-12-31"
-OOS_START     = "2023-01-01"
-OOS_END       = "2026-04-03"
-ROUND_TRIP_RT = 0.00126        # 0.126% round-trip cost per trade
-REBAL_WEEKS   = 52             # weekly rebalance → ~52 rounds/yr
-TURNOVER_PCT  = 0.30           # 30% portfolio turnover per rebalance
-ANNUAL_COST   = ROUND_TRIP_RT * REBAL_WEEKS * TURNOVER_PCT  # ~0.87%/yr drag
-PERIODS_YEAR  = 252
+IS_END = "2022-12-31"
+OOS_START = "2023-01-01"
+OOS_END = "2026-04-03"
+ROUND_TRIP_RT = 0.00126  # 0.126% round-trip cost per trade
+REBAL_WEEKS = 52  # weekly rebalance → ~52 rounds/yr
+TURNOVER_PCT = 0.30  # 30% portfolio turnover per rebalance
+ANNUAL_COST = ROUND_TRIP_RT * REBAL_WEEKS * TURNOVER_PCT  # ~0.87%/yr drag
+PERIODS_YEAR = 252
 
 SUB_PERIODS = {
-    "2023":    ("2023-01-01", "2023-12-31"),
-    "2024":    ("2024-01-01", "2024-12-31"),
-    "2025":    ("2025-01-01", "2025-12-31"),
+    "2023": ("2023-01-01", "2023-12-31"),
+    "2024": ("2024-01-01", "2024-12-31"),
+    "2025": ("2025-01-01", "2025-12-31"),
     "Q1-2026": ("2026-01-01", "2026-04-03"),
 }
 
 COLORS = {
-    "strategy":  "#20808D",
-    "spy":       "#A84B2F",
-    "2023":      "#1B474D",
-    "2024":      "#20808D",
-    "2025":      "#A84B2F",
-    "Q1-2026":   "#944454",
-    "drawdown":  "#A84B2F",
-    "bg":        "#F7F6F2",
-    "surface":   "#F9F8F5",
-    "border":    "#D4D1CA",
-    "text":      "#28251D",
-    "muted":     "#7A7974",
-    "grid":      "#E8E6E0",
+    "strategy": "#20808D",
+    "spy": "#A84B2F",
+    "2023": "#1B474D",
+    "2024": "#20808D",
+    "2025": "#A84B2F",
+    "Q1-2026": "#944454",
+    "drawdown": "#A84B2F",
+    "bg": "#F7F6F2",
+    "surface": "#F9F8F5",
+    "border": "#D4D1CA",
+    "text": "#28251D",
+    "muted": "#7A7974",
+    "grid": "#E8E6E0",
 }
 
 # ── Load locked IS params ─────────────────────────────────────────────────────
@@ -61,16 +62,16 @@ with open("data/regime_params_validated.json") as _f:
 with open("data/pit_universe.json") as _f:
     PIT = json.load(_f)
 
-BULL_W_TS   = params["bull_w_ts_mom"]   # 0.50
-BULL_W_MR   = params["bull_w_mr"]       # 0.15
-BULL_W_MACD = params["bull_w_macd"]     # 0.30
-BULL_W_RSI  = params["bull_w_rsi"]      # 0.05
+BULL_W_TS = params["bull_w_ts_mom"]  # 0.50
+BULL_W_MR = params["bull_w_mr"]  # 0.15
+BULL_W_MACD = params["bull_w_macd"]  # 0.30
+BULL_W_RSI = params["bull_w_rsi"]  # 0.05
 
-BEAR_W_TS   = 0.30
-BEAR_W_MR   = 0.30
+BEAR_W_TS = 0.30
+BEAR_W_MR = 0.30
 BEAR_W_MACD = 0.25
-BEAR_W_RSI  = 0.10
-BEAR_W_PMO  = 0.05
+BEAR_W_RSI = 0.10
+BEAR_W_PMO = 0.05
 
 VIX_THRESHOLD = 20.0
 SPY_MA_PERIOD = 200
@@ -81,6 +82,7 @@ print(f"Loaded IS params: ts={BULL_W_TS} mr={BULL_W_MR} macd={BULL_W_MACD} rsi={
 from src.market_data.historical_store import EQUITY_SYMS, MACRO_SYMS, load_parquet
 
 ALL_SYMS = EQUITY_SYMS + [s for s in MACRO_SYMS if s not in EQUITY_SYMS]
+
 
 def load_prices(symbols, start, end) -> dict[str, pd.DataFrame]:
     data = {}
@@ -97,11 +99,15 @@ def load_prices(symbols, start, end) -> dict[str, pd.DataFrame]:
             data[sym] = df
     return data
 
+
 print("Loading price data…")
 price_data = load_prices(ALL_SYMS, "2018-01-01", OOS_END)
-print(f"  Loaded {len(price_data)} symbols, last date: {max(df.index.max() for df in price_data.values()).date()}")
+print(
+    f"  Loaded {len(price_data)} symbols, last date: {max(df.index.max() for df in price_data.values()).date()}"
+)
 
 # ── Signal computation helpers ────────────────────────────────────────────────
+
 
 def ts_momentum(close: pd.Series, fast=21, slow=63, lookback=252) -> pd.Series:
     """Time-series momentum: 12M return risk-adjusted."""
@@ -109,69 +115,82 @@ def ts_momentum(close: pd.Series, fast=21, slow=63, lookback=252) -> pd.Series:
     vol = close.pct_change().rolling(21).std().replace(0, np.nan)
     return (ret_12m / vol).fillna(0)
 
+
 def mean_reversion(close: pd.Series, window=20) -> pd.Series:
     """Z-score mean reversion (negative = below MA → buy signal)."""
-    ma  = close.rolling(window).mean()
+    ma = close.rolling(window).mean()
     std = close.rolling(window).std().replace(0, np.nan)
-    return -((close - ma) / std).fillna(0)   # negative so oversold = positive signal
+    return -((close - ma) / std).fillna(0)  # negative so oversold = positive signal
+
 
 def macd_signal(close: pd.Series, fast=12, slow=26, signal=9) -> pd.Series:
     ema_f = close.ewm(span=fast, adjust=False).mean()
     ema_s = close.ewm(span=slow, adjust=False).mean()
-    macd  = ema_f - ema_s
-    sig   = macd.ewm(span=signal, adjust=False).mean()
+    macd = ema_f - ema_s
+    sig = macd.ewm(span=signal, adjust=False).mean()
     return (macd - sig).fillna(0)
+
 
 def rsi_signal(close: pd.Series, period=14) -> pd.Series:
     delta = close.diff()
-    gain  = delta.clip(lower=0).rolling(period).mean()
-    loss  = (-delta.clip(upper=0)).rolling(period).mean()
-    rs    = gain / loss.replace(0, np.nan)
-    rsi   = 100 - 100 / (1 + rs)
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = gain / loss.replace(0, np.nan)
+    rsi = 100 - 100 / (1 + rs)
     # oversold→buy, overbought→sell
     return ((50 - rsi) / 50).fillna(0)
+
 
 def pmo_signal(close: pd.Series, r1=35, r2=20) -> pd.Series:
     """Price Momentum Oscillator (contrarian: IC -0.032)."""
     roc = close.pct_change(1) * 100
-    s1  = roc.ewm(span=r1, adjust=False).mean() * 10
-    s2  = s1.ewm(span=r2,  adjust=False).mean()
-    return -s2.fillna(0)   # contrarian sign
+    s1 = roc.ewm(span=r1, adjust=False).mean() * 10
+    s2 = s1.ewm(span=r2, adjust=False).mean()
+    return -s2.fillna(0)  # contrarian sign
+
 
 def get_regime(vix_series: pd.Series, spy_close: pd.Series, date: pd.Timestamp) -> str:
     """Bull if VIX < 20 AND SPY > 200MA, else bear."""
     try:
         vix_val = vix_series.get(date, np.nan)
         spy_val = spy_close.get(date, np.nan)
-        spy_ma  = spy_close.loc[:date].tail(SPY_MA_PERIOD).mean()
+        spy_ma = spy_close.loc[:date].tail(SPY_MA_PERIOD).mean()
         if pd.isna(vix_val) or pd.isna(spy_val) or pd.isna(spy_ma):
             return "bear"
         return "bull" if (vix_val < VIX_THRESHOLD and spy_val > spy_ma) else "bear"
     except Exception:
         return "bear"
 
-def compute_composite_score(sym: str, date: pd.Timestamp, df: pd.DataFrame,
-                             vix: pd.Series, spy_close: pd.Series) -> float:
+
+def compute_composite_score(
+    sym: str, date: pd.Timestamp, df: pd.DataFrame, vix: pd.Series, spy_close: pd.Series
+) -> float:
     close = df["Close"] if "Close" in df.columns else df["close"]
     close = close.loc[:date]
     if len(close) < 260:
         return 0.0
-    ts   = ts_momentum(close).iloc[-1]
-    mr   = mean_reversion(close).iloc[-1]
-    mac  = macd_signal(close).iloc[-1]
-    rsi  = rsi_signal(close).iloc[-1]
-    pmo  = pmo_signal(close).iloc[-1]
+    ts = ts_momentum(close).iloc[-1]
+    mr = mean_reversion(close).iloc[-1]
+    mac = macd_signal(close).iloc[-1]
+    rsi = rsi_signal(close).iloc[-1]
+    pmo = pmo_signal(close).iloc[-1]
 
     regime = get_regime(vix, spy_close, date)
     if regime == "bull":
-        score = (BULL_W_TS * ts + BULL_W_MR * mr +
-                 BULL_W_MACD * mac + BULL_W_RSI * rsi)
+        score = BULL_W_TS * ts + BULL_W_MR * mr + BULL_W_MACD * mac + BULL_W_RSI * rsi
     else:
-        score = (BEAR_W_TS * ts + BEAR_W_MR * mr +
-                 BEAR_W_MACD * mac + BEAR_W_RSI * rsi + BEAR_W_PMO * pmo)
+        score = (
+            BEAR_W_TS * ts
+            + BEAR_W_MR * mr
+            + BEAR_W_MACD * mac
+            + BEAR_W_RSI * rsi
+            + BEAR_W_PMO * pmo
+        )
     return float(score)
 
+
 # ── Build trading universe per date (PIT) ─────────────────────────────────────
+
 
 def pit_universe_for_date(date: pd.Timestamp) -> list:
     year = str(date.year)
@@ -181,7 +200,9 @@ def pit_universe_for_date(date: pd.Timestamp) -> list:
     # keep only symbols we have data for
     return [s for s in syms if s in price_data]
 
+
 # ── Main backtest loop ────────────────────────────────────────────────────────
+
 
 def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
     """
@@ -191,13 +212,13 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
         trades_log       : DataFrame
     """
     # Build common calendar
-    spy_df    = price_data["SPY"]
-    spy_close = (spy_df["Close"] if "Close" in spy_df.columns else spy_df["close"])
+    spy_df = price_data["SPY"]
+    spy_close = spy_df["Close"] if "Close" in spy_df.columns else spy_df["close"]
     spy_close.index = pd.to_datetime(spy_close.index).normalize()
 
     vix_df = price_data.get("VIX")
     if vix_df is not None:
-        vix_close = (vix_df["Close"] if "Close" in vix_df.columns else vix_df["close"])
+        vix_close = vix_df["Close"] if "Close" in vix_df.columns else vix_df["close"]
         vix_close.index = pd.to_datetime(vix_close.index).normalize()
     else:
         vix_close = pd.Series(dtype=float)
@@ -215,7 +236,7 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
         rebal_dates.add(grp["date"].iloc[-1])
 
     portfolio_value = 1.0
-    holdings: dict[str, float] = {}   # sym → weight
+    holdings: dict[str, float] = {}  # sym → weight
     daily_returns = []
     trade_log = []
 
@@ -232,7 +253,7 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
                 continue
             try:
                 p0 = sym_df.loc[prev_date, close_col] if prev_date in sym_df.index else np.nan
-                p1 = sym_df.loc[date, close_col]      if date in sym_df.index      else np.nan
+                p1 = sym_df.loc[date, close_col] if date in sym_df.index else np.nan
                 if not (pd.isna(p0) or pd.isna(p1) or p0 == 0):
                     daily_pnl += w * (p1 / p0 - 1)
             except (KeyError, TypeError):
@@ -241,7 +262,7 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
         # Subtract daily cost drag (annual / 252)
         daily_pnl -= ANNUAL_COST / PERIODS_YEAR
 
-        portfolio_value *= (1 + daily_pnl)
+        portfolio_value *= 1 + daily_pnl
         daily_returns.append({"date": date, "return": daily_pnl})
 
         # ── Rebalance ────────────────────────────────────────────────────
@@ -250,15 +271,14 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
             scores = {}
             for sym in universe:
                 try:
-                    sc = compute_composite_score(sym, date, price_data[sym],
-                                                 vix_close, spy_close)
+                    sc = compute_composite_score(sym, date, price_data[sym], vix_close, spy_close)
                     scores[sym] = sc
                 except Exception:
                     scores[sym] = 0.0
 
             # Rank and select top/bottom (long-short momentum: long top 5, skip bottom)
             sorted_syms = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-            top_n = max(3, len(sorted_syms) // 4)   # top quartile
+            top_n = max(3, len(sorted_syms) // 4)  # top quartile
             long_syms = [s for s, _ in sorted_syms[:top_n]]
 
             # Equal-weight longs
@@ -268,9 +288,14 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
             old_set = set(holdings.keys())
             new_set = set(new_holdings.keys())
             turned = len(old_set.symmetric_difference(new_set)) / max(len(old_set | new_set), 1)
-            trade_log.append({"date": date, "turnover": turned,
-                               "regime": get_regime(vix_close, spy_close, date),
-                               "n_longs": len(long_syms)})
+            trade_log.append(
+                {
+                    "date": date,
+                    "turnover": turned,
+                    "regime": get_regime(vix_close, spy_close, date),
+                    "n_longs": len(long_syms),
+                }
+            )
 
             holdings = new_holdings
 
@@ -287,36 +312,45 @@ def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFra
 
 # ── Performance metrics ───────────────────────────────────────────────────────
 
+
 def metrics(returns: pd.Series, label: str = "") -> dict:
     r = returns.dropna()
     if len(r) < 5:
-        return {"label": label, "sharpe": np.nan, "sortino": np.nan,
-                "cagr": np.nan, "max_dd": np.nan, "calmar": np.nan,
-                "vol": np.nan, "n_days": len(r)}
+        return {
+            "label": label,
+            "sharpe": np.nan,
+            "sortino": np.nan,
+            "cagr": np.nan,
+            "max_dd": np.nan,
+            "calmar": np.nan,
+            "vol": np.nan,
+            "n_days": len(r),
+        }
 
-    ann_ret   = (1 + r).prod() ** (PERIODS_YEAR / len(r)) - 1
-    ann_vol   = r.std() * np.sqrt(PERIODS_YEAR)
-    sharpe    = ann_ret / ann_vol if ann_vol > 0 else np.nan
+    ann_ret = (1 + r).prod() ** (PERIODS_YEAR / len(r)) - 1
+    ann_vol = r.std() * np.sqrt(PERIODS_YEAR)
+    sharpe = ann_ret / ann_vol if ann_vol > 0 else np.nan
 
-    downside  = r[r < 0].std() * np.sqrt(PERIODS_YEAR)
-    sortino   = ann_ret / downside if downside > 0 else np.nan
+    downside = r[r < 0].std() * np.sqrt(PERIODS_YEAR)
+    sortino = ann_ret / downside if downside > 0 else np.nan
 
-    cum       = (1 + r).cumprod()
-    roll_max  = cum.cummax()
-    dd        = (cum - roll_max) / roll_max
-    max_dd    = float(dd.min())
-    calmar    = ann_ret / abs(max_dd) if max_dd != 0 else np.nan
+    cum = (1 + r).cumprod()
+    roll_max = cum.cummax()
+    dd = (cum - roll_max) / roll_max
+    max_dd = float(dd.min())
+    calmar = ann_ret / abs(max_dd) if max_dd != 0 else np.nan
 
     return {
-        "label":   label,
-        "sharpe":  round(sharpe, 3),
+        "label": label,
+        "sharpe": round(sharpe, 3),
         "sortino": round(sortino, 3),
-        "cagr":    round(ann_ret * 100, 2),
-        "max_dd":  round(max_dd * 100, 2),
-        "calmar":  round(calmar, 3),
-        "vol":     round(ann_vol * 100, 2),
-        "n_days":  len(r),
+        "cagr": round(ann_ret * 100, 2),
+        "max_dd": round(max_dd * 100, 2),
+        "calmar": round(calmar, 3),
+        "vol": round(ann_vol * 100, 2),
+        "n_days": len(r),
     }
+
 
 def max_drawdown_details(returns: pd.Series) -> dict:
     cum = (1 + returns.dropna()).cumprod()
@@ -330,10 +364,10 @@ def max_drawdown_details(returns: pd.Series) -> dict:
     rec_date = recovered.index[0] if len(recovered) > 0 else None
     duration = (min_idx - peak_idx).days if pd.notna(min_idx) else 0
     return {
-        "peak":     peak_idx.date() if pd.notna(peak_idx) else None,
-        "trough":   min_idx.date()  if pd.notna(min_idx)  else None,
+        "peak": peak_idx.date() if pd.notna(peak_idx) else None,
+        "trough": min_idx.date() if pd.notna(min_idx) else None,
         "recovery": rec_date.date() if rec_date is not None else "ongoing",
-        "depth":    round(float(dd.min()) * 100, 2),
+        "depth": round(float(dd.min()) * 100, 2),
         "duration_days": duration,
     }
 
@@ -360,15 +394,21 @@ spy_results.append(metrics(spy_ret, "SPY Full OOS"))
 
 # Print table
 print("\n{'='*70}")
-print(f"{'Period':<22} {'Sharpe':>7} {'Sortino':>8} {'CAGR%':>7} {'MaxDD%':>8} {'Calmar':>8} {'Vol%':>6} {'Days':>5}")
+print(
+    f"{'Period':<22} {'Sharpe':>7} {'Sortino':>8} {'CAGR%':>7} {'MaxDD%':>8} {'Calmar':>8} {'Vol%':>6} {'Days':>5}"
+)
 print("-" * 70)
 for r in results:
-    print(f"{r['label']:<22} {r['sharpe']:>7.3f} {r['sortino']:>8.3f} {r['cagr']:>7.2f} "
-          f"{r['max_dd']:>8.2f} {r['calmar']:>8.3f} {r['vol']:>6.2f} {r['n_days']:>5}")
+    print(
+        f"{r['label']:<22} {r['sharpe']:>7.3f} {r['sortino']:>8.3f} {r['cagr']:>7.2f} "
+        f"{r['max_dd']:>8.2f} {r['calmar']:>8.3f} {r['vol']:>6.2f} {r['n_days']:>5}"
+    )
 print("\nSPY Benchmark:")
 for r in spy_results:
-    print(f"{r['label']:<22} {r['sharpe']:>7.3f} {r['sortino']:>8.3f} {r['cagr']:>7.2f} "
-          f"{r['max_dd']:>8.2f} {r['calmar']:>8.3f} {r['vol']:>6.2f} {r['n_days']:>5}")
+    print(
+        f"{r['label']:<22} {r['sharpe']:>7.3f} {r['sortino']:>8.3f} {r['cagr']:>7.2f} "
+        f"{r['max_dd']:>8.2f} {r['calmar']:>8.3f} {r['vol']:>6.2f} {r['n_days']:>5}"
+    )
 
 # Q1 2026 drawdown detail
 print("\nQ1-2026 Drawdown Detail (tariff shock):")
@@ -376,13 +416,17 @@ q1_ret = strat_ret.loc["2026-01-01":"2026-04-03"]
 spy_q1 = spy_ret.loc["2026-01-01":"2026-04-03"]
 if len(q1_ret) > 5:
     dd_strat = max_drawdown_details(q1_ret)
-    dd_spy   = max_drawdown_details(spy_q1)
-    print(f"  Strategy: peak={dd_strat['peak']} trough={dd_strat['trough']} "
-          f"depth={dd_strat['depth']}% duration={dd_strat['duration_days']}d "
-          f"recovery={dd_strat['recovery']}")
-    print(f"  SPY:      peak={dd_spy['peak']}   trough={dd_spy['trough']}   "
-          f"depth={dd_spy['depth']}% duration={dd_spy['duration_days']}d "
-          f"recovery={dd_spy['recovery']}")
+    dd_spy = max_drawdown_details(spy_q1)
+    print(
+        f"  Strategy: peak={dd_strat['peak']} trough={dd_strat['trough']} "
+        f"depth={dd_strat['depth']}% duration={dd_strat['duration_days']}d "
+        f"recovery={dd_strat['recovery']}"
+    )
+    print(
+        f"  SPY:      peak={dd_spy['peak']}   trough={dd_spy['trough']}   "
+        f"depth={dd_spy['depth']}% duration={dd_spy['duration_days']}d "
+        f"recovery={dd_spy['recovery']}"
+    )
 
 # Regime breakdown
 if len(trade_log) > 0:

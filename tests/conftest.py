@@ -37,6 +37,7 @@ def tmp_dir(tmp_path: Path) -> Path:
 
 
 if _HAS_MARKET_DATA:
+
     @pytest.fixture
     def local_storage(tmp_dir: Path):
         """Provide a local storage backend rooted in a temp dir."""
@@ -85,14 +86,19 @@ if _HAS_MARKET_DATA:
         high = np.maximum(open_, close) * (1 + np.abs(np.random.normal(0, 0.01, n)))
         low = np.minimum(open_, close) * (1 - np.abs(np.random.normal(0, 0.01, n)))
         volume = np.random.randint(1_000_000, 50_000_000, n)
-        return pd.DataFrame({
-            "timestamp_utc": [int(d.timestamp() * 1e9) for d in dates],
-            "symbol_id": [1] * n,
-            "open": open_, "high": high, "low": low, "close": close,
-            "volume": volume,
-            "vwap": (high + low + close) / 3,
-            "trade_count": np.random.randint(100, 10000, n),
-        })
+        return pd.DataFrame(
+            {
+                "timestamp_utc": [int(d.timestamp() * 1e9) for d in dates],
+                "symbol_id": [1] * n,
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+                "vwap": (high + low + close) / 3,
+                "trade_count": np.random.randint(100, 10000, n),
+            }
+        )
 
     @pytest.fixture
     def sample_ohlcv_table(sample_ohlcv_df: pd.DataFrame):

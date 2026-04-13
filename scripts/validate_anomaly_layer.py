@@ -4,6 +4,7 @@ Validate AnomalyRegimeLayer:
   STEP 4: IS calibration on 3 known stress periods
   STEP 5: OOS comparison (Sep 2025 – Apr 2026)
 """
+
 import json
 import os
 import sys
@@ -35,7 +36,7 @@ def load_prices(syms, start="2017-01-01", end="2026-12-31"):
         if df is None:
             continue
         df.columns = [c.capitalize() for c in df.columns]
-        if hasattr(df.index, 'tz') and df.index.tz is not None:
+        if hasattr(df.index, "tz") and df.index.tz is not None:
             df.index = df.index.tz_localize(None)
         else:
             df.index = pd.to_datetime(df.index).tz_localize(None)
@@ -51,14 +52,36 @@ def main():
     print("=" * 70)
 
     # Load core assets
-    syms = ["SPY", "QQQ", "IWM", "TLT", "GLD", "HYG", "LQD", "EEM",
-            "VGK", "XLK", "XLE", "XLF", "VIX", "DXY", "JPY", "EURUSD",
-            "BTC", "ETH", "AGG", "SHY"]
+    syms = [
+        "SPY",
+        "QQQ",
+        "IWM",
+        "TLT",
+        "GLD",
+        "HYG",
+        "LQD",
+        "EEM",
+        "VGK",
+        "XLK",
+        "XLE",
+        "XLF",
+        "VIX",
+        "DXY",
+        "JPY",
+        "EURUSD",
+        "BTC",
+        "ETH",
+        "AGG",
+        "SHY",
+    ]
     prices = load_prices(syms)
-    print(f"Loaded {len(prices.columns)} assets, {len(prices)} days: {prices.index[0].date()} → {prices.index[-1].date()}")
+    print(
+        f"Loaded {len(prices.columns)} assets, {len(prices)} days: {prices.index[0].date()} → {prices.index[-1].date()}"
+    )
 
     # Instantiate layer (no config = default weights)
     from regime.anomaly_layer import AnomalyRegimeLayer
+
     layer = AnomalyRegimeLayer()
 
     # ── STEP 4: IS Calibration ──────────────────────────────────────────────
@@ -72,15 +95,17 @@ def main():
     # We'll still instantiate full layer but expect graceful degradation
 
     stress_periods = {
-        "Dec 2018 (Vol selloff)":     ("2018-10-01", "2018-12-31"),
-        "Mar 2020 (COVID crash)":     ("2020-02-01", "2020-04-30"),
+        "Dec 2018 (Vol selloff)": ("2018-10-01", "2018-12-31"),
+        "Mar 2020 (COVID crash)": ("2020-02-01", "2020-04-30"),
         "Jun 2022 (Rate hike shock)": ("2022-04-01", "2022-07-31"),
-        "2024 Calm (baseline)":       ("2024-01-01", "2024-06-30"),
+        "2024 Calm (baseline)": ("2024-01-01", "2024-06-30"),
     }
 
     # Compute series for full range covering all stress periods
     full_result = layer.compute_series(prices, start="2018-01-01", end="2026-04-02")
-    print(f"Series computed: {len(full_result)} days, sources: {[c for c in full_result.columns if c not in ('composite','label','scale')]}")
+    print(
+        f"Series computed: {len(full_result)} days, sources: {[c for c in full_result.columns if c not in ('composite', 'label', 'scale')]}"
+    )
 
     for label, (s, e) in stress_periods.items():
         sub = full_result.loc[s:e]
@@ -90,7 +115,9 @@ def main():
         comp = sub["composite"]
         labels = sub["label"]
         print(f"\n{label}:")
-        print(f"  Composite: mean={comp.mean():.3f}  p75={comp.quantile(0.75):.3f}  p95={comp.quantile(0.95):.3f}  max={comp.max():.3f}")
+        print(
+            f"  Composite: mean={comp.mean():.3f}  p75={comp.quantile(0.75):.3f}  p95={comp.quantile(0.95):.3f}  max={comp.max():.3f}"
+        )
         # Source breakdown
         for src in ["macro", "sentiment", "fx", "isolation"]:
             if src in sub.columns:
@@ -124,6 +151,7 @@ def main():
 
     # Get choppy scale from ChoppyRegimeDetector
     from regime.choppy_regime import ChoppyRegimeDetector
+
     vix = prices["VIX"] if "VIX" in prices.columns else pd.Series(20.0, index=prices.index)
     choppy_det = ChoppyRegimeDetector()
     choppy_scores = choppy_det.score_series(prices, vix)
@@ -165,7 +193,9 @@ def main():
     print("-" * 56)
     for k in ["total_return", "sharpe", "max_drawdown"]:
         unit = "%" if k != "sharpe" else ""
-        print(f"{k:<18s} {m_spy[k]:>11.2f}{unit} {m_choppy[k]:>11.2f}{unit} {m_combined[k]:>11.2f}{unit}")
+        print(
+            f"{k:<18s} {m_spy[k]:>11.2f}{unit} {m_choppy[k]:>11.2f}{unit} {m_combined[k]:>11.2f}{unit}"
+        )
 
     # Save results
     results = {
@@ -173,7 +203,9 @@ def main():
         "SPY_buy_hold": m_spy,
         "V_choppy_only": m_choppy,
         "V_combined": m_combined,
-        "anomaly_layer_sources": [c for c in oos_result.columns if c not in ("composite", "label", "scale")],
+        "anomaly_layer_sources": [
+            c for c in oos_result.columns if c not in ("composite", "label", "scale")
+        ],
     }
     with open(RESULTS_DIR / "anomaly_layer_results.json", "w") as f:
         json.dump(results, f, indent=2)
@@ -182,6 +214,7 @@ def main():
     # Generate chart
     try:
         import matplotlib as mpl
+
         mpl.use("Agg")
         import matplotlib.dates as mdates
         import matplotlib.pyplot as plt
@@ -190,11 +223,30 @@ def main():
         cum_choppy = (1 + ret_choppy).cumprod()
         cum_combined = (1 + ret_combined).cumprod()
 
-        _fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 9), gridspec_kw={"height_ratios": [3, 1]})
+        _fig, (ax1, ax2) = plt.subplots(
+            2, 1, figsize=(14, 9), gridspec_kw={"height_ratios": [3, 1]}
+        )
 
-        ax1.plot(cum_spy.index, cum_spy, label=f"SPY B&H (Sharpe={m_spy['sharpe']:.2f})", color="gray", alpha=0.7)
-        ax1.plot(cum_choppy.index, cum_choppy, label=f"Choppy Only (Sharpe={m_choppy['sharpe']:.2f})", color="blue")
-        ax1.plot(cum_combined.index, cum_combined, label=f"Combined (Sharpe={m_combined['sharpe']:.2f})", color="green", linewidth=2)
+        ax1.plot(
+            cum_spy.index,
+            cum_spy,
+            label=f"SPY B&H (Sharpe={m_spy['sharpe']:.2f})",
+            color="gray",
+            alpha=0.7,
+        )
+        ax1.plot(
+            cum_choppy.index,
+            cum_choppy,
+            label=f"Choppy Only (Sharpe={m_choppy['sharpe']:.2f})",
+            color="blue",
+        )
+        ax1.plot(
+            cum_combined.index,
+            cum_combined,
+            label=f"Combined (Sharpe={m_combined['sharpe']:.2f})",
+            color="green",
+            linewidth=2,
+        )
         ax1.set_title("OOS Performance: Sep 2025 – Apr 2026", fontsize=14, fontweight="bold")
         ax1.set_ylabel("Cumulative Return")
         ax1.legend(loc="upper left")
@@ -203,7 +255,9 @@ def main():
 
         # Anomaly composite score
         comp_oos = oos_result["composite"].reindex(common_idx)
-        ax2.fill_between(comp_oos.index, 0, comp_oos, alpha=0.4, color="red", label="Anomaly Composite")
+        ax2.fill_between(
+            comp_oos.index, 0, comp_oos, alpha=0.4, color="red", label="Anomaly Composite"
+        )
         ax2.axhline(0.20, color="orange", linestyle="--", alpha=0.5, label="ELEVATED")
         ax2.axhline(0.35, color="red", linestyle="--", alpha=0.5, label="STRESSED")
         ax2.axhline(0.50, color="darkred", linestyle="--", alpha=0.5, label="CRISIS")

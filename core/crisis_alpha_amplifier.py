@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CrisisAlphaConfig:
     """Runtime configuration for CrisisAlphaAmplifier.
@@ -44,6 +45,7 @@ class CrisisAlphaConfig:
     All fields have sensible defaults derived from the diagnostic findings.
     Override via dict / yaml loader before constructing the amplifier.
     """
+
     enabled: bool = True
 
     # Scale factors per regime
@@ -55,7 +57,7 @@ class CrisisAlphaConfig:
     # VIX level thresholds
     vix_crisis_threshold: float = 30.0
     vix_elevated_threshold: float = 20.0
-    vix_normal_threshold: float = 15.0    # below this → SUPPRESSED
+    vix_normal_threshold: float = 15.0  # below this → SUPPRESSED
 
     # Anti-whipsaw: require this many consecutive days before flipping state
     min_days_in_regime: int = 3
@@ -87,6 +89,7 @@ class CrisisAlphaConfig:
 # Regime enum
 # ---------------------------------------------------------------------------
 
+
 class VIXRegime(StrEnum):
     CRISIS = "CRISIS"
     ELEVATED = "ELEVATED"
@@ -97,6 +100,7 @@ class VIXRegime(StrEnum):
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
+
 
 class CrisisAlphaAmplifier:
     """Computes a position-size scale factor based on the VIX regime.

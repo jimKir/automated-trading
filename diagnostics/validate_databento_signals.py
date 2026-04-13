@@ -401,7 +401,10 @@ for name, sig_df in [
     ics = ic_suite(sig_oos, wr)
     sh, wf, pv = print_results(name, sig_oos, wr, ics)
     results[name] = {
-        "sharpe": sh, "wf_pos": wf, "perm_p": pv, "ics": {str(k): v[0] for k, v in ics.items()}
+        "sharpe": sh,
+        "wf_pos": wf,
+        "perm_p": pv,
+        "ics": {str(k): v[0] for k, v in ics.items()},
     }
 
 # ── COMPOSITE TEST ────────────────────────────────────────────────────────────

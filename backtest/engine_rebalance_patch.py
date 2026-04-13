@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 # Public API (standalone helper — mirrors BacktestEngine method signature)
 # ---------------------------------------------------------------------------
 
+
 def build_rebalance_schedule(
     dates: list,
     rebalance_freq: str = "weekly",
@@ -63,7 +64,7 @@ def build_rebalance_schedule(
     #   score >= adaptive_weekly_threshold → weekly   (YELLOW/ORANGE/RED)
     choppy_score_series: pd.Series | None = None,
     adaptive_weekly_threshold: float = 0.17,  # YELLOW onset in ChoppyDetector
-    adaptive_smoothing: int = 3,              # days of score EMA before switching
+    adaptive_smoothing: int = 3,  # days of score EMA before switching
 ) -> set:
     """Build the set of dates on which the portfolio should rebalance.
 
@@ -171,6 +172,7 @@ def build_rebalance_schedule(
 # (paste directly into BacktestEngine class body)
 # ---------------------------------------------------------------------------
 
+
 def _rebalance_schedule(self, dates: list) -> set:
     """Updated BacktestEngine._rebalance_schedule — paste to replace original.
 
@@ -187,9 +189,7 @@ def _rebalance_schedule(self, dates: list) -> set:
     """
     # Pull optional config; guard for engines that don't expose these
     freq = getattr(self, "rebalance_freq", "weekly")
-    sig_threshold = float(
-        getattr(self, "signal_change_threshold", 0.15)
-    )
+    sig_threshold = float(getattr(self, "signal_change_threshold", 0.15))
     vix_thresh = float(getattr(self, "vix_spike_threshold", 0.20))
     biweekly_n = int(getattr(self, "biweekly_n_trading_days", 10))
 
@@ -210,6 +210,7 @@ def _rebalance_schedule(self, dates: list) -> set:
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
 
 def _base_schedule(
     s: pd.Series,
@@ -238,9 +239,7 @@ def _base_schedule(
         # Last business day of each calendar month
         return set(s.resample("BME").last().dropna())
 
-    logger.warning(
-        "Unknown rebalance_freq '%s'; defaulting to all dates.", freq
-    )
+    logger.warning("Unknown rebalance_freq '%s'; defaulting to all dates.", freq)
     return set(s.index)
 
 
@@ -268,7 +267,7 @@ def _apply_signal_filter(
     if not sorted_sched:
         return schedule
 
-    filtered = {sorted_sched[0]}   # always keep the first rebalance
+    filtered = {sorted_sched[0]}  # always keep the first rebalance
     last_signal = float(
         signal_series.reindex(method="ffill").loc[
             signal_series.index[signal_series.index <= sorted_sched[0]][-1]
@@ -342,25 +341,21 @@ def _adaptive_schedule(
         return set()
 
     # Smooth the score to avoid whipsawing (3-day EMA default)
-    score_aligned = (
-        choppy_score
-        .reindex(sorted_dates, method="ffill")
-        .fillna(0.0)
-    )
+    score_aligned = choppy_score.reindex(sorted_dates, method="ffill").fillna(0.0)
     score_smooth = score_aligned.ewm(span=smoothing, adjust=False).mean()
 
     schedule: set = set()
-    last_biweekly_idx = 0   # tracks position in biweekly cadence
+    last_biweekly_idx = 0  # tracks position in biweekly cadence
     in_weekly_mode = score_smooth.iloc[0] >= weekly_threshold
 
     for i, date in enumerate(sorted_dates):
         score_today = float(score_smooth.iloc[i])
-        was_weekly  = in_weekly_mode
+        was_weekly = in_weekly_mode
         in_weekly_mode = score_today >= weekly_threshold
 
         if in_weekly_mode:
             # Weekly mode: rebalance on Fridays (same as _base_schedule)
-            if date.weekday() == 4:   # 4 = Friday
+            if date.weekday() == 4:  # 4 = Friday
                 schedule.add(date)
                 last_biweekly_idx = i  # reset biweekly counter on switch-back
         else:
@@ -378,10 +373,16 @@ def _adaptive_schedule(
     logger.debug(
         "Adaptive schedule: %d rebalance dates | weekly_days=%d, biweekly_days=%d",
         len(schedule),
-        sum(1 for d in schedule
-            if float(score_smooth.reindex([d], method="ffill").iloc[0]) >= weekly_threshold),
-        sum(1 for d in schedule
-            if float(score_smooth.reindex([d], method="ffill").iloc[0]) < weekly_threshold),
+        sum(
+            1
+            for d in schedule
+            if float(score_smooth.reindex([d], method="ffill").iloc[0]) >= weekly_threshold
+        ),
+        sum(
+            1
+            for d in schedule
+            if float(score_smooth.reindex([d], method="ffill").iloc[0]) < weekly_threshold
+        ),
     )
     return schedule
 

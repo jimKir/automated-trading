@@ -220,10 +220,11 @@ class BacktestEngine:
             try:
                 from regime.choppy_regime import ChoppyRegimeDetector
                 from risk.position_anomaly import PositionAnomalyScorer
+
                 _choppy_det = ChoppyRegimeDetector()
                 vix_col = price_df["VIX"] if "VIX" in price_df.columns else pd.Series(dtype=float)
                 _choppy_score_series = _choppy_det.score_series(price_df, vix_col)
-                _pos_anomaly_scorer  = PositionAnomalyScorer(
+                _pos_anomaly_scorer = PositionAnomalyScorer(
                     portfolio_choppy_score=_choppy_score_series
                 )
                 log.info("PositionAnomalyScorer enabled — per-symbol asymmetric scaling active")
@@ -483,13 +484,18 @@ class BacktestEngine:
                 _pos_scales: dict = {}
                 if _pos_anomaly_scorer is not None:
                     try:
-                        port_sc = float(_choppy_score_series.asof(date))                             if _choppy_score_series is not None else 0.0
+                        port_sc = (
+                            float(_choppy_score_series.asof(date))
+                            if _choppy_score_series is not None
+                            else 0.0
+                        )
                         _pos_scales = _pos_anomaly_scorer.score_day(
                             date, historical_data, portfolio_score=port_sc
                         )
                         crypto_scales = {
-                            s: round(v,2) for s, v in _pos_scales.items()
-                            if any(c in s.upper() for c in ["BTC","ETH","SOL"])
+                            s: round(v, 2)
+                            for s, v in _pos_scales.items()
+                            if any(c in s.upper() for c in ["BTC", "ETH", "SOL"])
                         }
                         if crypto_scales:
                             log.info(f"[{date.date()}] PosAnomaly crypto: {crypto_scales}")
@@ -501,8 +507,8 @@ class BacktestEngine:
                 if _sym_vol_scales or _pos_scales:
                     scaled_signals = {
                         sym: sig
-                            * _sym_vol_scales.get(sym, 1.0)   # vol-engine scale
-                            * _pos_scales.get(sym, 1.0)        # position anomaly scale
+                        * _sym_vol_scales.get(sym, 1.0)  # vol-engine scale
+                        * _pos_scales.get(sym, 1.0)  # position anomaly scale
                         for sym, sig in signals.items()
                     }
                 else:
@@ -733,15 +739,13 @@ class BacktestEngine:
 
         # Adaptive mode: ChoppyDetector score pre-computed in run() init block
         choppy = getattr(self, "_choppy_score_series", None)
-        thr    = float(
-            self.config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17)
-        )
+        thr = float(self.config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17))
 
         return build_rebalance_schedule(
-            dates             = dates,
-            rebalance_freq    = self.rebalance_freq,  # reads from config
-            choppy_score_series         = choppy,
-            adaptive_weekly_threshold   = thr,
+            dates=dates,
+            rebalance_freq=self.rebalance_freq,  # reads from config
+            choppy_score_series=choppy,
+            adaptive_weekly_threshold=thr,
         )
 
     def _check_stops(

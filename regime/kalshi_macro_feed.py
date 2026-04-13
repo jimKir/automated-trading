@@ -14,6 +14,7 @@ Usage:
     # Returns: {'fed_hike_prob': 0.12, 'cpi_surprise_risk': 0.34,
     #           'recession_prob': 0.18, 'composite_stress': 0.21}
 """
+
 import logging
 import time
 from dataclasses import dataclass, field
@@ -27,23 +28,23 @@ KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
 # Known Kalshi series tickers for macro events
 SERIES = {
-    "fed_rate":   "KXFED",
-    "cpi":        "KXCPI",
-    "recession":  "KXRECESSION",
-    "gdp":        "KXGDP",
+    "fed_rate": "KXFED",
+    "cpi": "KXCPI",
+    "recession": "KXRECESSION",
+    "gdp": "KXGDP",
 }
 
 
 @dataclass
 class MacroSignals:
-    fed_hike_prob: float = 0.0       # 0-1: probability of rate HIKE at next FOMC
-    fed_cut_prob: float = 0.0        # 0-1: probability of rate CUT at next FOMC
-    fed_stress: float = 0.0          # 0-1: derived stress (hike OR cut = uncertainty)
-    cpi_beat_prob: float = 0.0       # 0-1: probability CPI comes in ABOVE consensus
-    cpi_surprise_risk: float = 0.0   # 0-1: derived stress (large surprise in either direction)
-    recession_prob: float = 0.0      # 0-1: probability of recession
-    composite_stress: float = 0.0    # 0-1: weighted composite for ChoppyDetector
-    available: bool = False          # False = Kalshi unavailable, use fallback
+    fed_hike_prob: float = 0.0  # 0-1: probability of rate HIKE at next FOMC
+    fed_cut_prob: float = 0.0  # 0-1: probability of rate CUT at next FOMC
+    fed_stress: float = 0.0  # 0-1: derived stress (hike OR cut = uncertainty)
+    cpi_beat_prob: float = 0.0  # 0-1: probability CPI comes in ABOVE consensus
+    cpi_surprise_risk: float = 0.0  # 0-1: derived stress (large surprise in either direction)
+    recession_prob: float = 0.0  # 0-1: probability of recession
+    composite_stress: float = 0.0  # 0-1: weighted composite for ChoppyDetector
+    available: bool = False  # False = Kalshi unavailable, use fallback
     timestamp: datetime | None = None
     raw: dict = field(default_factory=dict)
 
@@ -74,10 +75,12 @@ class KalshiMacroFeed:
         self._cache_ts: float = 0.0
         self.cache_seconds = cache_seconds
         self.session = requests.Session()
-        self.session.headers.update({
-            "Accept": "application/json",
-            "User-Agent": "trading-system/1.0",
-        })
+        self.session.headers.update(
+            {
+                "Accept": "application/json",
+                "User-Agent": "trading-system/1.0",
+            }
+        )
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -87,9 +90,11 @@ class KalshiMacroFeed:
         Returns MacroSignals(available=False) if Kalshi is unreachable.
         """
         now = time.time()
-        if (not force_refresh and
-                self._cache is not None and
-                now - self._cache_ts < self.cache_seconds):
+        if (
+            not force_refresh
+            and self._cache is not None
+            and now - self._cache_ts < self.cache_seconds
+        ):
             return self._cache
 
         signals = self._fetch_all()
@@ -151,10 +156,10 @@ class KalshiMacroFeed:
 
         # Composite
         signals.composite_stress = round(
-            self.WEIGHTS["recession"] * signals.recession_prob +
-            self.WEIGHTS["fed"]       * signals.fed_stress +
-            self.WEIGHTS["cpi"]       * signals.cpi_surprise_risk,
-            3
+            self.WEIGHTS["recession"] * signals.recession_prob
+            + self.WEIGHTS["fed"] * signals.fed_stress
+            + self.WEIGHTS["cpi"] * signals.cpi_surprise_risk,
+            3,
         )
         signals.available = True
         signals.raw = raw
@@ -230,9 +235,10 @@ class KalshiMacroFeed:
 
 # ── integration with MacroAnomalyDetector ────────────────────────────────────
 
-def enrich_macro_score(base_score: float,
-                       kalshi_signals: MacroSignals,
-                       kalshi_weight: float = 0.25) -> float:
+
+def enrich_macro_score(
+    base_score: float, kalshi_signals: MacroSignals, kalshi_weight: float = 0.25
+) -> float:
     """
     Blend Kalshi composite stress into an existing macro score.
     kalshi_weight: how much Kalshi replaces/adds to the base score.

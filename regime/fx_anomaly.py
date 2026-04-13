@@ -52,7 +52,7 @@ class FXAnomalyDetector:
                 log.debug(f"FXAnomaly: {sym} not found in DataStore")
                 return None
             df.columns = [c.capitalize() for c in df.columns]
-            if hasattr(df.index, 'tz') and df.index.tz is not None:
+            if hasattr(df.index, "tz") and df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             else:
                 df.index = pd.to_datetime(df.index).tz_localize(None)

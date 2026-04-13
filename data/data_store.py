@@ -31,19 +31,18 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 # Defaults — can be overridden via settings.yaml or constructor args
-S3_BUCKET = 'trading-data-380277571671-eu-north-1-an'
-S3_PREFIX = 'historical/daily'
-S3_REGION = 'eu-north-1'
-LOCAL_DATA_DIR = str(Path(__file__).parent.parent / 'data' / 'historical' / 'daily')
+S3_BUCKET = "trading-data-380277571671-eu-north-1-an"
+S3_PREFIX = "historical/daily"
+S3_REGION = "eu-north-1"
+LOCAL_DATA_DIR = str(Path(__file__).parent.parent / "data" / "historical" / "daily")
 
 
 def _is_ec2() -> bool:
     """Detect if running on EC2/ECS via instance metadata endpoint."""
     try:
         import urllib.request
-        urllib.request.urlopen(
-            'http://169.254.169.254/latest/meta-data/', timeout=0.5
-        )
+
+        urllib.request.urlopen("http://169.254.169.254/latest/meta-data/", timeout=0.5)
         return True
     except Exception:
         return False
@@ -51,10 +50,10 @@ def _is_ec2() -> bool:
 
 def _use_s3() -> bool:
     """Returns True if data should be loaded from S3."""
-    ds = os.environ.get('DATA_SOURCE', '').lower()
-    if ds == 's3':
+    ds = os.environ.get("DATA_SOURCE", "").lower()
+    if ds == "s3":
         return True
-    if ds == 'local':
+    if ds == "local":
         return False
     return _is_ec2()
 
@@ -63,11 +62,12 @@ def _load_settings_yaml() -> dict:
     """Load data config from settings.yaml if available."""
     try:
         import yaml
-        settings_path = Path(__file__).parent.parent / 'config' / 'settings.yaml'
+
+        settings_path = Path(__file__).parent.parent / "config" / "settings.yaml"
         if settings_path.exists():
             with open(settings_path) as f:
                 cfg = yaml.safe_load(f) or {}
-            return cfg.get('data', {})
+            return cfg.get("data", {})
     except Exception:
         pass
     return {}
@@ -95,14 +95,14 @@ class DataStore:
         # Load from settings.yaml as base, then override with explicit args
         yaml_cfg = _load_settings_yaml()
 
-        self.local_dir = Path(local_dir or yaml_cfg.get('local_dir', LOCAL_DATA_DIR))
-        self.s3_bucket = s3_bucket or yaml_cfg.get('s3_bucket', S3_BUCKET)
-        self.s3_prefix = (s3_prefix or yaml_cfg.get('s3_prefix', S3_PREFIX)).rstrip('/')
-        self.s3_region = s3_region or yaml_cfg.get('s3_region', S3_REGION)
+        self.local_dir = Path(local_dir or yaml_cfg.get("local_dir", LOCAL_DATA_DIR))
+        self.s3_bucket = s3_bucket or yaml_cfg.get("s3_bucket", S3_BUCKET)
+        self.s3_prefix = (s3_prefix or yaml_cfg.get("s3_prefix", S3_PREFIX)).rstrip("/")
+        self.s3_region = s3_region or yaml_cfg.get("s3_region", S3_REGION)
         self.use_s3 = use_s3 if use_s3 is not None else _use_s3()
         self._s3_client = None
 
-        source = 'S3' if self.use_s3 else 'local'
+        source = "S3" if self.use_s3 else "local"
         logger.info(f"[DataStore] Using {source} data source")
         if self.use_s3:
             logger.info(f"[DataStore] s3://{self.s3_bucket}/{self.s3_prefix}/")
@@ -113,12 +113,13 @@ class DataStore:
         """Lazy S3 client init — only imported if actually using S3."""
         if self._s3_client is None:
             import boto3
-            self._s3_client = boto3.client('s3', region_name=self.s3_region)
+
+            self._s3_client = boto3.client("s3", region_name=self.s3_region)
         return self._s3_client
 
     def _symbol_to_filename(self, symbol: str) -> str:
         """Convert symbol to parquet filename. Handles BTC/USD -> BTC_USD etc."""
-        return symbol.replace('/', '_').replace('-', '_') + '.parquet'
+        return symbol.replace("/", "_").replace("-", "_") + ".parquet"
 
     def load(
         self,
@@ -166,18 +167,18 @@ class DataStore:
     def _load_from_local(self, fname: str) -> pd.DataFrame | None:
         """Load parquet from local disk — tries multiple naming conventions."""
         # Build list of candidate filenames to try
-        base = fname.replace('.parquet', '')
+        base = fname.replace(".parquet", "")
         candidates = [
-            fname,                                          # BTC_USD.parquet (canonical)
-            base.replace('_', '-') + '.parquet',            # BTC-USD.parquet
-            base.split('_')[0] + '.parquet',                # BTC.parquet (no suffix)
-            base.lower() + '.parquet',                      # btc_usd.parquet
-            base.upper() + '.parquet',                      # BTC_USD.parquet
-            base.lower().replace('_', '-') + '.parquet',    # btc-usd.parquet
-            base.split('_')[0].upper() + '.parquet',        # BTC.parquet (uppercase, no suffix)
-            base.replace('=', '_') + '.parquet',            # ES_F.parquet (futures)
-            base.replace('=F', '') + '.parquet',            # ES.parquet (futures without F)
-            base.lstrip('^') + '.parquet',                  # VIX.parquet (strip ^ prefix)
+            fname,  # BTC_USD.parquet (canonical)
+            base.replace("_", "-") + ".parquet",  # BTC-USD.parquet
+            base.split("_")[0] + ".parquet",  # BTC.parquet (no suffix)
+            base.lower() + ".parquet",  # btc_usd.parquet
+            base.upper() + ".parquet",  # BTC_USD.parquet
+            base.lower().replace("_", "-") + ".parquet",  # btc-usd.parquet
+            base.split("_")[0].upper() + ".parquet",  # BTC.parquet (uppercase, no suffix)
+            base.replace("=", "_") + ".parquet",  # ES_F.parquet (futures)
+            base.replace("=F", "") + ".parquet",  # ES.parquet (futures without F)
+            base.lstrip("^") + ".parquet",  # VIX.parquet (strip ^ prefix)
         ]
         # Deduplicate while preserving order
         seen = set()
@@ -199,18 +200,17 @@ class DataStore:
 
     def _load_from_s3(self, fname: str) -> pd.DataFrame | None:
         """Load parquet from S3 using s3fs or boto3 fallback."""
-        s3_path = f's3://{self.s3_bucket}/{self.s3_prefix}/{fname}'
+        s3_path = f"s3://{self.s3_bucket}/{self.s3_prefix}/{fname}"
 
         # Try s3fs first (faster, supports pandas read_parquet directly)
         try:
             import s3fs
-            fs = s3fs.S3FileSystem(
-                client_kwargs={'region_name': self.s3_region}
-            )
+
+            fs = s3fs.S3FileSystem(client_kwargs={"region_name": self.s3_region})
             if not fs.exists(s3_path):
                 logger.debug(f"[DataStore] Not found in S3: {s3_path}")
                 return None
-            with fs.open(s3_path, 'rb') as f:
+            with fs.open(s3_path, "rb") as f:
                 return pd.read_parquet(f)
         except ImportError:
             pass  # fall through to boto3
@@ -218,12 +218,12 @@ class DataStore:
         # Fallback: boto3 download to memory
         try:
             client = self._get_s3_client()
-            key = f'{self.s3_prefix}/{fname}'
+            key = f"{self.s3_prefix}/{fname}"
             response = client.get_object(Bucket=self.s3_bucket, Key=key)
-            return pd.read_parquet(io.BytesIO(response['Body'].read()))
+            return pd.read_parquet(io.BytesIO(response["Body"].read()))
         except Exception as e:
             # Check for NoSuchKey specifically
-            if 'NoSuchKey' in str(type(e).__name__) or 'NoSuchKey' in str(e):
+            if "NoSuchKey" in str(type(e).__name__) or "NoSuchKey" in str(e):
                 logger.debug(f"[DataStore] Not found in S3: {fname}")
             else:
                 logger.warning(f"[DataStore] S3 load failed for {fname}: {e}")
@@ -257,22 +257,15 @@ class DataStore:
     def _list_local(self) -> list[str]:
         if not self.local_dir.exists():
             return []
-        return [f.stem.replace('_', '/') for f in self.local_dir.glob('*.parquet')]
+        return [f.stem.replace("_", "/") for f in self.local_dir.glob("*.parquet")]
 
     def _list_s3(self) -> list[str]:
         try:
             client = self._get_s3_client()
-            response = client.list_objects_v2(
-                Bucket=self.s3_bucket,
-                Prefix=f'{self.s3_prefix}/'
-            )
-            files = [
-                obj['Key'].split('/')[-1]
-                for obj in response.get('Contents', [])
-            ]
+            response = client.list_objects_v2(Bucket=self.s3_bucket, Prefix=f"{self.s3_prefix}/")
+            files = [obj["Key"].split("/")[-1] for obj in response.get("Contents", [])]
             return [
-                f.replace('.parquet', '').replace('_', '/')
-                for f in files if f.endswith('.parquet')
+                f.replace(".parquet", "").replace("_", "/") for f in files if f.endswith(".parquet")
             ]
         except Exception as e:
             logger.warning(f"[DataStore] Cannot list S3: {e}")
@@ -294,8 +287,9 @@ class DataStore:
         if self.use_s3:
             try:
                 import boto3
-                client = boto3.client('s3', region_name=self.s3_region)
-                key = f'{self.s3_prefix}/{fname}'
+
+                client = boto3.client("s3", region_name=self.s3_region)
+                key = f"{self.s3_prefix}/{fname}"
                 client.upload_file(str(local_path), self.s3_bucket, key)
                 logger.info(f"[DataStore] Uploaded {symbol} to S3")
             except Exception as e:

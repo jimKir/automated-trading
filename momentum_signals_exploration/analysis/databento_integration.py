@@ -219,7 +219,6 @@ class DataBentoTester:
     def _fetch_single_symbol(self, symbol: str, source: str = "alpaca") -> dict | None:
         """Fetch latest bar for single symbol."""
         try:
-
             # Get hourly bars - would normally fetch fresh data
             # This is a placeholder for actual data fetch
             return {

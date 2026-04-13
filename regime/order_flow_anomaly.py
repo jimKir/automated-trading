@@ -12,6 +12,7 @@ position as a buy/sell proxy (no tick data required for daily backtest).
 In live mode, this can be upgraded to use actual trade-level data
 from Alpaca or Databento for more accurate order flow measurement.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -23,9 +24,9 @@ log = get_logger("OrderFlowAnomaly")
 
 # Calibration: (baseline, ceiling) — derived from 2024 calm vs 2025 choppy
 CALIBRATION = {
-    "imbalance_dispersion": (0.15, 0.45),   # cross-asset imbalance std (calm=0.15, stress=0.45)
-    "large_trade_cluster":  (0.05, 0.25),   # fraction of days with vol > 3× 20d mean in 10d
-    "aggressor_skew":       (0.10, 0.40),   # abs skew of aggressor proxy in 20d window
+    "imbalance_dispersion": (0.15, 0.45),  # cross-asset imbalance std (calm=0.15, stress=0.45)
+    "large_trade_cluster": (0.05, 0.25),  # fraction of days with vol > 3× 20d mean in 10d
+    "aggressor_skew": (0.10, 0.40),  # abs skew of aggressor proxy in 20d window
 }
 
 
@@ -128,13 +129,14 @@ class OrderFlowAnomalyDetector:
 
         # F3: Aggressor skew — skewness of close-position over 20d
         # High absolute skew = persistent directional aggression = institutional flow
-        cp_skew = cp_df.rolling(20).apply(
-            lambda x: x.skew() if len(x) >= 10 else 0, raw=False
-        ).abs().mean(axis=1)
-        base, ceil = CALIBRATION["aggressor_skew"]
-        components.append(
-            self._rescale(cp_skew, base, ceil).reindex(idx, method="ffill").fillna(0)
+        cp_skew = (
+            cp_df.rolling(20)
+            .apply(lambda x: x.skew() if len(x) >= 10 else 0, raw=False)
+            .abs()
+            .mean(axis=1)
         )
+        base, ceil = CALIBRATION["aggressor_skew"]
+        components.append(self._rescale(cp_skew, base, ceil).reindex(idx, method="ffill").fillna(0))
 
         if not components:
             return pd.Series(0.0, index=idx)

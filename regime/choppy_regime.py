@@ -44,6 +44,7 @@ Integration with EWS
   and ChoppyRegimeDetector.score_today(price_df, vix) for live mode.
   Layer F weight: 0.15 (in LAYER_WEIGHTS dict in ews.py)
 """
+
 from __future__ import annotations
 
 import warnings
@@ -61,7 +62,7 @@ warnings.filterwarnings("ignore")
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).parent.parent
-_DATA_DIR  = _REPO_ROOT / "data" / "historical" / "daily"
+_DATA_DIR = _REPO_ROOT / "data" / "historical" / "daily"
 
 # ── Score → scale factor thresholds ──────────────────────────────────────────
 # Thresholds calibrated to v2 score distribution:
@@ -69,24 +70,24 @@ _DATA_DIR  = _REPO_ROOT / "data" / "historical" / "daily"
 #   2024 calm mean=0.11 → stays GREEN; 2025 choppy mean=0.17 → bleeds into YELLOW
 #   2022 bear mean=0.25 → YELLOW/ORANGE; acute stress days reach 0.40-0.63
 CHOPPY_SCALE_THRESHOLDS = [
-    (0.17, 1.00, "GREEN",  "Trending/normal — no action"),
+    (0.17, 1.00, "GREEN", "Trending/normal — no action"),
     (0.27, 0.80, "YELLOW", "Choppy building — light trim (scale 80%)"),
     (0.40, 0.50, "ORANGE", "Clearly choppy — reduce exposure (scale 50%)"),
-    (1.01, 0.25, "RED",    "2025/bear choppiness — defensive (scale 25%)"),
+    (1.01, 0.25, "RED", "2025/bear choppiness — defensive (scale 25%)"),
 ]
 
 # ── Feature group weights (must sum to 1.0) ───────────────────────────────────
 # v4: 9 groups (added credit_stress + order_flow). Weights from regime_params_validated.json.
 GROUP_WEIGHTS = {
-    "vol_spike":      0.15,   # A: volume anomalies (SPY/QQQ vol spikes)
-    "price_vol":      0.15,   # B: cross-asset price vol (v1 core: vov, MA crossings)
-    "macro_credit":   0.14,   # C: HYG/LQD spreads, TLT stress
-    "event_shock":    0.14,   # D: VIX velocity, VIX level, VIX above-20 rate
-    "commodity_fx":   0.10,   # E: gold/SPY, oil velocity, DXY
-    "breadth":        0.10,   # F: market breadth, SPY/TLT correlation
-    "sentiment":      0.07,   # G: VIX/RVol ratio, VIX vs 60d mean
-    "credit_stress":  0.08,   # H: dedicated credit stress (HYG drawdown, spread velocity)
-    "order_flow":     0.07,   # I: order flow anomaly (volume imbalance, clustering)
+    "vol_spike": 0.15,  # A: volume anomalies (SPY/QQQ vol spikes)
+    "price_vol": 0.15,  # B: cross-asset price vol (v1 core: vov, MA crossings)
+    "macro_credit": 0.14,  # C: HYG/LQD spreads, TLT stress
+    "event_shock": 0.14,  # D: VIX velocity, VIX level, VIX above-20 rate
+    "commodity_fx": 0.10,  # E: gold/SPY, oil velocity, DXY
+    "breadth": 0.10,  # F: market breadth, SPY/TLT correlation
+    "sentiment": 0.07,  # G: VIX/RVol ratio, VIX vs 60d mean
+    "credit_stress": 0.08,  # H: dedicated credit stress (HYG drawdown, spread velocity)
+    "order_flow": 0.07,  # I: order flow anomaly (volume imbalance, clustering)
 }
 assert abs(sum(GROUP_WEIGHTS.values()) - 1.0) < 1e-9, "Weights must sum to 1.0"
 
@@ -115,40 +116,34 @@ assert abs(sum(GROUP_WEIGHTS.values()) - 1.0) < 1e-9, "Weights must sum to 1.0"
 
 CALIBRATION = {
     # vol_spike group
-    "vol_spike_freq":   (0.006,  0.10),    # 30d spike frequency: calm=0.006, max=0.10
-    "vol_surge_5d":     (1.33,   2.20),    # 5d max/20d mean: calm=1.33, max=2.20
-
+    "vol_spike_freq": (0.006, 0.10),  # 30d spike frequency: calm=0.006, max=0.10
+    "vol_surge_5d": (1.33, 2.20),  # 5d max/20d mean: calm=1.33, max=2.20
     # price_vol group (v1 features, recalibrated with raw values)
-    "vov_raw":          (0.0017, 0.010),   # raw vol-of-vol: calm=0.0017, max=0.010
-    "ma_crossing":      (0.08,   0.25),    # crossing rate: calm=0.082, max=0.233
-    "reversal_rate":    (0.476,  0.545),   # reversal rate: calm=0.476, max=0.543
-
+    "vov_raw": (0.0017, 0.010),  # raw vol-of-vol: calm=0.0017, max=0.010
+    "ma_crossing": (0.08, 0.25),  # crossing rate: calm=0.082, max=0.233
+    "reversal_rate": (0.476, 0.545),  # reversal rate: calm=0.476, max=0.543
     # macro_credit group
-    "hyg_lqd_30d_neg":  (0.0,    -0.05),  # 30d HYG/LQD pct (inverted: neg = stress)
-    "hyg_20d_neg":      (0.0,    -0.05),  # HYG 20d return (inverted: neg = stress)
-    "tlt_10d_vel_neg":  (0.0,    -0.08),  # TLT 10d move (inverted: falling = stress)
-
+    "hyg_lqd_30d_neg": (0.0, -0.05),  # 30d HYG/LQD pct (inverted: neg = stress)
+    "hyg_20d_neg": (0.0, -0.05),  # HYG 20d return (inverted: neg = stress)
+    "tlt_10d_vel_neg": (0.0, -0.08),  # TLT 10d move (inverted: falling = stress)
     # event_shock group
-    "vix_10d_std":      (1.47,   5.0),    # VIX 10d std: calm=1.47, max=5.0
-    "vix_above20_rate": (0.095,  1.0),    # fraction days VIX>20 in 20d: calm=0.095
-    "vix_5d_vel":       (0.02,   0.50),   # VIX 5d pct change: calm=0.020, max=0.50
-
+    "vix_10d_std": (1.47, 5.0),  # VIX 10d std: calm=1.47, max=5.0
+    "vix_above20_rate": (0.095, 1.0),  # fraction days VIX>20 in 20d: calm=0.095
+    "vix_5d_vel": (0.02, 0.50),  # VIX 5d pct change: calm=0.020, max=0.50
     # commodity_fx group
-    "gld_spy_20d_chg":  (0.001,  0.15),   # gold/SPY 20d rise: calm~0, stress=0.15
-    "oil_10d_abs_vel":  (0.035,  0.30),   # |oil 10d pct|: calm=0.035, max=0.30
-    "dxy_10d_mom_pos":  (0.002,  0.03),   # DXY rising (risk-off): calm=0.002, max=0.03
-
+    "gld_spy_20d_chg": (0.001, 0.15),  # gold/SPY 20d rise: calm~0, stress=0.15
+    "oil_10d_abs_vel": (0.035, 0.30),  # |oil 10d pct|: calm=0.035, max=0.30
+    "dxy_10d_mom_pos": (0.002, 0.03),  # DXY rising (risk-off): calm=0.002, max=0.03
     # breadth group
-    "breadth_below":    (0.715,  0.35),   # breadth BELOW this = stress (inverted scale)
-    "spy_tlt_corr":     (0.30,   0.70),   # positive corr = risk-on; high corr late cycle
-
+    "breadth_below": (0.715, 0.35),  # breadth BELOW this = stress (inverted scale)
+    "spy_tlt_corr": (0.30, 0.70),  # positive corr = risk-on; high corr late cycle
     # sentiment group
-    "vix_rvol_ratio":   (1.385,  2.20),   # VIX/realised vol: calm=1.385, max=2.20
-    "vix_vs_60dmean":   (1.024,  1.60),   # VIX / 60d mean: calm~1.0, max=1.60
+    "vix_rvol_ratio": (1.385, 2.20),  # VIX/realised vol: calm=1.385, max=2.20
+    "vix_vs_60dmean": (1.024, 1.60),  # VIX / 60d mean: calm~1.0, max=1.60
 }
 
 # ── Smoothing ─────────────────────────────────────────────────────────────────
-SCORE_EMA_SPAN = 5    # 1-week smoothing — avoids daily whipsawing
+SCORE_EMA_SPAN = 5  # 1-week smoothing — avoids daily whipsawing
 
 
 class ChoppyRegimeDetector:
@@ -168,27 +163,37 @@ class ChoppyRegimeDetector:
         scale, colour = ChoppyRegimeDetector.score_to_scale(score)
     """
 
-    def __init__(self, data_dir: Path | None = None, mode: str = 'backtest'):
+    def __init__(self, data_dir: Path | None = None, mode: str = "backtest"):
         self._data_dir = Path(data_dir) if data_dir else _DATA_DIR
         self._cache: dict[str, pd.Series] = {}
         self.order_flow_detector = OrderFlowAnomalyDetector()
         self.feature_groups = [
-            'volatility', 'vix_dynamics', 'macro_credit', 'commodity_fx',
-            'breadth', 'sentiment', 'ews', 'credit_stress', 'order_flow'
+            "volatility",
+            "vix_dynamics",
+            "macro_credit",
+            "commodity_fx",
+            "breadth",
+            "sentiment",
+            "ews",
+            "credit_stress",
+            "order_flow",
         ]
         self._load_thresholds()
 
     def _load_thresholds(self):
         import json
         import os
-        params_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'regime_params_validated.json')
+
+        params_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "regime_params_validated.json"
+        )
         try:
             with open(params_path) as f:
                 params = json.load(f)
-            thresholds = params.get('choppy_thresholds_v4', params.get('choppy_thresholds_v3', {}))
-            self.GREEN_MAX = thresholds.get('green_ceiling', 0.192)
-            self.YELLOW_MAX = thresholds.get('yellow_ceiling', 0.229)
-            self.ORANGE_MAX = thresholds.get('orange_ceiling', 0.296)
+            thresholds = params.get("choppy_thresholds_v4", params.get("choppy_thresholds_v3", {}))
+            self.GREEN_MAX = thresholds.get("green_ceiling", 0.192)
+            self.YELLOW_MAX = thresholds.get("yellow_ceiling", 0.229)
+            self.ORANGE_MAX = thresholds.get("orange_ceiling", 0.296)
         except Exception:
             # Fallback to v4 hardcoded values
             self.GREEN_MAX = 0.192
@@ -208,7 +213,7 @@ class ChoppyRegimeDetector:
                 log.debug(f"ChoppyRegime: {sym} not found in DataStore")
                 return None
             df.columns = [c.capitalize() for c in df.columns]
-            if hasattr(df.index, 'tz') and df.index.tz is not None:
+            if hasattr(df.index, "tz") and df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             else:
                 df.index = pd.to_datetime(df.index).tz_localize(None)
@@ -230,7 +235,7 @@ class ChoppyRegimeDetector:
             if df is None:
                 return None
             df.columns = [c.capitalize() for c in df.columns]
-            if hasattr(df.index, 'tz') and df.index.tz is not None:
+            if hasattr(df.index, "tz") and df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             else:
                 df.index = pd.to_datetime(df.index).tz_localize(None)
@@ -244,8 +249,9 @@ class ChoppyRegimeDetector:
     # ── Feature helpers ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _rescale(raw: pd.Series, baseline: float, ceiling: float,
-                 invert: bool = False) -> pd.Series:
+    def _rescale(
+        raw: pd.Series, baseline: float, ceiling: float, invert: bool = False
+    ) -> pd.Series:
         """
         Normalise: (raw - baseline) / (ceiling - baseline), clipped [0,1].
         If invert=True: (baseline - raw) / (baseline - ceiling), for features
@@ -277,19 +283,23 @@ class ChoppyRegimeDetector:
 
         # F1: Frequency of SPY volume spikes (>2× 20d mean) in rolling 30d window
         if spy_vol is not None:
-            ma20      = spy_vol.rolling(20).mean().replace(0, np.nan)
-            spike     = (spy_vol > 2 * ma20).astype(float)
+            ma20 = spy_vol.rolling(20).mean().replace(0, np.nan)
+            spike = (spy_vol > 2 * ma20).astype(float)
             spike_freq = spike.rolling(30).mean()
             base, ceil = CALIBRATION["vol_spike_freq"]
-            components.append(self._rescale(spike_freq, base, ceil).reindex(idx, method="ffill").fillna(0))
+            components.append(
+                self._rescale(spike_freq, base, ceil).reindex(idx, method="ffill").fillna(0)
+            )
 
         # F2: 5-day max volume / 20d mean (sustained surge detector)
         for vol_s, _sym in [(spy_vol, "SPY"), (qqq_vol, "QQQ")]:
             if vol_s is not None:
-                ma20   = vol_s.rolling(20).mean().replace(0, np.nan)
-                surge  = vol_s.rolling(5).max() / ma20
+                ma20 = vol_s.rolling(20).mean().replace(0, np.nan)
+                surge = vol_s.rolling(5).max() / ma20
                 base, ceil = CALIBRATION["vol_surge_5d"]
-                components.append(self._rescale(surge, base, ceil).reindex(idx, method="ffill").fillna(0))
+                components.append(
+                    self._rescale(surge, base, ceil).reindex(idx, method="ffill").fillna(0)
+                )
 
         if not components:
             return scores
@@ -299,8 +309,9 @@ class ChoppyRegimeDetector:
 
     # ── Group B: Cross-asset price volatility (v1 core) ──────────────────────
 
-    def _group_price_vol(self, prices: pd.DataFrame, spy_close: pd.Series,
-                         idx: pd.DatetimeIndex) -> pd.Series:
+    def _group_price_vol(
+        self, prices: pd.DataFrame, spy_close: pd.Series, idx: pd.DatetimeIndex
+    ) -> pd.Series:
         """
         Core v1 features: vol-of-vol, MA-crossing rate, reversal rate.
         Re-implemented with raw calibration thresholds.
@@ -318,24 +329,24 @@ class ChoppyRegimeDetector:
         components.append(self._rescale(vov_raw, base, ceil))
 
         # F4: MA-crossing rate (SPY crosses its 20d MA in rolling 30d window)
-        spy_ma20   = spy_close.rolling(20).mean()
-        above_ma   = (spy_close > spy_ma20).astype(float)
+        spy_ma20 = spy_close.rolling(20).mean()
+        above_ma = (spy_close > spy_ma20).astype(float)
         cross_flag = (above_ma != above_ma.shift(1)).astype(float)
-        cross_raw  = cross_flag.rolling(30).mean()
+        cross_raw = cross_flag.rolling(30).mean()
         base, ceil = CALIBRATION["ma_crossing"]
         components.append(self._rescale(cross_raw, base, ceil))
 
         # F5: Return reversal rate (cross-sectional)
-        sign_t    = np.sign(rets)
-        sign_y    = np.sign(rets.shift(1))
-        rev_raw   = ((sign_t * sign_y) < 0).astype(float).rolling(30).mean().mean(axis=1)
+        sign_t = np.sign(rets)
+        sign_y = np.sign(rets.shift(1))
+        rev_raw = ((sign_t * sign_y) < 0).astype(float).rolling(30).mean().mean(axis=1)
         base, ceil = CALIBRATION["reversal_rate"]
         components.append(self._rescale(rev_raw, base, ceil))
 
         # F6: Trend-noise ratio (inverted: low trend = high choppiness)
-        net_ret   = spy_close.pct_change(30).abs()
-        path_vol  = spy_ret.rolling(30).std() * np.sqrt(30)
-        tnr       = (net_ret / path_vol.replace(0, np.nan)).fillna(1.0).clip(0, 2)
+        net_ret = spy_close.pct_change(30).abs()
+        path_vol = spy_ret.rolling(30).std() * np.sqrt(30)
+        tnr = (net_ret / path_vol.replace(0, np.nan)).fillna(1.0).clip(0, 2)
         # Invert: TNR=2 (strong trend)→ score=0; TNR=0.2 (choppy)→ score=1
         tnr_score = ((0.8 - tnr) / 0.6).clip(0, 1)
         components.append(tnr_score)
@@ -389,7 +400,7 @@ class ChoppyRegimeDetector:
         These are fast signals that react within 1-5 days of a regime shift.
         """
         vix_aligned = vix.reindex(idx, method="ffill").fillna(vix.mean())
-        components  = []
+        components = []
 
         # F10: VIX 10d realised std (vol-of-vol from VIX directly)
         vix_std = vix_aligned.rolling(10).std()
@@ -398,13 +409,13 @@ class ChoppyRegimeDetector:
 
         # F11: Fraction of days VIX > 20 in rolling 20d window
         above20_rate = (vix_aligned > 20).astype(float).rolling(20).mean()
-        base, ceil   = CALIBRATION["vix_above20_rate"]
+        base, ceil = CALIBRATION["vix_above20_rate"]
         components.append(self._rescale(above20_rate, base, ceil))
 
         # F12: VIX 5-day velocity (rapid VIX spike = event shock beginning)
         vix_vel = vix_aligned.pct_change(5).clip(-1, 2).fillna(0)
-        vix_vel_pos = vix_vel.clip(lower=0)   # only upward spikes matter
-        base, ceil  = CALIBRATION["vix_5d_vel"]
+        vix_vel_pos = vix_vel.clip(lower=0)  # only upward spikes matter
+        base, ceil = CALIBRATION["vix_5d_vel"]
         components.append(self._rescale(vix_vel_pos, base, ceil))
 
         result = pd.concat(components, axis=1).mean(axis=1)
@@ -412,8 +423,7 @@ class ChoppyRegimeDetector:
 
     # ── Group E: Commodity & FX stress ───────────────────────────────────────
 
-    def _group_commodity_fx(self, spy_close: pd.Series,
-                            idx: pd.DatetimeIndex) -> pd.Series:
+    def _group_commodity_fx(self, spy_close: pd.Series, idx: pd.DatetimeIndex) -> pd.Series:
         """
         Safety flight (gold/SPY), oil shock, DXY risk-off.
         These provide confirmation from outside the equity market.
@@ -428,7 +438,7 @@ class ChoppyRegimeDetector:
         if gld is not None:
             gld_spy = (gld / spy_close.reindex(gld.index, method="ffill")).dropna()
             gld_spy_chg = gld_spy.pct_change(20).clip(-0.5, 0.5)
-            base, ceil  = CALIBRATION["gld_spy_20d_chg"]
+            base, ceil = CALIBRATION["gld_spy_20d_chg"]
             components.append(self._rescale(gld_spy_chg, base, ceil))
 
         # F14: |Oil 10d return| — both spikes and crashes signal stress
@@ -440,7 +450,7 @@ class ChoppyRegimeDetector:
         # F15: DXY 10d upward momentum (risk-off USD strengthening)
         if dxy is not None:
             dxy_mom = dxy.pct_change(10).clip(-0.1, 0.1).fillna(0)
-            dxy_pos = dxy_mom.clip(lower=0)   # only USD strengthening matters
+            dxy_pos = dxy_mom.clip(lower=0)  # only USD strengthening matters
             base, ceil = CALIBRATION["dxy_10d_mom_pos"]
             components.append(self._rescale(dxy_pos, base, ceil))
 
@@ -452,8 +462,9 @@ class ChoppyRegimeDetector:
 
     # ── Group F: Market breadth & cross-asset regime ──────────────────────────
 
-    def _group_breadth(self, prices: pd.DataFrame, spy_close: pd.Series,
-                       idx: pd.DatetimeIndex) -> pd.Series:
+    def _group_breadth(
+        self, prices: pd.DataFrame, spy_close: pd.Series, idx: pd.DatetimeIndex
+    ) -> pd.Series:
         """
         Breadth deterioration: fraction of stocks below key MAs.
         When breadth narrows, the market is in stealth distribution
@@ -463,14 +474,14 @@ class ChoppyRegimeDetector:
         components = []
 
         # F16: Fraction of equity universe above 50d MA (low = stress)
-        ma50    = prices.rolling(50).mean()
+        ma50 = prices.rolling(50).mean()
         breadth = (prices > ma50).astype(float).mean(axis=1)
         base, ceil = CALIBRATION["breadth_below"]
         # Inverted: high breadth = 0 stress, low breadth = high stress
         components.append(self._rescale(breadth, base, ceil, invert=True))
 
         # F17: Fraction above 200d MA (longer-term trend health)
-        ma200     = prices.rolling(200).mean()
+        ma200 = prices.rolling(200).mean()
         breadth200 = (prices > ma200).astype(float).mean(axis=1)
         # Use same calibration (slightly different scale)
         components.append(self._rescale(breadth200, base * 0.9, ceil * 0.9, invert=True))
@@ -480,9 +491,9 @@ class ChoppyRegimeDetector:
         # When correlation turns strongly positive, both assets move together
         # = late-cycle stress or flight-to-quality breakdown.
         if tlt is not None:
-            spy_r   = spy_close.pct_change()
-            tlt_r   = tlt.reindex(spy_close.index, method="ffill").pct_change()
-            corr20  = spy_r.rolling(20).corr(tlt_r)
+            spy_r = spy_close.pct_change()
+            tlt_r = tlt.reindex(spy_close.index, method="ffill").pct_change()
+            corr20 = spy_r.rolling(20).corr(tlt_r)
             base, ceil = CALIBRATION["spy_tlt_corr"]
             # high positive correlation = stress in this model
             components.append(self._rescale(corr20, base, ceil))
@@ -495,29 +506,30 @@ class ChoppyRegimeDetector:
 
     # ── Group G: Sentiment proxies ────────────────────────────────────────────
 
-    def _group_sentiment(self, vix: pd.Series, spy_close: pd.Series,
-                          idx: pd.DatetimeIndex) -> pd.Series:
+    def _group_sentiment(
+        self, vix: pd.Series, spy_close: pd.Series, idx: pd.DatetimeIndex
+    ) -> pd.Series:
         """
         Implied vs realised volatility premium (fear premium) and
         VIX elevation relative to its own recent history.
         These capture the sentiment component that pure price vol misses.
         """
         vix_aligned = vix.reindex(idx, method="ffill")
-        spy_rvol    = spy_close.pct_change().rolling(20).std() * np.sqrt(252) * 100
-        spy_rvol    = spy_rvol.reindex(idx, method="ffill")
-        components  = []
+        spy_rvol = spy_close.pct_change().rolling(20).std() * np.sqrt(252) * 100
+        spy_rvol = spy_rvol.reindex(idx, method="ffill")
+        components = []
 
         # F19: VIX / Realised Vol ratio — fear premium
         # High ratio = implied vol elevated vs actual vol = anxiety / uncertainty
         vix_rvol_ratio = (vix_aligned / spy_rvol.replace(0, np.nan)).fillna(1.4)
-        base, ceil     = CALIBRATION["vix_rvol_ratio"]
+        base, ceil = CALIBRATION["vix_rvol_ratio"]
         components.append(self._rescale(vix_rvol_ratio, base, ceil))
 
         # F20: VIX relative to its own 60d mean
         # Spikes above recent history = regime shift in fear
-        vix_60d_mean   = vix_aligned.rolling(60).mean().replace(0, np.nan)
-        vix_rel        = (vix_aligned / vix_60d_mean).fillna(1.0)
-        base, ceil     = CALIBRATION["vix_vs_60dmean"]
+        vix_60d_mean = vix_aligned.rolling(60).mean().replace(0, np.nan)
+        vix_rel = (vix_aligned / vix_60d_mean).fillna(1.0)
+        base, ceil = CALIBRATION["vix_vs_60dmean"]
         components.append(self._rescale(vix_rel, base, ceil))
 
         result = pd.concat(components, axis=1).mean(axis=1)
@@ -561,22 +573,19 @@ class ChoppyRegimeDetector:
         """Group 9: Order flow anomaly (volume spike + bid-ask spread widening).
         Returns score in [0,1]. Degrades gracefully to 0.0 if data unavailable."""
         try:
-            minute_bars = data.get('minute_bars')
-            quote_snapshots = data.get('quote_snapshots')
-            daily_bars = data.get('daily_bars_spy', data.get('spy_daily'))
+            minute_bars = data.get("minute_bars")
+            quote_snapshots = data.get("quote_snapshots")
+            daily_bars = data.get("daily_bars_spy", data.get("spy_daily"))
             if daily_bars is None:
                 return 0.0
             features = self.order_flow_detector.compute_features(
-                minute_bars=minute_bars,
-                quote_snapshots=quote_snapshots,
-                daily_bars=daily_bars
+                minute_bars=minute_bars, quote_snapshots=quote_snapshots, daily_bars=daily_bars
             )
             return self.order_flow_detector.compute_score(features)
         except Exception:
             return 0.0  # always degrade gracefully
 
-    def _group_order_flow(self, prices: pd.DataFrame,
-                          idx: pd.DatetimeIndex) -> pd.Series:
+    def _group_order_flow(self, prices: pd.DataFrame, idx: pd.DatetimeIndex) -> pd.Series:
         """
         Group I: Order flow anomaly score from daily OHLCV data.
         Uses OrderFlowAnomalyDetector to detect abnormal repositioning patterns.
@@ -593,7 +602,7 @@ class ChoppyRegimeDetector:
                     if df is None:
                         continue
                     df.columns = [c.capitalize() for c in df.columns]
-                    if hasattr(df.index, 'tz') and df.index.tz is not None:
+                    if hasattr(df.index, "tz") and df.index.tz is not None:
                         df.index = df.index.tz_localize(None)
                     else:
                         df.index = pd.to_datetime(df.index).tz_localize(None)
@@ -627,15 +636,15 @@ class ChoppyRegimeDetector:
         spy_close = prices["SPY"] if "SPY" in prices.columns else prices.mean(axis=1)
 
         groups = pd.DataFrame(index=idx)
-        groups["vol_spike"]    = self._group_vol_spike(idx)
-        groups["price_vol"]    = self._group_price_vol(prices, spy_close, idx)
+        groups["vol_spike"] = self._group_vol_spike(idx)
+        groups["price_vol"] = self._group_price_vol(prices, spy_close, idx)
         groups["macro_credit"] = self._group_macro_credit(idx)
-        groups["event_shock"]  = self._group_event_shock(vix, idx)
+        groups["event_shock"] = self._group_event_shock(vix, idx)
         groups["commodity_fx"] = self._group_commodity_fx(spy_close, idx)
-        groups["breadth"]      = self._group_breadth(prices, spy_close, idx)
-        groups["sentiment"]    = self._group_sentiment(vix, spy_close, idx)
+        groups["breadth"] = self._group_breadth(prices, spy_close, idx)
+        groups["sentiment"] = self._group_sentiment(vix, spy_close, idx)
         groups["credit_stress"] = self._group_credit_stress(idx)
-        groups["order_flow"]   = self._group_order_flow(prices, idx)
+        groups["order_flow"] = self._group_order_flow(prices, idx)
         return groups.fillna(0).clip(0, 1)
 
     def score_series(
@@ -704,7 +713,7 @@ class ChoppyRegimeDetector:
         Returns float ∈ [0, 1].
         """
         score = self.score_series(prices, vix, smooth=True)
-        val   = float(score.iloc[-1]) if len(score) > 0 else 0.0
+        val = float(score.iloc[-1]) if len(score) > 0 else 0.0
         self._last_score = val
         log.info(f"ChoppyRegimeDetector v4 live score: {val:.3f}")
         return float(np.clip(val, 0, 1))
@@ -712,16 +721,16 @@ class ChoppyRegimeDetector:
     def get_regime(self, score: float) -> str:
         """Return regime label for a given score using v4 thresholds."""
         if score < self.GREEN_MAX:
-            return 'GREEN'
+            return "GREEN"
         if score < self.YELLOW_MAX:
-            return 'YELLOW'
+            return "YELLOW"
         if score < self.ORANGE_MAX:
-            return 'ORANGE'
-        return 'RED'
+            return "ORANGE"
+        return "RED"
 
     def current_score(self) -> float:
         """Return the most recently computed score (for live engine integration)."""
-        return getattr(self, '_last_score', 0.0)
+        return getattr(self, "_last_score", 0.0)
 
     @staticmethod
     def score_to_scale(score: float) -> tuple[float, str]:
@@ -742,12 +751,13 @@ class ChoppyRegimeDetector:
         Return a DataFrame of daily group scores for a date range.
         Useful for diagnostics, visualisation, and calibration verification.
         """
-        det   = ChoppyRegimeDetector()
+        det = ChoppyRegimeDetector()
         _score, groups = det.score_series(prices, vix, return_groups=True)
         return groups.loc[start:end]
 
 
 # ── Diagnostic helper ─────────────────────────────────────────────────────────
+
 
 def run_diagnostic(
     prices: pd.DataFrame,
@@ -757,7 +767,7 @@ def run_diagnostic(
     """
     Run the detector across specified periods and return a summary DataFrame.
     """
-    det    = ChoppyRegimeDetector()
+    det = ChoppyRegimeDetector()
     scores = det.score_series(prices, vix)
 
     rows = []
@@ -765,14 +775,16 @@ def run_diagnostic(
         sub = scores.loc[s:e]
         if sub.empty:
             continue
-        rows.append({
-            "period":     label,
-            "mean_score": round(float(sub.mean()), 3),
-            "p75_score":  round(float(sub.quantile(0.75)), 3),
-            "p95_score":  round(float(sub.quantile(0.95)), 3),
-            "pct_green":  round(float((sub < 0.30).mean() * 100), 1),
-            "pct_yellow": round(float(((sub >= 0.30) & (sub < 0.50)).mean() * 100), 1),
-            "pct_orange": round(float(((sub >= 0.50) & (sub < 0.65)).mean() * 100), 1),
-            "pct_red":    round(float((sub >= 0.65).mean() * 100), 1),
-        })
+        rows.append(
+            {
+                "period": label,
+                "mean_score": round(float(sub.mean()), 3),
+                "p75_score": round(float(sub.quantile(0.75)), 3),
+                "p95_score": round(float(sub.quantile(0.95)), 3),
+                "pct_green": round(float((sub < 0.30).mean() * 100), 1),
+                "pct_yellow": round(float(((sub >= 0.30) & (sub < 0.50)).mean() * 100), 1),
+                "pct_orange": round(float(((sub >= 0.50) & (sub < 0.65)).mean() * 100), 1),
+                "pct_red": round(float((sub >= 0.65).mean() * 100), 1),
+            }
+        )
     return pd.DataFrame(rows)

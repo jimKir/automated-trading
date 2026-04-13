@@ -3,6 +3,7 @@ Production Readiness Dress Rehearsal — All Phases
 ==================================================
 Runs Phase 1c, 1d, and all Phase 2 dry-run tests.
 """
+
 import json
 import os
 import sys
@@ -21,6 +22,7 @@ os.chdir(REPO_ROOT)
 DATA_DIR = REPO_ROOT / "data" / "historical" / "daily"
 
 RESULTS = []
+
 
 def log_result(phase, test, status, detail=""):
     RESULTS.append({"phase": phase, "test": test, "status": status, "detail": detail})
@@ -64,8 +66,18 @@ log_result("1c", "rebalance_frequency", "PASS" if rebal == "adaptive" else "FAIL
 rs = strat_cfg.get("regime_switching", {})
 log_result("1c", "regime_switching_present", "PASS" if rs.get("enabled") else "FAIL")
 if rs:
-    bull_sum = rs.get("bull_w_ts_mom", 0) + rs.get("bull_w_mr", 0) + rs.get("bull_w_macd", 0) + rs.get("bull_w_rsi", 0)
-    log_result("1c", "bull_weights_sum", "PASS" if abs(bull_sum - 1.0) < 0.01 else "FAIL", f"sum={bull_sum:.3f}")
+    bull_sum = (
+        rs.get("bull_w_ts_mom", 0)
+        + rs.get("bull_w_mr", 0)
+        + rs.get("bull_w_macd", 0)
+        + rs.get("bull_w_rsi", 0)
+    )
+    log_result(
+        "1c",
+        "bull_weights_sum",
+        "PASS" if abs(bull_sum - 1.0) < 0.01 else "FAIL",
+        f"sum={bull_sum:.3f}",
+    )
 
 # Check position_anomaly block
 pa = cfg.get("position_anomaly", {})
@@ -119,7 +131,7 @@ for pf in sorted(parquet_files):
         # Special check: SPY must have data to 2026
         if sym == "SPY":
             max_date = df.index.max()
-            if hasattr(max_date, 'tz') and max_date.tz is not None:
+            if hasattr(max_date, "tz") and max_date.tz is not None:
                 max_date = max_date.tz_localize(None)
             if max_date >= pd.Timestamp("2026-01-01"):
                 log_result("1d", "SPY_data_to_2026", "PASS", f"max date: {max_date.date()}")
@@ -185,11 +197,23 @@ try:
     # Verify score range
     assert score_series.min() >= 0, f"Score min < 0: {score_series.min()}"
     assert score_series.max() <= 1, f"Score max > 1: {score_series.max()}"
-    log_result("2a", "score_range_0_1", "PASS", f"min={score_series.min():.3f} max={score_series.max():.3f}")
+    log_result(
+        "2a",
+        "score_range_0_1",
+        "PASS",
+        f"min={score_series.min():.3f} max={score_series.max():.3f}",
+    )
 
     # Verify groups computed
-    expected_groups = ["vol_spike", "price_vol", "macro_credit", "event_shock",
-                       "commodity_fx", "breadth", "sentiment"]
+    expected_groups = [
+        "vol_spike",
+        "price_vol",
+        "macro_credit",
+        "event_shock",
+        "commodity_fx",
+        "breadth",
+        "sentiment",
+    ]
     for g in expected_groups:
         if g in groups_df.columns:
             log_result("2a", f"group_{g}", "PASS")
@@ -218,6 +242,7 @@ try:
 except Exception as e:
     log_result("2a", "choppy_detector_overall", "FAIL", str(e)[:200])
     import traceback
+
     traceback.print_exc()
 
 
@@ -264,6 +289,7 @@ try:
 except Exception as e:
     log_result("2b", "signal_engine_overall", "FAIL", str(e)[:200])
     import traceback
+
     traceback.print_exc()
 
 
@@ -326,6 +352,7 @@ try:
 except Exception as e:
     log_result("2c", "position_anomaly_overall", "FAIL", str(e)[:200])
     import traceback
+
     traceback.print_exc()
 
 
@@ -340,13 +367,16 @@ try:
 
     # Create mock hourly bars (30 bars)
     dates = pd.date_range("2026-04-10 09:00", periods=30, freq="1h")
-    mock_bars = pd.DataFrame({
-        "Open":   np.random.uniform(500, 520, 30),
-        "High":   np.random.uniform(518, 525, 30),
-        "Low":    np.random.uniform(495, 505, 30),
-        "Close":  np.linspace(500, 515, 30),  # trending up
-        "Volume": np.random.uniform(1e6, 5e6, 30),
-    }, index=dates)
+    mock_bars = pd.DataFrame(
+        {
+            "Open": np.random.uniform(500, 520, 30),
+            "High": np.random.uniform(518, 525, 30),
+            "Low": np.random.uniform(495, 505, 30),
+            "Close": np.linspace(500, 515, 30),  # trending up
+            "Volume": np.random.uniform(1e6, 5e6, 30),
+        },
+        index=dates,
+    )
 
     # Case 1: 12:00 ET (16:00 UTC), entry decision is made (returns bool)
     # At 16:00 UTC = 12:00 EDT
@@ -375,18 +405,23 @@ try:
     # Case 5: BTC at 12:00 UTC (outside 14-17 window) → False
     t5 = datetime(2026, 4, 10, 12, 0)
     result5 = timer.should_enter_now("BTC-USD", mock_bars, t5)
-    log_result("2d", "case5_BTC_outside_window", "PASS" if not result5 else "FAIL", f"got {result5}")
+    log_result(
+        "2d", "case5_BTC_outside_window", "PASS" if not result5 else "FAIL", f"got {result5}"
+    )
 
     # Case 6: BTC at 15:30 UTC (inside window)
     t6 = datetime(2026, 4, 10, 15, 30)
     # Create bars with RSI < 45 (declining)
-    btc_bars = pd.DataFrame({
-        "Open":   np.linspace(70000, 68000, 30),
-        "High":   np.linspace(70500, 68500, 30),
-        "Low":    np.linspace(69500, 67500, 30),
-        "Close":  np.linspace(70000, 67800, 30),  # declining for low RSI
-        "Volume": np.random.uniform(100, 500, 30),
-    }, index=dates)
+    btc_bars = pd.DataFrame(
+        {
+            "Open": np.linspace(70000, 68000, 30),
+            "High": np.linspace(70500, 68500, 30),
+            "Low": np.linspace(69500, 67500, 30),
+            "Close": np.linspace(70000, 67800, 30),  # declining for low RSI
+            "Volume": np.random.uniform(100, 500, 30),
+        },
+        index=dates,
+    )
     result6 = timer.should_enter_now("BTC-USD", btc_bars, t6)
     # Inside crypto window, RSI check returns a boolean decision — either result is valid
     log_result("2d", "case6_BTC_inside_rsi", "PASS", f"got {result6} (RSI evaluated)")
@@ -396,6 +431,7 @@ try:
 except Exception as e:
     log_result("2d", "hourly_timer_overall", "FAIL", str(e)[:200])
     import traceback
+
     traceback.print_exc()
 
 
@@ -406,8 +442,8 @@ print("\n=== PHASE 2e: DynamicUniverseScanner Dry-Run ===")
 try:
     from data.dynamic_universe_scanner import DynamicUniverseScanner
 
-    _api_key = os.environ.get('ALPACA_API_KEY') or os.environ.get('APCA_API_KEY_ID', '')
-    _secret_key = os.environ.get('ALPACA_SECRET_KEY') or os.environ.get('APCA_API_SECRET_KEY', '')
+    _api_key = os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID", "")
+    _secret_key = os.environ.get("ALPACA_SECRET_KEY") or os.environ.get("APCA_API_SECRET_KEY", "")
     scanner = DynamicUniverseScanner(
         api_key=_api_key,
         secret_key=_secret_key,
@@ -433,8 +469,12 @@ try:
         result_choppy = scanner.scan(choppy_score=0.30)
         if result_choppy.candidates:
             ok = len(result_choppy.candidates) <= 1
-            log_result("2e", "orange_gate", "PASS" if ok else "FAIL",
-                      f"{len(result_choppy.candidates)} candidates (max 1)")
+            log_result(
+                "2e",
+                "orange_gate",
+                "PASS" if ok else "FAIL",
+                f"{len(result_choppy.candidates)} candidates (max 1)",
+            )
         else:
             # No candidates at all in ORANGE is fine
             log_result("2e", "orange_gate", "PASS", "0 candidates (conservative)")
@@ -443,19 +483,28 @@ try:
 
     # Test 3: RED regime — should return 0
     result_red = scanner.scan(choppy_score=0.50)
-    log_result("2e", "red_gate", "PASS" if len(result_red.candidates) == 0 else "FAIL",
-              f"{len(result_red.candidates)} candidates")
+    log_result(
+        "2e",
+        "red_gate",
+        "PASS" if len(result_red.candidates) == 0 else "FAIL",
+        f"{len(result_red.candidates)} candidates",
+    )
 
     # Test 4: Invalid API key — graceful degradation
     bad_scanner = DynamicUniverseScanner(api_key="INVALID", secret_key="INVALID")
     result_bad = bad_scanner.scan_safe(choppy_score=0.10)
-    log_result("2e", "api_failure_graceful", "PASS" if result_bad.error or len(result_bad.candidates) == 0 else "FAIL")
+    log_result(
+        "2e",
+        "api_failure_graceful",
+        "PASS" if result_bad.error or len(result_bad.candidates) == 0 else "FAIL",
+    )
 
     log_result("2e", "scanner_overall", "PASS")
 
 except Exception as e:
     log_result("2e", "scanner_overall", "FAIL", str(e)[:200])
     import traceback
+
     traceback.print_exc()
 
 
@@ -471,8 +520,9 @@ try:
     test_config["system"] = {"mode": "paper"}
     test_config.setdefault("brokers", {})
     test_config["brokers"]["alpaca"] = {
-        "api_key": os.environ.get('ALPACA_API_KEY') or os.environ.get('APCA_API_KEY_ID', ''),
-        "api_secret": os.environ.get('ALPACA_SECRET_KEY') or os.environ.get('APCA_API_SECRET_KEY', ''),
+        "api_key": os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID", ""),
+        "api_secret": os.environ.get("ALPACA_SECRET_KEY")
+        or os.environ.get("APCA_API_SECRET_KEY", ""),
         "paper": True,
         "base_url": "https://paper-api.alpaca.markets",
     }
@@ -507,14 +557,19 @@ try:
         log_result("2f", "universe_scanner", "FAIL", "not loaded (may need Alpaca key)")
 
     # Verify rebalance frequency is adaptive
-    log_result("2f", "rebalance_adaptive", "PASS" if engine._rebalance_freq == "adaptive" else "FAIL",
-              f"got '{engine._rebalance_freq}'")
+    log_result(
+        "2f",
+        "rebalance_adaptive",
+        "PASS" if engine._rebalance_freq == "adaptive" else "FAIL",
+        f"got '{engine._rebalance_freq}'",
+    )
 
     log_result("2f", "live_engine_overall", "PASS")
 
 except Exception as e:
     log_result("2f", "live_engine_overall", "FAIL", str(e)[:200])
     import traceback
+
     traceback.print_exc()
 
 

@@ -1,4 +1,5 @@
 """Unit tests for PositionAnomalyScorer."""
+
 import os
 import sys
 
@@ -25,18 +26,21 @@ def scorer():
 class TestConfiguration:
     def test_crypto_floor(self, scorer):
         cfg = _CLASS_CONFIG[AssetClass.CRYPTO]
-        assert cfg['floor'] == pytest.approx(0.10), \
+        assert cfg["floor"] == pytest.approx(0.10), (
             f"Crypto floor should be 0.10, got {cfg['floor']}"
+        )
 
     def test_equity_floor(self, scorer):
         cfg = _CLASS_CONFIG[AssetClass.EQUITY]
-        assert cfg['floor'] == pytest.approx(0.40), \
+        assert cfg["floor"] == pytest.approx(0.40), (
             f"Equity floor should be 0.40, got {cfg['floor']}"
+        )
 
     def test_g1_ceiling_corrected(self, scorer):
         """G1 ceiling must be 1.55 (corrected from broken 3.0)."""
-        assert pytest.approx(1.55) == _VOL_SPIKE_CEILING, \
+        assert pytest.approx(1.55) == _VOL_SPIKE_CEILING, (
             f"G1_ceiling should be 1.55 (WF-calibrated), got {_VOL_SPIKE_CEILING}"
+        )
 
     def test_g3_dd_ceil_crypto(self, scorer):
         assert pytest.approx(0.25) == _DD_CEILING_CRYPTO
@@ -47,22 +51,22 @@ class TestConfiguration:
 
 class TestClassification:
     def test_btc_is_crypto(self):
-        assert classify('BTC-USD') == AssetClass.CRYPTO
+        assert classify("BTC-USD") == AssetClass.CRYPTO
 
     def test_spy_is_etf_equity(self):
-        assert classify('SPY') == AssetClass.ETF_EQUITY
+        assert classify("SPY") == AssetClass.ETF_EQUITY
 
     def test_tlt_is_etf_hedge(self):
-        assert classify('TLT') == AssetClass.ETF_HEDGE
+        assert classify("TLT") == AssetClass.ETF_HEDGE
 
     def test_gld_is_etf_hedge(self):
-        assert classify('GLD') == AssetClass.ETF_HEDGE
+        assert classify("GLD") == AssetClass.ETF_HEDGE
 
     def test_etf_hedge_never_cut(self):
         """ETF hedges should have sensitivity=0 and floor=1.0."""
         cfg = _CLASS_CONFIG[AssetClass.ETF_HEDGE]
-        assert cfg['sensitivity'] == 0.0
-        assert cfg['floor'] == 1.0
+        assert cfg["sensitivity"] == 0.0
+        assert cfg["floor"] == 1.0
 
 
 class TestScaling:
@@ -76,12 +80,12 @@ class TestScaling:
     def test_crypto_never_below_floor(self, scorer):
         """Crypto position should never go below floor."""
         scale = scorer._score_to_scale(1.0, AssetClass.CRYPTO)
-        floor = _CLASS_CONFIG[AssetClass.CRYPTO]['floor']
+        floor = _CLASS_CONFIG[AssetClass.CRYPTO]["floor"]
         assert scale >= floor
 
     def test_equity_never_below_floor(self, scorer):
         scale = scorer._score_to_scale(1.0, AssetClass.EQUITY)
-        floor = _CLASS_CONFIG[AssetClass.EQUITY]['floor']
+        floor = _CLASS_CONFIG[AssetClass.EQUITY]["floor"]
         assert scale >= floor
 
     def test_hedge_always_full(self, scorer):

@@ -128,6 +128,7 @@ class LiveEngine:
         if config.get("anomaly_layer", {}).get("enabled", True):
             try:
                 from regime.anomaly_layer import AnomalyRegimeLayer
+
                 self._anomaly_layer = AnomalyRegimeLayer(config)
                 log.info("AnomalyRegimeLayer enabled — 4-source composite anomaly detection")
             except Exception as e:
@@ -138,6 +139,7 @@ class LiveEngine:
         if config.get("position_anomaly", {}).get("enabled", True):
             try:
                 from risk.position_anomaly import PositionAnomalyScorer
+
                 self._pos_anomaly_scorer = PositionAnomalyScorer()
                 log.info("PositionAnomalyScorer enabled — asymmetric per-symbol scaling")
             except Exception as e:
@@ -148,6 +150,7 @@ class LiveEngine:
         if config.get("execution", {}).get("hourly_timing_enabled", False):
             try:
                 from execution.hourly_entry_timer import HourlyEntryTimer
+
                 self._hourly_timer = HourlyEntryTimer(enabled=True)
                 log.info("HourlyEntryTimer enabled")
             except Exception as e:
@@ -160,13 +163,12 @@ class LiveEngine:
                 import os
 
                 from data.dynamic_universe_scanner import DynamicUniverseScanner
+
                 alpaca_cfg = config.get("brokers", {}).get("alpaca", {})
                 ak = alpaca_cfg.get("api_key") or os.environ.get("ALPACA_API_KEY", "")
                 sk = alpaca_cfg.get("api_secret") or os.environ.get("ALPACA_API_SECRET", "")
                 if ak and sk:
-                    self._universe_scanner = DynamicUniverseScanner(
-                        api_key=ak, secret_key=sk
-                    )
+                    self._universe_scanner = DynamicUniverseScanner(api_key=ak, secret_key=sk)
                     log.info("DynamicUniverseScanner enabled")
             except Exception as e:
                 log.warning(f"DynamicUniverseScanner failed to load: {e}")
@@ -268,14 +270,16 @@ class LiveEngine:
             return
 
         # Build price DataFrame and populate _price_df_live for adaptive rebalance
-        price_data = pd.DataFrame({sym: df["Close"] for sym, df in all_data.items()
-                                    if "Close" in df.columns})
+        price_data = pd.DataFrame(
+            {sym: df["Close"] for sym, df in all_data.items() if "Close" in df.columns}
+        )
         self._price_df_live = price_data
 
         # Get current choppy score for regime dispatch
         choppy_score = 0.0
         try:
             from regime.choppy_regime import ChoppyRegimeDetector
+
             _choppy_det = ChoppyRegimeDetector()
             _vix_s = None
             if "^VIX" in all_data:
@@ -295,7 +299,11 @@ class LiveEngine:
                 anomaly_result = self._anomaly_layer.compute(price_data)
                 anomaly_scale = anomaly_result.position_scale
                 anomaly_label = anomaly_result.label
-                choppy_scale_val, choppy_colour = ChoppyRegimeDetector.score_to_scale(choppy_score) if choppy_score > 0 else (1.0, "GREEN")
+                choppy_scale_val, choppy_colour = (
+                    ChoppyRegimeDetector.score_to_scale(choppy_score)
+                    if choppy_score > 0
+                    else (1.0, "GREEN")
+                )
                 combined_regime_scale = choppy_scale_val * anomaly_scale
                 log.info(
                     f"[REGIME] Choppy={choppy_colour}({choppy_scale_val:.2f}) "
@@ -384,13 +392,16 @@ class LiveEngine:
         if self._pos_anomaly_scorer is not None:
             try:
                 price_df_for_pos = pd.DataFrame(
-                    {sym: df["Close"] for sym, df in all_data.items()
-                     if "Close" in df.columns}
+                    {sym: df["Close"] for sym, df in all_data.items() if "Close" in df.columns}
                 )
                 # Use ChoppyRegimeDetector score as portfolio context
                 from regime.choppy_regime import ChoppyRegimeDetector
-                _vix_s = price_df_for_pos.get("VIX",
-                    pd.Series(dtype=float)) if hasattr(price_df_for_pos,"get") else pd.Series(dtype=float)
+
+                _vix_s = (
+                    price_df_for_pos.get("VIX", pd.Series(dtype=float))
+                    if hasattr(price_df_for_pos, "get")
+                    else pd.Series(dtype=float)
+                )
                 if "VIX" in price_df_for_pos.columns:
                     _vix_s = price_df_for_pos["VIX"]
                 elif "^VIX" in all_data:
@@ -399,14 +410,14 @@ class LiveEngine:
                 _pos_scales = self._pos_anomaly_scorer.score_today(
                     price_df_for_pos, portfolio_score=_port_score
                 )
-                crypto_scales = {s: round(v,2) for s, v in _pos_scales.items()
-                                 if any(c in s.upper() for c in ["BTC","ETH","SOL"])}
+                crypto_scales = {
+                    s: round(v, 2)
+                    for s, v in _pos_scales.items()
+                    if any(c in s.upper() for c in ["BTC", "ETH", "SOL"])
+                }
                 if crypto_scales:
                     log.info(f"PosAnomaly live crypto scales: {crypto_scales}")
-                signals = {
-                    sym: sig * _pos_scales.get(sym, 1.0)
-                    for sym, sig in signals.items()
-                }
+                signals = {sym: sig * _pos_scales.get(sym, 1.0) for sym, sig in signals.items()}
             except Exception as _pos_err:
                 log.debug(f"PositionAnomalyScorer live failed: {_pos_err}")
 
@@ -444,7 +455,8 @@ class LiveEngine:
         _NON_TRADEABLE_SUFFIXES = ("=F",)
         _NON_TRADEABLE_PREFIXES = ("^",)
         tradeable_weights = {
-            sym: w for sym, w in target_weights.items()
+            sym: w
+            for sym, w in target_weights.items()
             if not sym.endswith(_NON_TRADEABLE_SUFFIXES)
             and not sym.startswith(_NON_TRADEABLE_PREFIXES)
         }
@@ -544,15 +556,16 @@ class LiveEngine:
         if self._rebalance_freq == "adaptive":
             # Get ChoppyDetector score for today (uses latest available prices)
             choppy_score = 0.0
-            thr = float(
-                self.config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17)
-            )
+            thr = float(self.config.get("strategy", {}).get("adaptive_weekly_threshold", 0.17))
             try:
                 from regime.choppy_regime import ChoppyRegimeDetector
+
                 if hasattr(self, "_price_df_live") and self._price_df_live is not None:
-                    vix_col = self._price_df_live.get(
-                        "VIX", self._price_df_live.iloc[:, 0]
-                    ) if hasattr(self._price_df_live, "get") else None
+                    vix_col = (
+                        self._price_df_live.get("VIX", self._price_df_live.iloc[:, 0])
+                        if hasattr(self._price_df_live, "get")
+                        else None
+                    )
                     if vix_col is not None:
                         choppy_score = ChoppyRegimeDetector().score_today(
                             self._price_df_live, vix_col
@@ -604,7 +617,7 @@ if __name__ == "__main__":
     if "system" not in config:
         config["system"] = {}
     config["system"]["mode"] = args.mode
-    dry_run = (args.mode == "dry_run")
+    dry_run = args.mode == "dry_run"
 
     logger.info("=" * 60)
     logger.info("  AUTOMATED TRADING ENGINE")
@@ -618,7 +631,7 @@ if __name__ == "__main__":
     try:
         engine = LiveEngine(config=config, dry_run=dry_run)
         # Call whichever method actually starts the loop
-        start_method = getattr(engine, 'start', None) or getattr(engine, 'run', None)
+        start_method = getattr(engine, "start", None) or getattr(engine, "run", None)
         if start_method is None:
             logger.error("LiveEngine has no start() or run() method")
             raise SystemExit(1)
@@ -632,10 +645,12 @@ if __name__ == "__main__":
 # ── Options hedge integration (appended) ─────────────────────────────────────
 # To activate: set options_hedge_enabled: true in config/settings.yaml
 
+
 def _init_options_hedge(self):
     """Call from __init__ after other subsystems are ready."""
     try:
         from execution.options_hedge import ProtectivePutHedge
+
         enabled = self.config.get("options_hedge", {}).get("enabled", False)
         if enabled:
             self._hedge = ProtectivePutHedge(
@@ -656,11 +671,12 @@ def _run_hedge_check(self, choppy_score: float, spy_price: float):
         return
     try:
         account = self.broker.get_account()
-        equity  = float(account.equity)
+        equity = float(account.equity)
         # Get VIX if available
         vix = 20.0
         try:
             import yfinance as yf
+
             vix = float(yf.Ticker("^VIX").history(period="2d")["Close"].iloc[-1])
         except Exception:
             pass

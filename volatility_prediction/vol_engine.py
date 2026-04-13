@@ -606,7 +606,9 @@ class FeatureEngine:
         feats["vol_volume_corr"] = abs_ret.rolling(20).corr(v)
 
         # ── E. Range features ──────────────────────────────────────────
-        tr = pd.concat([h - lo, (h - c.shift(1)).abs(), (lo - c.shift(1)).abs()], axis=1).max(axis=1)
+        tr = pd.concat([h - lo, (h - c.shift(1)).abs(), (lo - c.shift(1)).abs()], axis=1).max(
+            axis=1
+        )
         feats["atr_14"] = tr.rolling(14).mean() / c  # normalised ATR
         feats["atr_5"] = tr.rolling(5).mean() / c
 

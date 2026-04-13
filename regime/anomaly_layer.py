@@ -35,10 +35,10 @@ log = get_logger("AnomalyLayer")
 
 @dataclass
 class AnomalyScore:
-    composite: float           # 0-1
-    label: str                 # NORMAL / ELEVATED / STRESSED / CRISIS
-    source_scores: dict        # {macro: 0.12, sentiment: 0.34, fx: 0.08, isolation: 0.21}
-    position_scale: float      # 1.0 / 0.85 / 0.65 / 0.40
+    composite: float  # 0-1
+    label: str  # NORMAL / ELEVATED / STRESSED / CRISIS
+    source_scores: dict  # {macro: 0.12, sentiment: 0.34, fx: 0.08, isolation: 0.21}
+    position_scale: float  # 1.0 / 0.85 / 0.65 / 0.40
 
 
 class AnomalyRegimeLayer:
@@ -79,24 +79,28 @@ class AnomalyRegimeLayer:
             return
         try:
             from regime.macro_score import MacroStressScorer
+
             self._macro_scorer = MacroStressScorer()
         except Exception as e:
             log.warning(f"MacroStressScorer unavailable: {e}")
 
         try:
             from regime.fx_anomaly import FXAnomalyDetector
+
             self._fx_detector = FXAnomalyDetector(data_dir=self._data_dir)
         except Exception as e:
             log.warning(f"FXAnomalyDetector unavailable: {e}")
 
         try:
             from regime.sentiment_anomaly import SentimentAnomalyDetector
+
             self._sentiment_detector = SentimentAnomalyDetector(data_dir=self._data_dir)
         except Exception as e:
             log.warning(f"SentimentAnomalyDetector unavailable: {e}")
 
         try:
             from regime.anomaly import PositionAnomalyDetector
+
             self._isolation_detector = PositionAnomalyDetector()
         except Exception as e:
             log.warning(f"PositionAnomalyDetector unavailable: {e}")
@@ -204,8 +208,7 @@ class AnomalyRegimeLayer:
 
         total_w = sum(available_weights.values())
         composite = sum(
-            source_scores[k] * available_weights[k] / total_w
-            for k in available_weights
+            source_scores[k] * available_weights[k] / total_w for k in available_weights
         )
         composite = float(np.clip(composite, 0, 1))
         label = self.get_regime_label(composite)

@@ -217,7 +217,9 @@ class Portfolio:
         fill_price = price * (1 + spread_adj * np.sign(quantity))
 
         # Total cash impact = fill value + all transaction costs
-        total_debit = notional + tx_cost if is_buy else -(notional - tx_cost)  # negative = cash inflow minus costs
+        total_debit = (
+            notional + tx_cost if is_buy else -(notional - tx_cost)
+        )  # negative = cash inflow minus costs
 
         # Check cash sufficiency for buys
         if is_buy and total_debit > self.cash:

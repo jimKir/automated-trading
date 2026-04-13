@@ -21,6 +21,7 @@ Usage:
 
 Run daily after market close (or weekly for the README update).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,26 +37,27 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-PAPER_STATE   = ROOT / "results" / "paper_state.json"
-OOS_RETURNS   = ROOT / "results" / "wf_12m_strat_returns.csv"
-OUTPUT_JSON   = ROOT / "results" / "paper_monitor.json"
-README_PATH   = ROOT / "README.md"
-PERIODS_YEAR  = 252
+PAPER_STATE = ROOT / "results" / "paper_state.json"
+OOS_RETURNS = ROOT / "results" / "wf_12m_strat_returns.csv"
+OUTPUT_JSON = ROOT / "results" / "paper_monitor.json"
+README_PATH = ROOT / "README.md"
+PERIODS_YEAR = 252
 
 # ── Go-live thresholds (must match docs/paper_trading_runbook.md §7) ─────────
 THRESHOLDS = {
-    "sharpe":             {"op": ">",  "value": 0.50,  "label": "Annualised Sharpe"},
-    "max_drawdown_pct":   {"op": "<",  "value": 15.0,  "label": "Max Drawdown"},
-    "dd_recovery":        {"op": ">=", "value": 1,     "label": "Drawdown Recovery"},
-    "win_rate_pct":       {"op": ">",  "value": 50.0,  "label": "Win Rate"},
-    "backtest_corr":      {"op": ">",  "value": 0.60,  "label": "Correlation to Backtest"},
-    "uptime_pct":         {"op": ">",  "value": 95.0,  "label": "System Uptime"},
+    "sharpe": {"op": ">", "value": 0.50, "label": "Annualised Sharpe"},
+    "max_drawdown_pct": {"op": "<", "value": 15.0, "label": "Max Drawdown"},
+    "dd_recovery": {"op": ">=", "value": 1, "label": "Drawdown Recovery"},
+    "win_rate_pct": {"op": ">", "value": 50.0, "label": "Win Rate"},
+    "backtest_corr": {"op": ">", "value": 0.60, "label": "Correlation to Backtest"},
+    "uptime_pct": {"op": ">", "value": 95.0, "label": "System Uptime"},
 }
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  Data loading
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def load_equity_history() -> pd.DataFrame:
     """Load equity history from paper_state.json or Alpaca fallback.
@@ -77,15 +79,13 @@ def load_equity_history() -> pd.DataFrame:
     try:
         from execution.alpaca_broker import AlpacaBroker
         from utils.config_loader import load_config
+
         config = load_config()
         broker = AlpacaBroker(config)
         if broker.connect():
             acct = broker.get_account()
             today = datetime.now(UTC).strftime("%Y-%m-%d")
-            return pd.DataFrame(
-                [{"equity": acct.equity}],
-                index=pd.to_datetime([today])
-            )
+            return pd.DataFrame([{"equity": acct.equity}], index=pd.to_datetime([today]))
     except Exception:
         pass
 
@@ -110,6 +110,7 @@ def load_prior_scorecard() -> dict:
 # ═════════════════════════════════════════════════════════════════════════════
 #  Metric computation
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def compute_metrics(equity: pd.DataFrame) -> dict:
     """Compute all 6 go-live metrics from an equity history DataFrame."""
@@ -181,9 +182,15 @@ def compute_metrics(equity: pd.DataFrame) -> dict:
 
 def _empty_metrics(reason: str) -> dict:
     return dict.fromkeys(THRESHOLDS) | {
-        "n_trading_days": 0, "total_return_pct": None, "cagr_pct": None,
-        "ann_vol_pct": None, "start_date": None, "end_date": None,
-        "current_equity": None, "peak_equity": None, "error": reason,
+        "n_trading_days": 0,
+        "total_return_pct": None,
+        "cagr_pct": None,
+        "ann_vol_pct": None,
+        "start_date": None,
+        "end_date": None,
+        "current_equity": None,
+        "peak_equity": None,
+        "error": reason,
     }
 
 
@@ -203,9 +210,7 @@ def _count_dd_recoveries(dd_series: pd.Series, threshold: float = -0.05) -> int:
     return recovered_count
 
 
-def _compute_backtest_correlation(
-    paper_ret: pd.Series, oos_ret: pd.Series | None
-) -> float | None:
+def _compute_backtest_correlation(paper_ret: pd.Series, oos_ret: pd.Series | None) -> float | None:
     """Correlate paper returns with OOS backtest returns on overlapping dates."""
     if oos_ret is None or len(oos_ret) < 10:
         return None
@@ -227,6 +232,7 @@ def _compute_backtest_correlation(
 # ═════════════════════════════════════════════════════════════════════════════
 #  Scorecard evaluation
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def evaluate(metrics: dict) -> list[dict]:
     """Evaluate each threshold and return a list of criterion results."""
@@ -258,15 +264,17 @@ def evaluate(metrics: dict) -> list[dict]:
             else:
                 display = f"{current:.1f}%"
 
-        results.append({
-            "index": list(THRESHOLDS.keys()).index(key) + 1,
-            "metric": spec["label"],
-            "threshold": _format_threshold(spec),
-            "current": display,
-            "status": status,
-            "key": key,
-            "raw_value": current,
-        })
+        results.append(
+            {
+                "index": list(THRESHOLDS.keys()).index(key) + 1,
+                "metric": spec["label"],
+                "threshold": _format_threshold(spec),
+                "current": display,
+                "status": status,
+                "key": key,
+                "raw_value": current,
+            }
+        )
     return results
 
 
@@ -278,7 +286,11 @@ def _format_threshold(spec: dict) -> str:
     else:
         val_str = str(val)
 
-    if spec.get("label", "").endswith("Drawdown") or spec.get("label", "").endswith("Rate") or spec.get("label", "").endswith("Uptime"):
+    if (
+        spec.get("label", "").endswith("Drawdown")
+        or spec.get("label", "").endswith("Rate")
+        or spec.get("label", "").endswith("Uptime")
+    ):
         return f"{op} {val_str}%"
     if spec.get("label", "").endswith("Recovery"):
         return f"{op} {val_str} episode"
@@ -288,6 +300,7 @@ def _format_threshold(spec: dict) -> str:
 # ═════════════════════════════════════════════════════════════════════════════
 #  Output
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def save_scorecard(metrics: dict, criteria: list[dict]) -> None:
     """Write full scorecard to results/paper_monitor.json."""
@@ -352,17 +365,21 @@ def print_scorecard(criteria: list[dict], metrics: dict, verbose: bool = False) 
     n_passed = sum(1 for c in criteria if c["status"] == "PASSED")
     n_total = len(criteria)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  PAPER TRADING GO-LIVE SCORECARD")
-    print(f"  {metrics.get('n_trading_days', 0)} trading days "
-          f"({metrics.get('start_date', '?')} → {metrics.get('end_date', '?')})")
-    print(f"{'='*70}")
+    print(
+        f"  {metrics.get('n_trading_days', 0)} trading days "
+        f"({metrics.get('start_date', '?')} → {metrics.get('end_date', '?')})"
+    )
+    print(f"{'=' * 70}")
     print(f"{'#':<3} {'Metric':<28} {'Threshold':<20} {'Current':<15} {'Status':<10}")
     print("-" * 70)
     for c in criteria:
         marker = "  " if c["status"] == "Pending" else ("✓ " if c["status"] == "PASSED" else "✗ ")
-        print(f"{marker}{c['index']:<2} {c['metric']:<28} {c['threshold']:<20} "
-              f"{c['current']:<15} {c['status']:<10}")
+        print(
+            f"{marker}{c['index']:<2} {c['metric']:<28} {c['threshold']:<20} "
+            f"{c['current']:<15} {c['status']:<10}"
+        )
     print("-" * 70)
     print(f"  Result: {n_passed}/{n_total} criteria passed", end="")
     if n_passed == n_total:
@@ -373,11 +390,15 @@ def print_scorecard(criteria: list[dict], metrics: dict, verbose: bool = False) 
         print()
 
     if verbose and metrics.get("n_trading_days", 0) > 0:
-        print(f"\n  Equity: ${metrics.get('current_equity', 0):,.2f} "
-              f"(peak: ${metrics.get('peak_equity', 0):,.2f})")
-        print(f"  Total return: {metrics.get('total_return_pct', 0):+.2f}%  "
-              f"CAGR: {metrics.get('cagr_pct', 0):+.2f}%  "
-              f"Vol: {metrics.get('ann_vol_pct', 0):.2f}%")
+        print(
+            f"\n  Equity: ${metrics.get('current_equity', 0):,.2f} "
+            f"(peak: ${metrics.get('peak_equity', 0):,.2f})"
+        )
+        print(
+            f"  Total return: {metrics.get('total_return_pct', 0):+.2f}%  "
+            f"CAGR: {metrics.get('cagr_pct', 0):+.2f}%  "
+            f"Vol: {metrics.get('ann_vol_pct', 0):.2f}%"
+        )
     print()
 
 
@@ -385,12 +406,13 @@ def print_scorecard(criteria: list[dict], metrics: dict, verbose: bool = False) 
 #  Main
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def main():
     parser = argparse.ArgumentParser(description="Paper trading go-live monitor")
-    parser.add_argument("--update-readme", action="store_true",
-                        help="Update the README tracking table")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show detailed output")
+    parser.add_argument(
+        "--update-readme", action="store_true", help="Update the README tracking table"
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
     args = parser.parse_args()
 
     equity = load_equity_history()

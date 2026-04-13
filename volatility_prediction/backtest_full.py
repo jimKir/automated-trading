@@ -397,7 +397,6 @@ def main(force_refresh: bool = False):
             recall_score,
         )
 
-
         for model_name in model_names:
             true = regime_true_all
             pred = regime_pred_all[model_name]

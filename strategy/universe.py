@@ -672,9 +672,7 @@ class DynamicCandidateBuilder:
 
         if self.include_ndx100:
             # Use curated Nasdaq-100 list (always available, no HTTP needed)
-            [
-                t for t in self.NDX100_TICKERS if t not in tickers
-            ]  # skip duplicates with S&P500
+            [t for t in self.NDX100_TICKERS if t not in tickers]  # skip duplicates with S&P500
             tickers.update(self.NDX100_TICKERS)
             if verbose:
                 log.info(f"  Nasdaq-100: {len(self.NDX100_TICKERS)} tickers added")

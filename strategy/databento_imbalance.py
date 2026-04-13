@@ -662,7 +662,9 @@ class ClosingImbalanceSignal:
         mu = raw_scores.mean()
         std = raw_scores.std(ddof=1)
 
-        normalised = (raw_scores - mu) / std if std > 0 else raw_scores * 0.0  # all identical → zero signal
+        normalised = (
+            (raw_scores - mu) / std if std > 0 else raw_scores * 0.0
+        )  # all identical → zero signal
 
         # Clip to [-1, +1]
         clipped = normalised.clip(-1.0, 1.0)

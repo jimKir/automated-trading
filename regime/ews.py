@@ -51,12 +51,12 @@ log = get_logger("EWS")
 # Layer A reduced 0.35→0.30, Layer B 0.30→0.25, Layer E 0.10→0.05.
 # Total still sums to 1.0.
 LAYER_WEIGHTS = {
-    "anomaly":         0.30,   # Layer A: Isolation Forest position anomaly
-    "macro":           0.25,   # Layer B: FRED macro stress
-    "event_shock":     0.15,   # Layer C: VIX velocity + breadth
-    "commodity_fx":    0.10,   # Layer D: Oil, Gold, DXY, JPY
-    "intraday_regime": 0.05,   # Layer E: ADX + SPY EMA (intraday)
-    "choppy_regime":   0.15,   # Layer F: 2025-fingerprint choppy detector (new)
+    "anomaly": 0.30,  # Layer A: Isolation Forest position anomaly
+    "macro": 0.25,  # Layer B: FRED macro stress
+    "event_shock": 0.15,  # Layer C: VIX velocity + breadth
+    "commodity_fx": 0.10,  # Layer D: Oil, Gold, DXY, JPY
+    "intraday_regime": 0.05,  # Layer E: ADX + SPY EMA (intraday)
+    "choppy_regime": 0.15,  # Layer F: 2025-fingerprint choppy detector (new)
 }
 
 # EWS score → position scale factor
@@ -86,21 +86,21 @@ class EarlyWarningSystem:
 
     def __init__(self, config: dict):
         self.config = config
-        self._use_macro     = config.get("ews", {}).get("use_macro",     True)
-        self._use_anomaly   = config.get("ews", {}).get("use_anomaly",   True)
-        self._use_event     = config.get("ews", {}).get("use_event",     True)
-        self._use_commfx    = config.get("ews", {}).get("use_commfx",    True)
-        self._use_intraday  = config.get("ews", {}).get("use_intraday",  True)
-        self._use_choppy    = config.get("ews", {}).get("use_choppy",    True)
-        self._enabled       = config.get("ews", {}).get("enabled",       True)
+        self._use_macro = config.get("ews", {}).get("use_macro", True)
+        self._use_anomaly = config.get("ews", {}).get("use_anomaly", True)
+        self._use_event = config.get("ews", {}).get("use_event", True)
+        self._use_commfx = config.get("ews", {}).get("use_commfx", True)
+        self._use_intraday = config.get("ews", {}).get("use_intraday", True)
+        self._use_choppy = config.get("ews", {}).get("use_choppy", True)
+        self._enabled = config.get("ews", {}).get("enabled", True)
 
         # Lazy-loaded sub-modules
-        self._anomaly_detector  = None
-        self._macro_scorer      = None
-        self._event_detector    = None
-        self._commfx_scorer     = None
-        self._intraday_scorer   = None
-        self._choppy_detector   = None
+        self._anomaly_detector = None
+        self._macro_scorer = None
+        self._event_detector = None
+        self._commfx_scorer = None
+        self._intraday_scorer = None
+        self._choppy_detector = None
 
         # Cached series for backtest (keyed by start+end)
         self._score_cache: dict[str, pd.Series] = {}
@@ -129,6 +129,7 @@ class EarlyWarningSystem:
             self._intraday_scorer = IntradayRegimeScorer()
         if self._choppy_detector is None and self._use_choppy:
             from regime.choppy_regime import ChoppyRegimeDetector
+
             self._choppy_detector = ChoppyRegimeDetector()
 
     # ------------------------------------------------------------------
@@ -229,8 +230,11 @@ class EarlyWarningSystem:
                 log.info("EWS Layer F: computing choppy regime scores...")
                 # Build price DataFrame from all_prices dict or DataFrame
                 if isinstance(all_prices, dict):
-                    _close = {s: df["Close"] if "Close" in df.columns else df.iloc[:, 0]
-                              for s, df in all_prices.items() if s in all_prices}
+                    _close = {
+                        s: df["Close"] if "Close" in df.columns else df.iloc[:, 0]
+                        for s, df in all_prices.items()
+                        if s in all_prices
+                    }
                     price_df = pd.DataFrame(_close)
                 else:
                     price_df = all_prices
@@ -243,7 +247,9 @@ class EarlyWarningSystem:
                 if vix_col is None:
                     # Fall back: use vol_10d of SPY as VIX proxy
                     if "SPY" in price_df.columns:
-                        vix_col = (price_df["SPY"].pct_change().rolling(10).std() * np.sqrt(252) * 100)
+                        vix_col = (
+                            price_df["SPY"].pct_change().rolling(10).std() * np.sqrt(252) * 100
+                        )
                     else:
                         vix_col = pd.Series(dtype=float)
                 f_scores = self._choppy_detector.score_series(price_df, vix_col)
@@ -257,12 +263,12 @@ class EarlyWarningSystem:
 
         # Weighted combination
         ews_scores = (
-            LAYER_WEIGHTS["anomaly"]         * combined.get("anomaly",         0) +
-            LAYER_WEIGHTS["macro"]           * combined.get("macro",           0) +
-            LAYER_WEIGHTS["event_shock"]     * combined.get("event_shock",     0) +
-            LAYER_WEIGHTS["commodity_fx"]    * combined.get("commodity_fx",    0) +
-            LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0) +
-            LAYER_WEIGHTS["choppy_regime"]   * combined.get("choppy_regime",   0)
+            LAYER_WEIGHTS["anomaly"] * combined.get("anomaly", 0)
+            + LAYER_WEIGHTS["macro"] * combined.get("macro", 0)
+            + LAYER_WEIGHTS["event_shock"] * combined.get("event_shock", 0)
+            + LAYER_WEIGHTS["commodity_fx"] * combined.get("commodity_fx", 0)
+            + LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0)
+            + LAYER_WEIGHTS["choppy_regime"] * combined.get("choppy_regime", 0)
         )
 
         # Smooth with 3-day EMA to avoid single-day noise spikes
@@ -361,8 +367,10 @@ class EarlyWarningSystem:
         if self._use_choppy and self._choppy_detector is not None and all_prices is not None:
             try:
                 if isinstance(all_prices, dict):
-                    _close = {s: df["Close"] if "Close" in df.columns else df.iloc[:, 0]
-                              for s, df in all_prices.items()}
+                    _close = {
+                        s: df["Close"] if "Close" in df.columns else df.iloc[:, 0]
+                        for s, df in all_prices.items()
+                    }
                     price_df = pd.DataFrame(_close)
                 else:
                     price_df = all_prices
@@ -374,7 +382,9 @@ class EarlyWarningSystem:
                 if vix_col is None and "SPY" in price_df.columns:
                     vix_col = price_df["SPY"].pct_change().rolling(10).std() * np.sqrt(252) * 100
                 if vix_col is not None:
-                    scores_by_layer["choppy_regime"] = self._choppy_detector.score_today(price_df, vix_col)
+                    scores_by_layer["choppy_regime"] = self._choppy_detector.score_today(
+                        price_df, vix_col
+                    )
             except Exception as e:
                 log.warning(f"EWS live choppy failed: {e}")
                 scores_by_layer["choppy_regime"] = 0.0
