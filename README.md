@@ -1,5 +1,7 @@
 # Automated Trading System
 
+[![Leakage Audit](https://github.com/jimKir/automated-trading/actions/workflows/leakage-audit.yml/badge.svg)](https://github.com/jimKir/automated-trading/actions/workflows/leakage-audit.yml)
+
 A production-grade multi-factor momentum + mean-reversion strategy with regime-aware
 signal blending, credit-enhanced choppy regime detection, and multi-layer risk management.
 
@@ -313,7 +315,21 @@ Run: `python -m pytest tests/test_leakage_audit.py -v`
 | OOS validation | PASSED | Walk-forward 12M Sharpe 3.01, 4/4 folds positive |
 | Leakage audit | PASSED | 46/46 tests, zero lookahead |
 | Paper trading | STARTING | — |
-| Live capital | WAIT | 12 months paper, Sharpe > 0.50 sustained, drawdown survived |
+| Live capital | WAIT | All 6 paper trading criteria met (see below) |
+
+### Paper Trading → Live Capital Criteria
+
+Tracked during paper trading. All 6 must pass before deploying real capital.
+Full escalation rules and daily checklists in the [paper trading runbook](docs/paper_trading_runbook.md).
+
+| # | Metric | Threshold | Current | Status |
+|---|---|---|---|---|
+| 1 | Annualised Sharpe | > 0.50 | — | Tracking |
+| 2 | Max Drawdown | < 15% | — | Tracking |
+| 3 | Drawdown Recovery | At least 1 episode (DD > 5%) survived | — | Tracking |
+| 4 | Win Rate | > 50% daily | — | Tracking |
+| 5 | Correlation to Backtest | > 0.60 vs WF OOS returns | — | Tracking |
+| 6 | System Uptime | > 95% of trading days | — | Tracking |
 
 ---
 
