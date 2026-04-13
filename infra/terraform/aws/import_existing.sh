@@ -8,7 +8,8 @@
 #
 #  Safe to re-run — skips resources already in state.
 # ============================================================
-set -euo pipefail
+set -uo pipefail
+# Note: -e is intentionally omitted so failed imports don't abort the script
 
 ENV="${1:?Usage: $0 <environment>}"
 PROJECT="trading-bot"
@@ -26,10 +27,12 @@ safe_import() {
   if terraform state show "$addr" &>/dev/null; then
     echo "  ✓ ${addr} already in state — skipping"
   else
-    echo "  → Importing ${addr} ..."
-    terraform import -var-file="envs/${ENV}.tfvars" "$addr" "$id" || {
-      echo "  ✗ Failed to import ${addr} (may not exist yet — will be created)"
-    }
+    echo "  → Importing ${addr} with id=${id} ..."
+    if terraform import -var-file="envs/${ENV}.tfvars" "$addr" "$id" 2>&1; then
+      echo "  ✓ ${addr} imported successfully"
+    else
+      echo "  ✗ Failed to import ${addr} — will be created on apply"
+    fi
   fi
 }
 
@@ -96,13 +99,36 @@ else
 fi
 
 # ── ECS Service ─────────────────────────────────────────────────────────────
-# Use the service ARN for import (not cluster/name format) to avoid
-# idempotency mismatches. Also include DRAINING services in lookup
-# since a prior failed deploy may have left one behind.
-SERVICE_ARN=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-  --region "$REGION" --query 'services[?status!=`INACTIVE`].serviceArn | [0]' --output text 2>/dev/null || echo "None")
-if [[ "$SERVICE_ARN" != "None" && "$SERVICE_ARN" != "null" && -n "$SERVICE_ARN" ]]; then
-  safe_import "aws_ecs_service.trading" "$SERVICE_ARN"
+# AWS provider expects: <cluster>/<service> where both can be name or ARN.
+# Try multiple formats to handle provider version differences.
+SERVICE_JSON=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+  --region "$REGION" --query 'services[?status!=`INACTIVE`] | [0]' --output json 2>/dev/null || echo "null")
+if [[ "$SERVICE_JSON" != "null" && -n "$SERVICE_JSON" ]]; then
+  SERVICE_ARN=$(echo "$SERVICE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('serviceArn',''))" 2>/dev/null || echo "")
+  CLUSTER_ARN=$(echo "$SERVICE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('clusterArn',''))" 2>/dev/null || echo "")
+  echo "  Found ECS service: ${SERVICE_ARN}"
+  echo "  Cluster ARN: ${CLUSTER_ARN}"
+
+  if terraform state show "aws_ecs_service.trading" &>/dev/null; then
+    echo "  ✓ aws_ecs_service.trading already in state — skipping"
+  else
+    # Try import with cluster_arn/service_name format (preferred by AWS provider)
+    echo "  → Attempting ECS service import..."
+    if terraform import -var-file="envs/${ENV}.tfvars" "aws_ecs_service.trading" "${CLUSTER_ARN}/${PREFIX}-service" 2>&1; then
+      echo "  ✓ ECS service imported"
+    else
+      echo "  → Retrying with cluster_name/service_name..."
+      if terraform import -var-file="envs/${ENV}.tfvars" "aws_ecs_service.trading" "${PREFIX}-cluster/${PREFIX}-service" 2>&1; then
+        echo "  ✓ ECS service imported (name format)"
+      else
+        echo "  → Retrying with service ARN only..."
+        terraform import -var-file="envs/${ENV}.tfvars" "aws_ecs_service.trading" "${SERVICE_ARN}" 2>&1 || {
+          echo "  ✗ All ECS service import attempts failed"
+          echo "  ✗ Manual fix: delete the stale ECS service via AWS console, then re-run CI"
+        }
+      fi
+    fi
+  fi
 else
   echo "  ○ ECS service ${PREFIX}-service not found — will be created"
 fi
