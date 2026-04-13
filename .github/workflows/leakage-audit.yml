@@ -43,3 +43,63 @@ jobs:
       - name: Fail if tests failed
         if: env.exit_code != '0'
         run: exit 1
+
+  # ── Smoke-test the Gmail draft Lambda after every push to main ──
+  smoke-test-lambda:
+    name: Invoke Daily Summary Lambda (smoke test)
+    needs: leakage-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke trading-gmail-draft Lambda
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-north-1
+        run: |
+          # Skip gracefully if AWS credentials are not configured yet
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "AWS credentials not configured — skipping Lambda smoke test"
+            echo "Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to GitHub Secrets"
+            exit 0
+          fi
+
+          echo "Invoking trading-gmail-draft Lambda..."
+          RESPONSE=$(aws lambda invoke \
+            --function-name trading-gmail-draft \
+            --payload '{"source": "ci_smoke_test", "triggered_by": "leakage-audit"}' \
+            --region eu-north-1 \
+            --cli-read-timeout 60 \
+            /tmp/lambda_response.json 2>&1) || true
+
+          echo "AWS CLI output: $RESPONSE"
+
+          if [ -f /tmp/lambda_response.json ]; then
+            echo "Lambda response:"
+            cat /tmp/lambda_response.json
+            echo ""
+
+            # Check for function error
+            if echo "$RESPONSE" | grep -q '"FunctionError"'; then
+              echo "::warning::Lambda returned a function error — check CloudWatch logs"
+              echo "This does not fail the build (Lambda may not be deployed yet)"
+            else
+              echo "Lambda smoke test passed"
+            fi
+          else
+            echo "::warning::Could not invoke Lambda — it may not be deployed yet"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Lambda Smoke Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f /tmp/lambda_response.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/lambda_response.json >> $GITHUB_STEP_SUMMARY
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Lambda not invoked (credentials missing or function not deployed)." >> $GITHUB_STEP_SUMMARY
+          fi

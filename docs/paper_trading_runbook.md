@@ -520,3 +520,168 @@ Lambda environment variable `RECIPIENTS` in the AWS console.
 | `403 Forbidden` on GitHub fetch | Verify the GitHub PAT in `/trading/github-token` has `Contents:read` scope |
 | `invalid_grant` from Google OAuth | Refresh token expired — re-run `get_refresh_token.py` and update SSM |
 | Draft not appearing | Check Lambda CloudWatch logs: `aws logs tail /aws/lambda/trading-gmail-draft --follow` |
+
+---
+
+## 9. ChoppyDetector ORANGE→RED — SSM Parameter Override Procedure
+
+During a live session where ChoppyDetector transitions from ORANGE to RED,
+you may need to tighten risk parameters immediately without redeploying the
+system.  The trading engine reads override parameters from SSM Parameter
+Store on every rebalance cycle.  This section gives the exact commands.
+
+### How Overrides Work
+
+The engine checks SSM before each rebalance:
+
+```
+Rebalance cycle starts
+  └─ Read /trading/overrides/* from SSM
+       │
+       ├─ If parameter exists → use SSM value (overrides settings.yaml)
+       └─ If parameter missing → use settings.yaml default
+```
+
+Overrides are immediate on the next rebalance — no restart needed.
+Delete the parameter to revert to the default from `config/settings.yaml`.
+
+### SSM Parameter Names
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `/trading/overrides/position_scale` | String | `1.0` | Global position scale multiplier (0.0–1.0) |
+| `/trading/overrides/max_portfolio_heat` | String | `0.75` | Max portfolio heat |
+| `/trading/overrides/max_position_pct` | String | `0.15` | Max single position % |
+| `/trading/overrides/rebalance_frequency` | String | `adaptive` | Force `daily`, `weekly`, or `adaptive` |
+| `/trading/overrides/choppy_override` | String | _(none)_ | Force regime: `GREEN`, `YELLOW`, `ORANGE`, `RED` |
+| `/trading/overrides/trading_halt` | String | `false` | Set `true` to halt all new orders |
+
+### ORANGE → RED Escalation Commands
+
+Run these from your terminal when ChoppyDetector score crosses 0.40:
+
+#### Step 1 — Force position scale to 25% immediately
+
+```bash
+aws ssm put-parameter \
+  --name /trading/overrides/position_scale \
+  --type String \
+  --value "0.25" \
+  --overwrite \
+  --region eu-north-1
+```
+
+#### Step 2 — Cap portfolio heat to 25% (from default 75%)
+
+```bash
+aws ssm put-parameter \
+  --name /trading/overrides/max_portfolio_heat \
+  --type String \
+  --value "0.25" \
+  --overwrite \
+  --region eu-north-1
+```
+
+#### Step 3 — Force daily rebalance (faster de-risking)
+
+```bash
+aws ssm put-parameter \
+  --name /trading/overrides/rebalance_frequency \
+  --type String \
+  --value "daily" \
+  --overwrite \
+  --region eu-north-1
+```
+
+#### Step 4 — (Optional) Force regime to RED if detector is lagging
+
+Use this only if you believe ChoppyDetector is understating stress
+(e.g. score is 0.38 but credit spreads are blowing out):
+
+```bash
+aws ssm put-parameter \
+  --name /trading/overrides/choppy_override \
+  --type String \
+  --value "RED" \
+  --overwrite \
+  --region eu-north-1
+```
+
+#### Emergency — Full trading halt
+
+Stops all new orders.  Existing positions remain open but no rebalancing
+occurs.  Use as a last resort:
+
+```bash
+aws ssm put-parameter \
+  --name /trading/overrides/trading_halt \
+  --type String \
+  --value "true" \
+  --overwrite \
+  --region eu-north-1
+```
+
+### Verification
+
+Confirm the override is active:
+
+```bash
+# Read current value
+aws ssm get-parameter \
+  --name /trading/overrides/position_scale \
+  --region eu-north-1 \
+  --query 'Parameter.Value' --output text
+
+# List all active overrides
+aws ssm get-parameters-by-path \
+  --path /trading/overrides/ \
+  --region eu-north-1 \
+  --query 'Parameters[].{Name:Name,Value:Value}' \
+  --output table
+```
+
+Check the engine logs to confirm the override was picked up:
+
+```bash
+grep "SSM override\|param_override" logs/trading.log | tail -10
+```
+
+### Recovery — Reverting Overrides After RED Clears
+
+When ChoppyDetector drops back below 0.40 (ORANGE) or 0.27 (YELLOW),
+remove the overrides to restore normal operation:
+
+```bash
+# Remove all overrides at once
+for param in position_scale max_portfolio_heat rebalance_frequency choppy_override trading_halt; do
+  aws ssm delete-parameter \
+    --name "/trading/overrides/$param" \
+    --region eu-north-1 2>/dev/null && echo "Deleted $param" || echo "$param not set"
+done
+```
+
+Or remove selectively:
+
+```bash
+# Just remove the position scale override (revert to auto)
+aws ssm delete-parameter \
+  --name /trading/overrides/position_scale \
+  --region eu-north-1
+```
+
+### Recommended Escalation Timeline
+
+| Time After RED | Action | Command |
+|---|---|---|
+| T+0 min | Scale to 25%, cap heat to 25% | Steps 1–2 above |
+| T+0 min | Force daily rebalance | Step 3 |
+| T+30 min | Review logs, check EWS colour | `grep -i "choppy\|ews\|RED" logs/trading.log` |
+| T+30 min | If EWS also RED and DD > 10% | Force regime override (Step 4) |
+| T+60 min | If DD > 15% and accelerating | Trading halt (Emergency) |
+| Recovery | ChoppyScore < 0.40 for 2 consecutive days | Delete all overrides |
+
+### What NOT to Override
+
+- **Strategy weights** (`bull_w_ts_mom`, etc.) — these are locked from in-sample and must not change during paper trading
+- **Drawdown scale** — this is computed automatically from the equity curve; overriding it breaks the progressive scaling logic
+- **EWS thresholds** — these are set by risk logic, not optimised; changing them undermines the backtest validity
