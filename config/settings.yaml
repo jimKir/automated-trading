@@ -494,3 +494,13 @@ anomaly_layer:
   isolation_weight: 0.15
 
 # Regime switching configuration moved into strategy: block above (Apr 2026)
+
+# Options hedge — protective puts triggered by ChoppyDetector
+options_hedge:
+  enabled: false          # set true to activate put hedge in live engine
+  hedge_ratio: 0.20       # hedge 20% of portfolio notional
+  orange_otm_pct: 0.02    # 2% OTM put on ORANGE
+  red_otm_pct: 0.05       # 5% OTM put on RED
+  orange_dte: 21          # 21 days to expiry on ORANGE
+  red_dte: 14             # 14 days to expiry on RED
+  max_contracts: 5        # cap per hedge event

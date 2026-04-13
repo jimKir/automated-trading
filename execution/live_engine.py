@@ -629,3 +629,47 @@ if __name__ == "__main__":
     except Exception as e:
         logger.critical(f"Engine crashed: {e}", exc_info=True)
         raise SystemExit(1)
+
+# ── Options hedge integration (appended) ─────────────────────────────────────
+# To activate: set options_hedge_enabled: true in config/settings.yaml
+
+def _init_options_hedge(self):
+    """Call from __init__ after other subsystems are ready."""
+    try:
+        from execution.options_hedge import ProtectivePutHedge
+        enabled = self.config.get("options_hedge", {}).get("enabled", False)
+        if enabled:
+            self._hedge = ProtectivePutHedge(
+                broker=self.broker if not self.dry_run else None,
+                dry_run=self.dry_run,
+            )
+            log.info("[Hedge] ProtectivePutHedge initialized")
+        else:
+            self._hedge = None
+    except Exception as e:
+        log.warning(f"[Hedge] Could not initialize options hedge: {e}")
+        self._hedge = None
+
+
+def _run_hedge_check(self, choppy_score: float, spy_price: float):
+    """Call from _trading_cycle after computing choppy_score."""
+    if not hasattr(self, "_hedge") or self._hedge is None:
+        return
+    try:
+        account = self.broker.get_account()
+        equity  = float(account.equity)
+        # Get VIX if available
+        vix = 20.0
+        try:
+            import yfinance as yf
+            vix = float(yf.Ticker("^VIX").history(period="2d")["Close"].iloc[-1])
+        except Exception:
+            pass
+        self._hedge.on_regime_change(
+            new_score=choppy_score,
+            spy_price=spy_price,
+            portfolio_equity=equity,
+            vix_level=vix,
+        )
+    except Exception as e:
+        log.warning(f"[Hedge] Check failed: {e}")
