@@ -586,6 +586,185 @@ jobs:
             exit 1
           fi
 
+      - name: "Smoke test: Verify ECS task health"
+        run: |
+          CLUSTER="trading-bot-production-cluster"
+          SERVICE="trading-bot-production-service"
+          REGION="eu-north-1"
+
+          echo "Fetching running tasks for $SERVICE..."
+          TASK_ARNS=$(aws ecs list-tasks \
+            --cluster "$CLUSTER" \
+            --service-name "$SERVICE" \
+            --desired-status RUNNING \
+            --region "$REGION" \
+            --query 'taskArns' --output text)
+
+          if [ -z "$TASK_ARNS" ] || [ "$TASK_ARNS" = "None" ]; then
+            echo "::error::No running tasks found for $SERVICE"
+            exit 1
+          fi
+
+          echo "Running tasks: $TASK_ARNS"
+
+          # Describe the tasks and check health
+          TASK_JSON=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks $TASK_ARNS \
+            --region "$REGION" \
+            --output json)
+
+          RUNNING_COUNT=$(echo "$TASK_JSON" | jq '[.tasks[] | select(.lastStatus == "RUNNING")] | length')
+          UNHEALTHY_COUNT=$(echo "$TASK_JSON" | jq '[.tasks[] | select(.healthStatus == "UNHEALTHY")] | length')
+
+          echo "Tasks RUNNING: $RUNNING_COUNT | UNHEALTHY: $UNHEALTHY_COUNT"
+
+          if [ "$RUNNING_COUNT" -lt 1 ]; then
+            echo "::error::No tasks in RUNNING state"
+            exit 1
+          fi
+
+          if [ "$UNHEALTHY_COUNT" -gt 0 ]; then
+            echo "::error::$UNHEALTHY_COUNT task(s) reporting UNHEALTHY status"
+            exit 1
+          fi
+
+          # Check for tasks that stopped unexpectedly in the last 2 minutes
+          TWO_MIN_AGO=$(date -u -d '2 minutes ago' +%s 2>/dev/null || date -u -v-2M +%s)
+          STOPPED_ARNS=$(aws ecs list-tasks \
+            --cluster "$CLUSTER" \
+            --service-name "$SERVICE" \
+            --desired-status STOPPED \
+            --region "$REGION" \
+            --query 'taskArns' --output text)
+
+          if [ -n "$STOPPED_ARNS" ] && [ "$STOPPED_ARNS" != "None" ]; then
+            STOPPED_JSON=$(aws ecs describe-tasks \
+              --cluster "$CLUSTER" \
+              --tasks $STOPPED_ARNS \
+              --region "$REGION" \
+              --output json)
+
+            RECENT_FAILURES=$(echo "$STOPPED_JSON" | jq --argjson cutoff "$TWO_MIN_AGO" \
+              '[.tasks[] | select(
+                (.stoppedAt // empty | sub("\\.[0-9]+"; "") | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime) > $cutoff
+                and (.stoppedReason // "" | test("Essential container|error|Error|OOM|OutOfMemory"))
+              )] | length')
+
+            if [ "$RECENT_FAILURES" -gt 0 ]; then
+              echo "::warning::$RECENT_FAILURES task(s) stopped unexpectedly in the last 2 minutes"
+              echo "$STOPPED_JSON" | jq '.tasks[] | {taskArn: .taskDefinitionArn, stoppedReason, stoppedAt}'
+            fi
+          fi
+
+          echo "ECS task health check passed."
+
+      - name: "Smoke test: Verify ChoppyDetector initialization"
+        run: |
+          CLUSTER="trading-bot-production-cluster"
+          SERVICE="trading-bot-production-service"
+          REGION="eu-north-1"
+
+          # Detect the log group from the task definition
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --region "$REGION" \
+            --query 'services[0].taskDefinition' --output text)
+
+          LOG_GROUP=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" \
+            --region "$REGION" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-group"' \
+            --output text)
+
+          if [ -z "$LOG_GROUP" ] || [ "$LOG_GROUP" = "None" ]; then
+            LOG_GROUP="/ecs/trading-bot-production"
+            echo "::warning::Could not detect log group from task definition, falling back to $LOG_GROUP"
+          fi
+
+          echo "Using log group: $LOG_GROUP"
+
+          # Poll logs for up to 90 seconds waiting for ChoppyDetector init messages
+          TIMEOUT=90
+          POLL_INTERVAL=10
+          ELAPSED=0
+          FOUND_INIT=false
+          START_TIME=$(date -u -d '5 minutes ago' +%s000 2>/dev/null || echo $(( $(date -u +%s) * 1000 - 300000 )))
+
+          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            echo "Checking logs (${ELAPSED}s / ${TIMEOUT}s)..."
+
+            LOG_OUTPUT=$(aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time "$START_TIME" \
+              --filter-pattern "ChoppyRegimeDetector" \
+              --region "$REGION" \
+              --query 'events[].message' \
+              --output text 2>/dev/null || true)
+
+            if echo "$LOG_OUTPUT" | grep -qE "ChoppyRegimeDetector (v2: computing|v2: mean=|v4 live score:|pre-computed)"; then
+              FOUND_INIT=true
+              echo "ChoppyDetector initialization confirmed in logs:"
+              echo "$LOG_OUTPUT" | grep -E "ChoppyRegimeDetector" | head -5
+              break
+            fi
+
+            sleep "$POLL_INTERVAL"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+
+          # Check for critical errors regardless of ChoppyDetector status
+          echo "Checking for critical errors in startup logs..."
+          ERROR_OUTPUT=$(aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time "$START_TIME" \
+            --filter-pattern "?Traceback ?CRITICAL ?\"ChoppyRegimeDetector\" ?\"choppy\"" \
+            --region "$REGION" \
+            --query 'events[].message' \
+            --output text 2>/dev/null || true)
+
+          CHOPPY_ERRORS=""
+          TRACEBACKS=""
+          CRITICALS=""
+          if [ -n "$ERROR_OUTPUT" ] && [ "$ERROR_OUTPUT" != "None" ]; then
+            CHOPPY_ERRORS=$(echo "$ERROR_OUTPUT" | grep -iE "(choppy|ChoppyRegime).*(error|exception|fail|Error)" || true)
+            TRACEBACKS=$(echo "$ERROR_OUTPUT" | grep -c "Traceback" || true)
+            CRITICALS=$(echo "$ERROR_OUTPUT" | grep -c "CRITICAL" || true)
+          fi
+
+          # Determine overall verdict
+          SMOKE_PASS=true
+
+          if [ -n "$CHOPPY_ERRORS" ]; then
+            echo "::error::ChoppyDetector errors found in logs:"
+            echo "$CHOPPY_ERRORS"
+            SMOKE_PASS=false
+          fi
+
+          if [ "${TRACEBACKS:-0}" -gt 0 ]; then
+            echo "::error::$TRACEBACKS Python traceback(s) found in startup logs"
+            echo "$ERROR_OUTPUT" | grep -A 2 "Traceback" | head -20
+            SMOKE_PASS=false
+          fi
+
+          if [ "${CRITICALS:-0}" -gt 0 ]; then
+            echo "::error::$CRITICALS CRITICAL log entries found in startup logs"
+            SMOKE_PASS=false
+          fi
+
+          if [ "$FOUND_INIT" = false ]; then
+            echo "::error::ChoppyDetector initialization not found in logs within ${TIMEOUT}s"
+            SMOKE_PASS=false
+          fi
+
+          if [ "$SMOKE_PASS" = false ]; then
+            echo "::error::Post-deploy smoke test FAILED — see errors above"
+            exit 1
+          fi
+
+          echo "::notice::Post-deploy smoke test PASSED — ChoppyDetector initialized, no critical errors"
+
       - name: Deployment summary
         run: |
           echo "### ✅ Production Deployed" >> $GITHUB_STEP_SUMMARY
@@ -697,6 +876,185 @@ jobs:
             echo "healthy=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
+
+      - name: "Smoke test: Verify ECS task health"
+        run: |
+          CLUSTER="trading-bot-paper-cluster"
+          SERVICE="trading-bot-paper-service"
+          REGION="eu-north-1"
+
+          echo "Fetching running tasks for $SERVICE..."
+          TASK_ARNS=$(aws ecs list-tasks \
+            --cluster "$CLUSTER" \
+            --service-name "$SERVICE" \
+            --desired-status RUNNING \
+            --region "$REGION" \
+            --query 'taskArns' --output text)
+
+          if [ -z "$TASK_ARNS" ] || [ "$TASK_ARNS" = "None" ]; then
+            echo "::error::No running tasks found for $SERVICE"
+            exit 1
+          fi
+
+          echo "Running tasks: $TASK_ARNS"
+
+          # Describe the tasks and check health
+          TASK_JSON=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks $TASK_ARNS \
+            --region "$REGION" \
+            --output json)
+
+          RUNNING_COUNT=$(echo "$TASK_JSON" | jq '[.tasks[] | select(.lastStatus == "RUNNING")] | length')
+          UNHEALTHY_COUNT=$(echo "$TASK_JSON" | jq '[.tasks[] | select(.healthStatus == "UNHEALTHY")] | length')
+
+          echo "Tasks RUNNING: $RUNNING_COUNT | UNHEALTHY: $UNHEALTHY_COUNT"
+
+          if [ "$RUNNING_COUNT" -lt 1 ]; then
+            echo "::error::No tasks in RUNNING state"
+            exit 1
+          fi
+
+          if [ "$UNHEALTHY_COUNT" -gt 0 ]; then
+            echo "::error::$UNHEALTHY_COUNT task(s) reporting UNHEALTHY status"
+            exit 1
+          fi
+
+          # Check for tasks that stopped unexpectedly in the last 2 minutes
+          TWO_MIN_AGO=$(date -u -d '2 minutes ago' +%s 2>/dev/null || date -u -v-2M +%s)
+          STOPPED_ARNS=$(aws ecs list-tasks \
+            --cluster "$CLUSTER" \
+            --service-name "$SERVICE" \
+            --desired-status STOPPED \
+            --region "$REGION" \
+            --query 'taskArns' --output text)
+
+          if [ -n "$STOPPED_ARNS" ] && [ "$STOPPED_ARNS" != "None" ]; then
+            STOPPED_JSON=$(aws ecs describe-tasks \
+              --cluster "$CLUSTER" \
+              --tasks $STOPPED_ARNS \
+              --region "$REGION" \
+              --output json)
+
+            RECENT_FAILURES=$(echo "$STOPPED_JSON" | jq --argjson cutoff "$TWO_MIN_AGO" \
+              '[.tasks[] | select(
+                (.stoppedAt // empty | sub("\\.[0-9]+"; "") | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime) > $cutoff
+                and (.stoppedReason // "" | test("Essential container|error|Error|OOM|OutOfMemory"))
+              )] | length')
+
+            if [ "$RECENT_FAILURES" -gt 0 ]; then
+              echo "::warning::$RECENT_FAILURES task(s) stopped unexpectedly in the last 2 minutes"
+              echo "$STOPPED_JSON" | jq '.tasks[] | {taskArn: .taskDefinitionArn, stoppedReason, stoppedAt}'
+            fi
+          fi
+
+          echo "ECS task health check passed."
+
+      - name: "Smoke test: Verify ChoppyDetector initialization"
+        run: |
+          CLUSTER="trading-bot-paper-cluster"
+          SERVICE="trading-bot-paper-service"
+          REGION="eu-north-1"
+
+          # Detect the log group from the task definition
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --region "$REGION" \
+            --query 'services[0].taskDefinition' --output text)
+
+          LOG_GROUP=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" \
+            --region "$REGION" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options."awslogs-group"' \
+            --output text)
+
+          if [ -z "$LOG_GROUP" ] || [ "$LOG_GROUP" = "None" ]; then
+            LOG_GROUP="/ecs/trading-bot-paper"
+            echo "::warning::Could not detect log group from task definition, falling back to $LOG_GROUP"
+          fi
+
+          echo "Using log group: $LOG_GROUP"
+
+          # Poll logs for up to 90 seconds waiting for ChoppyDetector init messages
+          TIMEOUT=90
+          POLL_INTERVAL=10
+          ELAPSED=0
+          FOUND_INIT=false
+          START_TIME=$(date -u -d '5 minutes ago' +%s000 2>/dev/null || echo $(( $(date -u +%s) * 1000 - 300000 )))
+
+          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            echo "Checking logs (${ELAPSED}s / ${TIMEOUT}s)..."
+
+            LOG_OUTPUT=$(aws logs filter-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --start-time "$START_TIME" \
+              --filter-pattern "ChoppyRegimeDetector" \
+              --region "$REGION" \
+              --query 'events[].message' \
+              --output text 2>/dev/null || true)
+
+            if echo "$LOG_OUTPUT" | grep -qE "ChoppyRegimeDetector (v2: computing|v2: mean=|v4 live score:|pre-computed)"; then
+              FOUND_INIT=true
+              echo "ChoppyDetector initialization confirmed in logs:"
+              echo "$LOG_OUTPUT" | grep -E "ChoppyRegimeDetector" | head -5
+              break
+            fi
+
+            sleep "$POLL_INTERVAL"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+
+          # Check for critical errors regardless of ChoppyDetector status
+          echo "Checking for critical errors in startup logs..."
+          ERROR_OUTPUT=$(aws logs filter-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --start-time "$START_TIME" \
+            --filter-pattern "?Traceback ?CRITICAL ?\"ChoppyRegimeDetector\" ?\"choppy\"" \
+            --region "$REGION" \
+            --query 'events[].message' \
+            --output text 2>/dev/null || true)
+
+          CHOPPY_ERRORS=""
+          TRACEBACKS=""
+          CRITICALS=""
+          if [ -n "$ERROR_OUTPUT" ] && [ "$ERROR_OUTPUT" != "None" ]; then
+            CHOPPY_ERRORS=$(echo "$ERROR_OUTPUT" | grep -iE "(choppy|ChoppyRegime).*(error|exception|fail|Error)" || true)
+            TRACEBACKS=$(echo "$ERROR_OUTPUT" | grep -c "Traceback" || true)
+            CRITICALS=$(echo "$ERROR_OUTPUT" | grep -c "CRITICAL" || true)
+          fi
+
+          # Determine overall verdict
+          SMOKE_PASS=true
+
+          if [ -n "$CHOPPY_ERRORS" ]; then
+            echo "::error::ChoppyDetector errors found in logs:"
+            echo "$CHOPPY_ERRORS"
+            SMOKE_PASS=false
+          fi
+
+          if [ "${TRACEBACKS:-0}" -gt 0 ]; then
+            echo "::error::$TRACEBACKS Python traceback(s) found in startup logs"
+            echo "$ERROR_OUTPUT" | grep -A 2 "Traceback" | head -20
+            SMOKE_PASS=false
+          fi
+
+          if [ "${CRITICALS:-0}" -gt 0 ]; then
+            echo "::error::$CRITICALS CRITICAL log entries found in startup logs"
+            SMOKE_PASS=false
+          fi
+
+          if [ "$FOUND_INIT" = false ]; then
+            echo "::error::ChoppyDetector initialization not found in logs within ${TIMEOUT}s"
+            SMOKE_PASS=false
+          fi
+
+          if [ "$SMOKE_PASS" = false ]; then
+            echo "::error::Post-deploy smoke test FAILED — see errors above"
+            exit 1
+          fi
+
+          echo "::notice::Post-deploy smoke test PASSED — ChoppyDetector initialized, no critical errors"
 
       - name: Deployment summary
         run: |
