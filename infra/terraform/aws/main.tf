@@ -264,7 +264,7 @@ resource "aws_ecs_task_definition" "trading" {
 
   container_definitions = jsonencode([{
     name      = "trading"
-    image     = "${aws_ecr_repository.trading.repository_url}:latest"
+    image     = "${aws_ecr_repository.trading.repository_url}:${var.image_tag}"
     essential = true
 
     command = [

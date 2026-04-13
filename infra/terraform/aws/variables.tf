@@ -21,9 +21,15 @@ variable "environment" {
 }
 
 variable "trading_mode" {
-  description = "Engine trading mode passed to live_engine.py --mode"
+  description = "Engine trading mode passed to main.py <mode>"
   type        = string
   default     = "paper"
+}
+
+variable "image_tag" {
+  description = "ECR image tag for the task definition (e.g. latest, paper-latest)"
+  type        = string
+  default     = "latest"
 }
 
 variable "s3_data_bucket" {

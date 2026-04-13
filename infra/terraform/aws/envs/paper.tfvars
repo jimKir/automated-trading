@@ -7,6 +7,7 @@
 
 environment      = "paper"
 trading_mode     = "paper"
+image_tag        = "paper-latest"
 desired_count    = 0                 # off by default — start manually when testing
 enable_schedules = false             # no auto-schedules — fully on-demand
 
