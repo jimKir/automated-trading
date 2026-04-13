@@ -33,13 +33,12 @@ safe_import() {
   fi
 }
 
-# ECR (shared, not env-prefixed)
+# ── ECR ──────────────────────────────────────────────────────────────────────
 safe_import "aws_ecr_repository.trading" "${PROJECT}"
+safe_import "aws_ecr_lifecycle_policy.trading" "${PROJECT}"
 
-# Secrets Manager (shared, not env-prefixed)
-# Import by ARN — need to look up the full ARN with random suffix
+# ── Secrets Manager ──────────────────────────────────────────────────────────
 for secret_name in "trading/alpaca_api_key" "trading/alpaca_api_secret"; do
-  resource="aws_secretsmanager_secret.$(echo "$secret_name" | sed 's|trading/alpaca_||; s|_.*||')"
   if [[ "$secret_name" == *"api_key"* ]]; then
     resource="aws_secretsmanager_secret.alpaca_key"
   else
@@ -53,11 +52,16 @@ for secret_name in "trading/alpaca_api_key" "trading/alpaca_api_secret"; do
   fi
 done
 
-# IAM Roles
+# ── IAM Roles + Policies ────────────────────────────────────────────────────
 safe_import "aws_iam_role.ecs_execution" "${PREFIX}-ecs-execution"
-safe_import "aws_iam_role.ecs_task" "${PREFIX}-ecs-task"
+safe_import "aws_iam_role_policy_attachment.ecs_execution_basic" "${PREFIX}-ecs-execution/arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+safe_import "aws_iam_role_policy.ecs_execution_secrets" "${PREFIX}-ecs-execution:secrets-read"
 
-# Security Group — need to look up by name to get the ID
+safe_import "aws_iam_role.ecs_task" "${PREFIX}-ecs-task"
+safe_import "aws_iam_role_policy.ecs_task_s3" "${PREFIX}-ecs-task:s3-data-access"
+safe_import "aws_iam_role_policy_attachment.ecs_task_cloudwatch" "${PREFIX}-ecs-task/arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+
+# ── Security Group ──────────────────────────────────────────────────────────
 SG_ID=$(aws ec2 describe-security-groups \
   --filters "Name=group-name,Values=${PREFIX}-sg" \
   --region "$REGION" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
@@ -67,8 +71,53 @@ else
   echo "  ○ Security group ${PREFIX}-sg not found — will be created"
 fi
 
-# CloudWatch Log Group
+# ── CloudWatch ──────────────────────────────────────────────────────────────
 safe_import "aws_cloudwatch_log_group.trading" "/ecs/${PREFIX}"
+safe_import "aws_cloudwatch_metric_alarm.bot_dead" "${PREFIX}-bot-dead"
+
+# ── ECS Cluster ─────────────────────────────────────────────────────────────
+CLUSTER_ARN=$(aws ecs describe-clusters --clusters "${PREFIX}-cluster" --region "$REGION" \
+  --query 'clusters[0].clusterArn' --output text 2>/dev/null || echo "None")
+if [[ "$CLUSTER_ARN" != "None" && -n "$CLUSTER_ARN" ]]; then
+  safe_import "aws_ecs_cluster.trading" "${PREFIX}-cluster"
+  safe_import "aws_ecs_cluster_capacity_providers.trading" "${PREFIX}-cluster"
+else
+  echo "  ○ ECS cluster ${PREFIX}-cluster not found — will be created"
+fi
+
+# ── ECS Task Definition ─────────────────────────────────────────────────────
+# Import the latest active revision
+TASK_ARN=$(aws ecs describe-task-definition --task-definition "${PREFIX}-task" --region "$REGION" \
+  --query 'taskDefinition.taskDefinitionArn' --output text 2>/dev/null || echo "None")
+if [[ "$TASK_ARN" != "None" && -n "$TASK_ARN" ]]; then
+  safe_import "aws_ecs_task_definition.trading" "${TASK_ARN}"
+else
+  echo "  ○ ECS task definition ${PREFIX}-task not found — will be created"
+fi
+
+# ── ECS Service ─────────────────────────────────────────────────────────────
+SERVICE_ARN=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+  --region "$REGION" --query 'services[?status==`ACTIVE`].serviceArn | [0]' --output text 2>/dev/null || echo "None")
+if [[ "$SERVICE_ARN" != "None" && -n "$SERVICE_ARN" ]]; then
+  safe_import "aws_ecs_service.trading" "${PREFIX}-cluster/${PREFIX}-service"
+else
+  echo "  ○ ECS service ${PREFIX}-service not found — will be created"
+fi
+
+# ── EventBridge Schedules (production only) ─────────────────────────────────
+if [[ "$ENV" == "production" ]]; then
+  safe_import 'aws_iam_role.eventbridge[0]' "${PREFIX}-eventbridge"
+  safe_import 'aws_iam_role_policy.eventbridge_ecs[0]' "${PREFIX}-eventbridge:ecs-scale"
+
+  START_ARN=$(aws scheduler get-schedule --name "${PREFIX}-start" --region "$REGION" \
+    --query 'Arn' --output text 2>/dev/null || echo "None")
+  if [[ "$START_ARN" != "None" && -n "$START_ARN" ]]; then
+    safe_import 'aws_scheduler_schedule.start_trading[0]' "default/${PREFIX}-start"
+    safe_import 'aws_scheduler_schedule.stop_trading[0]' "default/${PREFIX}-stop"
+  else
+    echo "  ○ EventBridge schedules not found — will be created"
+  fi
+fi
 
 echo ""
 echo "Import complete. Run 'terraform plan' to verify."
