@@ -1,0 +1,194 @@
+{
+  "run_date": "2026-04-13T13:03:22.333621",
+  "oos_start": "2025-04-14",
+  "oos_end": "2026-04-11",
+  "locked_params": {
+    "bull_w_ts_mom": 0.5,
+    "bull_w_mr": 0.15,
+    "bull_w_macd": 0.3,
+    "bull_w_rsi": 0.05,
+    "is_sharpe": 0.7802689182407884,
+    "oos_sharpe": 0.15379633806475085,
+    "overfit_sharpe": -0.007040847963098883,
+    "baseline_sharpe": -0.20089806554624795,
+    "fit_period": "2018-2022",
+    "oos_period": "2023-2025",
+    "pit_universe": true,
+    "exec_delay": true,
+    "choppy_thresholds_v4": {
+      "green_ceiling": 0.17,
+      "yellow_ceiling": 0.27,
+      "orange_ceiling": 0.4,
+      "red_floor": 0.4,
+      "score_ema_span": 5,
+      "group_weights": {
+        "vol_spike": 0.15,
+        "price_vol": 0.15,
+        "macro_credit": 0.14,
+        "event_shock": 0.14,
+        "commodity_fx": 0.1,
+        "breadth": 0.1,
+        "sentiment": 0.07,
+        "credit": 0.08,
+        "order_flow": 0.07
+      },
+      "calibration_date": "2026-04-10",
+      "calibration_periods": [
+        "2020_covid",
+        "2022_bear",
+        "2024_calm",
+        "2025_choppy",
+        "2026_q1_tariff"
+      ]
+    }
+  },
+  "strategy_full_12m": {
+    "label": "Full 12M OOS",
+    "sharpe": 3.005,
+    "sortino": 4.959,
+    "cagr": 58.07,
+    "max_dd": -6.99,
+    "calmar": 8.306,
+    "vol": 19.32,
+    "n_days": 249,
+    "win_rate": 54.6,
+    "best_day": 4.12,
+    "worst_day": -3.14
+  },
+  "spy_full_12m": {
+    "label": "SPY Benchmark",
+    "sharpe": 2.109,
+    "sortino": 3.02,
+    "cagr": 27.98,
+    "max_dd": -8.88,
+    "calmar": 3.149,
+    "vol": 13.27,
+    "n_days": 248,
+    "win_rate": 56.5,
+    "best_day": 3.3,
+    "worst_day": -2.7
+  },
+  "walk_forward_folds": {
+    "Fold 1 (Apr-Jun 2025)": {
+      "label": "Fold 1 (Apr-Jun 2025)",
+      "sharpe": 7.497,
+      "sortino": 10.14,
+      "cagr": 159.21,
+      "max_dd": -4.94,
+      "calmar": 32.234,
+      "vol": 21.24,
+      "n_days": 53,
+      "win_rate": 58.5,
+      "best_day": 3.25,
+      "worst_day": -3.14
+    },
+    "Fold 2 (Jul-Sep 2025)": {
+      "label": "Fold 2 (Jul-Sep 2025)",
+      "sharpe": 3.122,
+      "sortino": 5.491,
+      "cagr": 48.8,
+      "max_dd": -3.34,
+      "calmar": 14.623,
+      "vol": 15.63,
+      "n_days": 64,
+      "win_rate": 57.8,
+      "best_day": 2.69,
+      "worst_day": -2.16
+    },
+    "Fold 3 (Oct-Dec 2025)": {
+      "label": "Fold 3 (Oct-Dec 2025)",
+      "sharpe": 1.826,
+      "sortino": 3.409,
+      "cagr": 39.5,
+      "max_dd": -6.09,
+      "calmar": 6.481,
+      "vol": 21.62,
+      "n_days": 64,
+      "win_rate": 51.6,
+      "best_day": 4.12,
+      "worst_day": -2.83
+    },
+    "Fold 4 (Jan-Apr 2026)": {
+      "label": "Fold 4 (Jan-Apr 2026)",
+      "sharpe": 1.492,
+      "sortino": 2.536,
+      "cagr": 28.0,
+      "max_dd": -6.35,
+      "calmar": 4.409,
+      "vol": 18.77,
+      "n_days": 68,
+      "win_rate": 51.5,
+      "best_day": 3.55,
+      "worst_day": -2.88
+    }
+  },
+  "spy_folds": {
+    "SPY Fold 1 (Apr-Jun 2025)": {
+      "label": "SPY Fold 1 (Apr-Jun 2025)",
+      "sharpe": 5.86,
+      "sortino": 8.488,
+      "cagr": 96.38,
+      "max_dd": -4.41,
+      "calmar": 21.835,
+      "vol": 16.45,
+      "n_days": 52,
+      "win_rate": 65.4,
+      "best_day": 3.3,
+      "worst_day": -2.38
+    },
+    "SPY Fold 2 (Jul-Sep 2025)": {
+      "label": "SPY Fold 2 (Jul-Sep 2025)",
+      "sharpe": 4.117,
+      "sortino": 6.914,
+      "cagr": 36.0,
+      "max_dd": -2.41,
+      "calmar": 14.911,
+      "vol": 8.74,
+      "n_days": 64,
+      "win_rate": 54.7,
+      "best_day": 1.54,
+      "worst_day": -1.64
+    },
+    "SPY Fold 3 (Oct-Dec 2025)": {
+      "label": "SPY Fold 3 (Oct-Dec 2025)",
+      "sharpe": 0.867,
+      "sortino": 1.079,
+      "cagr": 10.91,
+      "max_dd": -5.07,
+      "calmar": 2.152,
+      "vol": 12.59,
+      "n_days": 64,
+      "win_rate": 57.8,
+      "best_day": 1.56,
+      "worst_day": -2.7
+    },
+    "SPY Fold 4 (Jan-Apr 2026)": {
+      "label": "SPY Fold 4 (Jan-Apr 2026)",
+      "sharpe": -0.022,
+      "sortino": -0.034,
+      "cagr": -0.33,
+      "max_dd": -8.88,
+      "calmar": -0.037,
+      "vol": 14.59,
+      "n_days": 68,
+      "win_rate": 50.0,
+      "best_day": 2.91,
+      "worst_day": -2.04
+    }
+  },
+  "drawdown_strategy": {
+    "peak": "2025-12-11",
+    "trough": "2026-03-30",
+    "recovery": "2026-04-08",
+    "depth": -6.99,
+    "duration_days": 109
+  },
+  "drawdown_spy": {
+    "peak": "2026-01-27",
+    "trough": "2026-03-30",
+    "recovery": "ongoing",
+    "depth": -8.88,
+    "duration_days": 62
+  },
+  "verdict": "\u2705 PASS \u2014 Strategy shows consistent OOS performance"
+}
