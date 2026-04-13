@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from market_data.storage.symbol_master import (
     OptionsContract,
     SymbolMaster,
     SymbolRecord,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestSymbolMaster:

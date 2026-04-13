@@ -43,13 +43,16 @@ In BACKTEST: day-over-day SPY volume used as portfolio-level proxy.
 
 from __future__ import annotations
 
-from datetime import date, datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from datetime import date, datetime
 
 log = get_logger("IntradayShock")
 
@@ -370,10 +373,9 @@ class IntradayShockDetector:
                 else:
                     state = ShockState.CLEAR
 
-            elif state == ShockState.SHOCK:
-                if vix_chg <= 0.05:
-                    state = ShockState.RECOVERY
-                    recovery_day = 0
+            elif state == ShockState.SHOCK and vix_chg <= 0.05:
+                state = ShockState.RECOVERY
+                recovery_day = 0
 
             # Assign scale
             if state == ShockState.CLEAR:

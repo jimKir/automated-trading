@@ -55,9 +55,9 @@ def main():
     print(json.dumps(output, indent=2))
     print()
     print("Command:")
-    print(f"  aws ssm put-parameter \\")
-    print(f"    --name /trading/gmail-oauth \\")
-    print(f"    --type SecureString \\")
+    print("  aws ssm put-parameter \\")
+    print("    --name /trading/gmail-oauth \\")
+    print("    --type SecureString \\")
     print(f"    --value '{json.dumps(output)}'")
     print()
 

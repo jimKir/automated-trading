@@ -25,7 +25,7 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "ok",
                     "mode": os.environ.get("TRADING_MODE", "paper"),
                     "uptime_s": round(time.time() - _START_TIME),
-                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "ts": datetime.now(UTC).isoformat(),
                 }
             )
 
@@ -183,7 +183,7 @@ def run_checks() -> list[dict]:
     for test in smoke_tests:
         try:
             local_ns = {}
-            exec(test['code'], {}, local_ns)
+            exec(test['code'], {}, local_ns)  # noqa: S102
             actual = local_ns.get('result')
             if actual == test['expect']:
                 PASS(f"Smoke: {test['name']}")
@@ -219,7 +219,7 @@ def run_checks() -> list[dict]:
 
 
 def start_server(port: int = 8080) -> None:
-    server = HTTPServer(("0.0.0.0", port), Handler)
+    server = HTTPServer(("0.0.0.0", port), Handler)  # noqa: S104
     print(f"[HealthCheck] Listening on :{port}")
     server.serve_forever()
 
@@ -231,5 +231,5 @@ def start_in_background(port: int = 8080) -> threading.Thread:
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("HEALTHCHECK_PORT", 8080))
+    port = int(os.environ.get("HEALTHCHECK_PORT", "8080"))
     start_server(port)

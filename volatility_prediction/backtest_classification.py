@@ -587,7 +587,7 @@ def main(force_refresh: bool = False):
         # Per-class metrics
         print("\n    Per-class F1:")
         per_class_f1 = f1_score(r["y_true"], r["y_pred"], average=None, zero_division=0)
-        for i, (cls, f1) in enumerate(zip(class_names, per_class_f1)):
+        for _i, (cls, f1) in enumerate(zip(class_names, per_class_f1)):
             f1c = GREEN if f1 > 0.5 else YELLOW if f1 > 0.35 else RED
             bar = "█" * int(f1 * 40)
             print(f"    {cls:<8} {f1c}{bar}{RESET} {f1c}{f1:.3f}{RESET}")

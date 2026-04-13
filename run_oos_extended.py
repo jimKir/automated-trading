@@ -12,15 +12,12 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Dict, Tuple
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.gridspec import GridSpec
+
+mpl.use("Agg")
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).parent))
@@ -59,8 +56,10 @@ COLORS = {
 }
 
 # ── Load locked IS params ─────────────────────────────────────────────────────
-params = json.load(open("data/regime_params_validated.json"))
-PIT    = json.load(open("data/pit_universe.json"))
+with open("data/regime_params_validated.json") as _f:
+    params = json.load(_f)
+with open("data/pit_universe.json") as _f:
+    PIT = json.load(_f)
 
 BULL_W_TS   = params["bull_w_ts_mom"]   # 0.50
 BULL_W_MR   = params["bull_w_mr"]       # 0.15
@@ -79,13 +78,11 @@ SPY_MA_PERIOD = 200
 print(f"Loaded IS params: ts={BULL_W_TS} mr={BULL_W_MR} macd={BULL_W_MACD} rsi={BULL_W_RSI}")
 
 # ── Load price data ───────────────────────────────────────────────────────────
-from src.market_data.historical_store import (
-    load_parquet, EQUITY_SYMS, MACRO_SYMS
-)
+from src.market_data.historical_store import EQUITY_SYMS, MACRO_SYMS, load_parquet
 
 ALL_SYMS = EQUITY_SYMS + [s for s in MACRO_SYMS if s not in EQUITY_SYMS]
 
-def load_prices(symbols, start, end) -> Dict[str, pd.DataFrame]:
+def load_prices(symbols, start, end) -> dict[str, pd.DataFrame]:
     data = {}
     for sym in symbols:
         df = load_parquet(sym)
@@ -186,7 +183,7 @@ def pit_universe_for_date(date: pd.Timestamp) -> list:
 
 # ── Main backtest loop ────────────────────────────────────────────────────────
 
-def run_backtest(start: str, end: str) -> Tuple[pd.Series, pd.Series, pd.DataFrame]:
+def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
     """
     Returns:
         strategy_returns : daily returns pd.Series
@@ -218,7 +215,7 @@ def run_backtest(start: str, end: str) -> Tuple[pd.Series, pd.Series, pd.DataFra
         rebal_dates.add(grp["date"].iloc[-1])
 
     portfolio_value = 1.0
-    holdings: Dict[str, float] = {}   # sym → weight
+    holdings: dict[str, float] = {}   # sym → weight
     daily_returns = []
     trade_log = []
 

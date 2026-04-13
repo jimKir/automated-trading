@@ -333,7 +333,7 @@ def retrain(train_end: str = None):
         log.error(f"Retrain script not found: {train_script}")
         return
     log.info("Retraining H2O vol model...")
-    result = subprocess.run([sys.executable, str(train_script)], capture_output=False)
+    result = subprocess.run([sys.executable, str(train_script)], capture_output=False, check=False)  # noqa: S603
     if result.returncode == 0:
         log.info("Retraining complete.")
     else:

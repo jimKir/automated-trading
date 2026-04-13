@@ -4,11 +4,17 @@ Uses real Kalshi series tickers discovered via API exploration.
 
 Run: python backtest/kalshi_wf_validation.py --save-results
 """
-import os, sys, json, time, logging, argparse
-import requests
-import pandas as pd
+import argparse
+import json
+import logging
+import os
+import sys
+import time
+from datetime import UTC, datetime
+
 import numpy as np
-from datetime import datetime, timezone, timedelta
+import pandas as pd
+import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -179,7 +185,7 @@ def backfill_fed_stress(start_date="2022-01-01") -> pd.Series:
     hold_markets = [m for m in all_markets if m.get("ticker","").endswith("-H0")]
     log.info(f"  {len(hold_markets)} hold (H0) markets")
 
-    start_ts = int(datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc).timestamp())
+    start_ts = int(datetime.fromisoformat(start_date).replace(tzinfo=UTC).timestamp())
 
     for mkt in hold_markets:
         ticker = mkt.get("ticker","")
@@ -195,9 +201,9 @@ def backfill_fed_stress(start_date="2022-01-01") -> pd.Series:
         ]:
             try:
                 mkt_open_ts = int(datetime.fromisoformat(
-                    open_t.replace("Z","+00:00")).timestamp())
+                    open_t).timestamp())
                 mkt_close_ts = int(datetime.fromisoformat(
-                    close_t.replace("Z","+00:00")).timestamp()) if close_t else int(time.time())
+                    close_t).timestamp()) if close_t else int(time.time())
                 if mkt_close_ts < start_ts:
                     break  # too old
                 data = api_get(endpoint, {
@@ -210,7 +216,7 @@ def backfill_fed_stress(start_date="2022-01-01") -> pd.Series:
                     ts = c.get("end_period_ts")
                     if not ts:
                         continue
-                    dt = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+                    dt = datetime.fromtimestamp(ts, tz=UTC).date()
                     price_data = c.get("price", {})
                     close_p = float(price_data.get("close_dollars") or
                                     price_data.get("close") or 0)
@@ -264,7 +270,7 @@ def backfill_inflation_stress(start_date="2022-01-01") -> pd.Series:
     t03_markets = [m for m in all_markets if "-T0.3" in m.get("ticker","")]
     log.info(f"  {len(t03_markets)} KXPCECORE T0.3 markets")
 
-    start_ts = int(datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc).timestamp())
+    start_ts = int(datetime.fromisoformat(start_date).replace(tzinfo=UTC).timestamp())
 
     for mkt in t03_markets:
         ticker = mkt.get("ticker","")
@@ -278,9 +284,9 @@ def backfill_inflation_stress(start_date="2022-01-01") -> pd.Series:
         ]:
             try:
                 mkt_open_ts = int(datetime.fromisoformat(
-                    open_t.replace("Z","+00:00")).timestamp())
+                    open_t).timestamp())
                 mkt_close_ts = int(datetime.fromisoformat(
-                    close_t.replace("Z","+00:00")).timestamp()) if close_t else int(time.time())
+                    close_t).timestamp()) if close_t else int(time.time())
                 if mkt_close_ts < start_ts:
                     break
                 data = api_get(endpoint, {
@@ -293,7 +299,7 @@ def backfill_inflation_stress(start_date="2022-01-01") -> pd.Series:
                     ts = c.get("end_period_ts")
                     if not ts:
                         continue
-                    dt = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+                    dt = datetime.fromtimestamp(ts, tz=UTC).date()
                     price_data = c.get("price", {})
                     close_p = float(price_data.get("close_dollars") or
                                     price_data.get("close") or 0)
@@ -345,10 +351,13 @@ def load_spy(start, end) -> pd.Series:
 
 def apply_scale(returns: pd.Series, stress: pd.Series, weight=0.25) -> pd.Series:
     def s2scale(s):
-        if s < 0.20: return 1.00
-        elif s < 0.35: return 0.85
-        elif s < 0.50: return 0.65
-        else: return 0.40
+        if s < 0.20:
+            return 1.00
+        if s < 0.35:
+            return 0.85
+        if s < 0.50:
+            return 0.65
+        return 0.40
     sa = stress.reindex(returns.index).ffill().fillna(0)
     scales = 1.0 * (1 - weight) + sa.map(s2scale) * weight
     return returns * scales

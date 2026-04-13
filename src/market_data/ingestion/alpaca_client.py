@@ -6,10 +6,9 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -22,8 +21,12 @@ from market_data.ingestion.base import (
     Schema,
     VendorAPIError,
 )
-from market_data.ingestion.checkpoint import CheckpointManager, CheckpointState
 from market_data.ingestion.rate_limiter import CostTracker, TokenBucketRateLimiter
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from market_data.ingestion.checkpoint import CheckpointManager, CheckpointState
 
 logger = structlog.get_logger(__name__)
 
@@ -309,7 +312,6 @@ class AlpacaClient(BaseIngestionClient):
             return None
         incomplete = self.checkpoint_mgr.get_incomplete(vendor=self.VENDOR_NAME)
         for cp in incomplete:
-            if cp.symbol == symbol and cp.schema == schema.value:
-                if cp.last_processed_date:
-                    return datetime.fromisoformat(cp.last_processed_date)
+            if cp.symbol == symbol and cp.schema == schema.value and cp.last_processed_date:
+                return datetime.fromisoformat(cp.last_processed_date)
         return None

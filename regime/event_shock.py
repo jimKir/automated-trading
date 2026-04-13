@@ -16,7 +16,7 @@ Score: 0.0 (quiet) → 1.0 (acute shock in progress)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -190,7 +190,7 @@ class EventShockDetector:
 
     def score_today(self, all_prices: pd.DataFrame = None) -> float:
         """Score for live/paper trading."""
-        end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        start = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+        end = datetime.now(UTC).strftime("%Y-%m-%d")
+        start = (datetime.now(UTC) - timedelta(days=90)).strftime("%Y-%m-%d")
         series = self.compute_series(start, end, all_prices)
         return float(series.iloc[-1]) if not series.empty else 0.0

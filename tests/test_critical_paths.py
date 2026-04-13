@@ -483,8 +483,8 @@ class TestFetchWithRetry:
         state_file.write_text("")
         try:
             with open(state_file) as f:
-                data = json.load(f)
-            assert False, "Should have raised on empty JSON"
+                json.load(f)
+            raise AssertionError("Should have raised on empty JSON")
         except json.JSONDecodeError:
             pass  # Expected
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -702,7 +702,8 @@ class TestDailyUpdateIsCryptoDetection:
         all_symbols = [("SPY", False), ("AAPL", False), ("BTC-USD", True)]
         crypto_set = {s for s, c in all_symbols if c}
         KEY_CRYPTO = ["BTC-USD", "ETH-USD", "SOL-USD"]
-        assert "SPY" not in crypto_set and "SPY" not in KEY_CRYPTO
+        assert "SPY" not in crypto_set
+        assert "SPY" not in KEY_CRYPTO
 
     def test_unknown_key_crypto_detected(self):
         """BUG 4 FIX: A KEY_CRYPTO symbol not in all_symbols must still

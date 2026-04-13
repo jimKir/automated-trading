@@ -323,7 +323,7 @@ def build_dashboard(result: dict) -> str:
         else 0
         for m in model_labels
     ]
-    model_rmse = [
+    [
         round(__import__("statistics").mean(model_metrics_data[m]["rmse"]), 4)
         if model_metrics_data[m]["rmse"]
         else 0

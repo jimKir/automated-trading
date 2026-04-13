@@ -209,7 +209,7 @@ def validate(ctx: click.Context, check_date: str | None, symbols: tuple[str, ...
 
 
 @cli.command()
-@click.option("--host", type=str, default="0.0.0.0", help="Server host.")
+@click.option("--host", type=str, default="0.0.0.0", help="Server host.")  # noqa: S104
 @click.option("--port", type=int, default=8000, help="Server port.")
 @click.pass_context
 def serve(ctx: click.Context, host: str, port: int) -> None:
@@ -243,7 +243,7 @@ def serve(ctx: click.Context, host: str, port: int) -> None:
             self.end_headers()
             self.wfile.write(body.encode())
 
-        def log_message(self, format: str, *args: object) -> None:
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A002
             pass  # Suppress default logging
 
     click.echo(f"Starting server on {host}:{port}")

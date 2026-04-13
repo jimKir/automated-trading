@@ -165,7 +165,7 @@ class DataBentoTester:
 
             try:
                 # Note: This is limited by API rates, so we test with smaller actual scans
-                test_symbols = get_symbol_list("all")[: min(size, 500)]
+                get_symbol_list("all")[: min(size, 500)]
 
                 start = time.time()
                 results = self.databento_scanner.run_full_scan("all", min(size, 500))
@@ -219,10 +219,6 @@ class DataBentoTester:
     def _fetch_single_symbol(self, symbol: str, source: str = "alpaca") -> dict | None:
         """Fetch latest bar for single symbol."""
         try:
-            if source == "alpaca":
-                scanner = self.alpaca_scanner
-            else:
-                scanner = self.databento_scanner
 
             # Get hourly bars - would normally fetch fresh data
             # This is a placeholder for actual data fetch

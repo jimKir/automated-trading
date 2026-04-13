@@ -199,7 +199,7 @@ class VolatilityTargeter:
 
         ewma_var = float(warmup.var())
 
-        for i, (date, r) in enumerate(equity_returns.items()):
+        for i, (_date, _r) in enumerate(equity_returns.items()):
             # Today's vol estimate uses yesterday's return (lag 1 — no lookahead)
             if i > 0:
                 prev_r = equity_returns.iloc[i - 1]

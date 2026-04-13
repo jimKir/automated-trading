@@ -162,7 +162,7 @@ def check_data_exists(client, dataset: str, schema: str, start: str, end: str) -
 
     # Sample 8 evenly-spaced dates + first + last
     step = max(1, len(days) // 6)
-    sample = sorted(set([days[0], days[-1]] + days[::step]))[:8]
+    sample = sorted({days[0], days[-1], *days[::step]})[:8]
 
     hits, misses, gaps = [], [], []
     for d in sample:

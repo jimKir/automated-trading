@@ -24,8 +24,7 @@ Usage:
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
-from typing import Optional
+from datetime import UTC, datetime, time
 
 import numpy as np
 import pandas as pd
@@ -75,8 +74,8 @@ class HourlyEntryTimer:
         self,
         symbol: str,
         signal: object = None,
-        hourly_bars: Optional[pd.DataFrame] = None,
-        current_time: Optional[datetime] = None,
+        hourly_bars: pd.DataFrame | None = None,
+        current_time: datetime | None = None,
     ) -> bool:
         """
         Determine whether to execute an entry for the given symbol right now.
@@ -95,7 +94,7 @@ class HourlyEntryTimer:
             return True
 
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(UTC)
 
         sym_upper = symbol.upper().replace("-", "").replace("/", "")
 
@@ -114,7 +113,7 @@ class HourlyEntryTimer:
     def _equity_timing(
         self,
         symbol: str,
-        hourly_bars: Optional[pd.DataFrame],
+        hourly_bars: pd.DataFrame | None,
         current_time: datetime,
     ) -> bool:
         """
@@ -126,7 +125,7 @@ class HourlyEntryTimer:
         # Convert to proper Eastern Time (handles EDT/EST automatically)
         from zoneinfo import ZoneInfo
         et_tz = ZoneInfo('America/New_York')
-        current_et = current_time.astimezone(et_tz) if current_time.tzinfo else current_time.replace(tzinfo=timezone.utc).astimezone(et_tz)
+        current_et = current_time.astimezone(et_tz) if current_time.tzinfo else current_time.replace(tzinfo=UTC).astimezone(et_tz)
         et_hour = current_et.hour
 
         # Hard fallback: 13:05 ET or later → enter now regardless
@@ -184,7 +183,7 @@ class HourlyEntryTimer:
     def _crypto_timing(
         self,
         symbol: str,
-        hourly_bars: Optional[pd.DataFrame],
+        hourly_bars: pd.DataFrame | None,
         current_time: datetime,
     ) -> bool:
         """

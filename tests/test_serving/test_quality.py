@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 
 from market_data.serving.quality import DataQualityChecker, QualityReport
 from market_data.storage.analytics_lake import OHLCV_SCHEMA, AnalyticsLake
-from market_data.storage.symbol_master import SymbolMaster
+
+if TYPE_CHECKING:
+    from market_data.storage.symbol_master import SymbolMaster
 
 
 class TestDataQualityChecker:

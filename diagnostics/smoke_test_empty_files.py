@@ -283,7 +283,7 @@ def main():
     print(f"  {'Date':<12} {'Tight':>8} {'Wide':>8} {'Stats':>8}  Verdict")
     print("  " + "─" * 60)
 
-    for d, stub_path in sample:
+    for d, _stub_path in sample:
         row_tight = row_wide = row_stats = "—"
         verdict_parts = []
 

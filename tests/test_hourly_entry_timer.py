@@ -1,9 +1,11 @@
 """Unit tests for HourlyEntryTimer — entry rule validation."""
-import pytest
-import pandas as pd
+import os
+import sys
+
 import numpy as np
-from datetime import datetime
-import sys, os
+import pandas as pd
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from execution.hourly_entry_timer import HourlyEntryTimer
@@ -31,17 +33,17 @@ class TestBypassSymbols:
     def test_gld_bypassed(self, timer, mock_hourly_bars):
         result = timer.should_enter_now('GLD', pd.Series(), mock_hourly_bars, 1)
         enter = result['enter'] if isinstance(result, dict) else result
-        assert enter == True, "GLD should always bypass timing (no intraday momentum)"
+        assert enter, "GLD should always bypass timing (no intraday momentum)"
 
     def test_tlt_bypassed(self, timer, mock_hourly_bars):
         result = timer.should_enter_now('TLT', pd.Series(), mock_hourly_bars, 1)
         enter = result['enter'] if isinstance(result, dict) else result
-        assert enter == True
+        assert enter
 
     def test_shy_bypassed(self, timer, mock_hourly_bars):
         result = timer.should_enter_now('SHY', pd.Series(), mock_hourly_bars, 1)
         enter = result['enter'] if isinstance(result, dict) else result
-        assert enter == True
+        assert enter
 
 
 class TestEquityTimingRules:

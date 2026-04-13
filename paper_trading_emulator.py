@@ -34,27 +34,24 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-import matplotlib
-matplotlib.use("Agg")
+import matplotlib as mpl
+
+mpl.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.gridspec import GridSpec
-from matplotlib.ticker import FuncFormatter
 import numpy as np
 import pandas as pd
+from matplotlib.gridspec import GridSpec
+from matplotlib.ticker import FuncFormatter
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).parent))
 
+from regime.choppy_regime import ChoppyRegimeDetector
+from risk.position_anomaly import AssetClass, PositionAnomalyScorer, apply_position_scales, classify
+from strategy.signals import SignalGenerator
 from utils.config_loader import load_config
 from utils.logger import get_logger
-from strategy.signals import SignalGenerator
-from risk.position_anomaly import (
-    PositionAnomalyScorer, classify, AssetClass, apply_position_scales
-)
-from regime.choppy_regime import ChoppyRegimeDetector
 
 log = get_logger("PaperTradingEmulator")
 
@@ -95,7 +92,7 @@ C = {
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 
-def load_sym(sym: str) -> Optional[pd.DataFrame]:
+def load_sym(sym: str) -> pd.DataFrame | None:
     """Load OHLCV DataFrame from local parquet store."""
     name = SYM_MAP.get(sym, sym.replace("=F","").replace("^","").replace("-","")[:6] if "=" in sym or "^" in sym else sym.replace("-USD",""))
     for candidate in [name, sym]:
@@ -126,16 +123,16 @@ class PaperTradingEmulator:
         # Portfolio state
         self.equity       = INITIAL_EQUITY
         self.cash         = INITIAL_EQUITY
-        self.positions: Dict[str, float] = {}   # sym → dollar value
-        self.weights:   Dict[str, float] = {}   # sym → target weight
+        self.positions: dict[str, float] = {}   # sym → dollar value
+        self.weights:   dict[str, float] = {}   # sym → target weight
 
         # Logs
-        self.equity_log:    List[dict] = []
-        self.trade_log:     List[dict] = []
-        self.position_log:  List[dict] = []
-        self.signal_log:    List[dict] = []
+        self.equity_log:    list[dict] = []
+        self.trade_log:     list[dict] = []
+        self.position_log:  list[dict] = []
+        self.signal_log:    list[dict] = []
 
-    def _rebalance_dates(self, dates: pd.DatetimeIndex) -> List[pd.Timestamp]:
+    def _rebalance_dates(self, dates: pd.DatetimeIndex) -> list[pd.Timestamp]:
         """Weekly: last trading day of each ISO week within the paper window."""
         df = pd.DataFrame({"d": dates})
         df["wk"] = df["d"].dt.to_period("W")
@@ -159,7 +156,7 @@ class PaperTradingEmulator:
         rate = COSTS.get(ac, COSTS[AssetClass.UNKNOWN])
         return abs(trade_value) * rate
 
-    def run(self, all_data: Dict[str, pd.DataFrame]) -> dict:
+    def run(self, all_data: dict[str, pd.DataFrame]) -> dict:
         """
         Main emulation loop.
 
@@ -204,7 +201,8 @@ class PaperTradingEmulator:
             portfolio_value = self.cash
             pos_values = {}
             for sym, pos_val in self.positions.items():
-                if sym not in all_data: continue
+                if sym not in all_data:
+                    continue
                 df = all_data[sym]
                 df.index = pd.to_datetime(df.index).tz_localize(None)
                 try:
@@ -213,10 +211,7 @@ class PaperTradingEmulator:
                         paper_dates[paper_dates.index(date) - 1]
                         if paper_dates.index(date) > 0 else date
                     ))
-                    if price_prev > 0:
-                        new_val = pos_val * (price_today / price_prev)
-                    else:
-                        new_val = pos_val
+                    new_val = pos_val * (price_today / price_prev) if price_prev > 0 else pos_val
                     pos_values[sym] = new_val
                     portfolio_value += new_val
                 except Exception:
@@ -317,7 +312,7 @@ class PaperTradingEmulator:
             max_pos   = 0.15 * ews_scale
             max_heat  = 0.75 * ews_scale
             total_sig = sum(longs.values())
-            target_weights: Dict[str, float] = {}
+            target_weights: dict[str, float] = {}
             heat = 0.0
             for sym, sig in sorted(longs.items(), key=lambda x: -x[1]):
                 w = (sig / total_sig) * min(max_heat, 0.95)
@@ -500,8 +495,8 @@ def generate_chart(results: dict) -> str:
                f"SPY:      {spy_tr:+.1f}%  Sharpe {spy_sh:.2f}  MaxDD {results['spy_max_dd']:.1f}%",
                transform=ax_eq.transAxes, ha="right", va="top",
                fontsize=9.5, color=C["text"],
-               bbox=dict(boxstyle="round,pad=0.35", facecolor="white",
-                         edgecolor=C["border"], alpha=0.9, linewidth=0.8))
+               bbox={"boxstyle": "round,pad=0.35", "facecolor": "white",
+                         "edgecolor": C["border"], "alpha": 0.9, "linewidth": 0.8})
     ax_eq.set_title("Paper Trading Emulation — Dec 2025 → Apr 2026 (Fully OOS)",
                     fontsize=12, color=C["text"], fontweight="bold", pad=7)
 
@@ -602,7 +597,7 @@ def main():
     ]
 
     log.info("Loading all data...")
-    all_data: Dict[str, pd.DataFrame] = {}
+    all_data: dict[str, pd.DataFrame] = {}
     for sym in UNIVERSE:
         df = load_sym(sym)
         if df is not None and len(df) > 100:
@@ -656,7 +651,7 @@ def main():
     print(f"\n  SPY baseline: {results['spy_total_return']:+.2f}% | "
           f"Sharpe {results['spy_sharpe']} | MaxDD {results['spy_max_dd']:.2f}%")
     print(f"\n  Chart: {chart_path}")
-    print(f"  Summary: results/paper_trading_summary.json")
+    print("  Summary: results/paper_trading_summary.json")
 
 
 if __name__ == "__main__":

@@ -24,10 +24,7 @@ Usage (live):
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
-from typing import Optional
-
-import numpy as np
+from datetime import date, timedelta
 
 log = logging.getLogger(__name__)
 
@@ -145,7 +142,7 @@ class ProtectivePutHedge:
                          spy_price: float,
                          portfolio_equity: float,
                          vix_level: float = 20.0,
-                         today: Optional[date] = None) -> Optional[PutPosition]:
+                         today: date | None = None) -> PutPosition | None:
         """
         Called whenever ChoppyDetector score updates.
         Returns new PutPosition if hedge was opened, None otherwise.
@@ -181,7 +178,7 @@ class ProtectivePutHedge:
         self._last_regime = new_regime
         return None
 
-    def get_hedge_pnl(self, current_spy: float, today: Optional[date] = None) -> float:
+    def get_hedge_pnl(self, current_spy: float, today: date | None = None) -> float:
         """Current mark-to-market P&L of all open put positions."""
         today = today or date.today()
         total = 0.0
@@ -204,9 +201,12 @@ class ProtectivePutHedge:
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _classify(self, score: float) -> str:
-        if score >= self.RED_MIN:    return "RED"
-        if score >= self.ORANGE_MIN: return "ORANGE"
-        if score >= self.GREEN_MAX:  return "YELLOW"
+        if score >= self.RED_MIN:
+            return "RED"
+        if score >= self.ORANGE_MIN:
+            return "ORANGE"
+        if score >= self.GREEN_MAX:
+            return "YELLOW"
         return "GREEN"
 
     def _open_put(self, regime: str, spy_price: float,
@@ -269,8 +269,8 @@ class ProtectivePutHedge:
     def _submit_alpaca_put_order(self, pos: PutPosition):
         """Submit single-leg put order via Alpaca alpaca-py SDK."""
         try:
-            from alpaca.trading.requests import OptionLimitOrderRequest
             from alpaca.trading.enums import OrderSide, TimeInForce
+            from alpaca.trading.requests import OptionLimitOrderRequest
 
             # Use limit order at mid-price to avoid unfavourable fills
             request = OptionLimitOrderRequest(

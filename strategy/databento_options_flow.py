@@ -70,7 +70,7 @@ import pandas as pd
 
 # Data catalogue — tracks all fetched data (source/schema/date/path)
 try:
-    from src.market_data.catalogue import get_catalogue as _get_catalogue
+    from src.market_data.catalogue import get_catalogue as _get_catalogue  # noqa: F401
 
     _CATALOGUE_AVAILABLE = True
 except ImportError:
@@ -243,7 +243,7 @@ def get_cache_path_for(*parts) -> Path:
     return _cache_path(*parts)
 
 
-def build_signal(config: dict | None = None) -> OPRAOptionsFlowSignal:
+def build_signal(config: dict | None = None) -> None:  # type: ignore[return]
     """
     Factory function for OPRAOptionsFlowSignal.
 
@@ -254,9 +254,9 @@ def build_signal(config: dict | None = None) -> OPRAOptionsFlowSignal:
 
     Returns
     -------
-    OPRAOptionsFlowSignal
+    OPRAOptionsFlowSignal — not yet implemented.
     """
-    return OPRAOptionsFlowSignal(config=config)
+    raise NotImplementedError("OPRAOptionsFlowSignal is not yet implemented")
 
 
 # ── SETTINGS YAML TEMPLATE ────────────────────────────────────────────────────

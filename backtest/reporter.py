@@ -10,11 +10,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-import matplotlib
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
@@ -175,7 +175,7 @@ def plot_results(
     )
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(10)
-    for (row, col), cell in tbl.get_celld().items():
+    for (row, _col), cell in tbl.get_celld().items():
         if row == 0:
             cell.set_facecolor("#2c3e50")
             cell.set_text_props(color="white", fontweight="bold")

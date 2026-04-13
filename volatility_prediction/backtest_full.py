@@ -154,7 +154,7 @@ def main(force_refresh: bool = False):
     print(f"        Built features for {len(all_features)} symbols")
 
     # Count features
-    sample_sym = list(all_features.keys())[0]
+    sample_sym = next(iter(all_features.keys()))
     n_features = all_features[sample_sym].shape[1]
     print(f"        {n_features} features per symbol")
 
@@ -172,8 +172,7 @@ def main(force_refresh: bool = False):
     train_X_list, train_y_list = [], []
     test_X_dict, test_y_dict = {}, {}
 
-    for sym in all_features:
-        feats = all_features[sym]
+    for sym, feats in all_features.items():
         target = all_targets[sym]
 
         # Align
@@ -230,7 +229,7 @@ def main(force_refresh: bool = False):
     print(f"  {CYAN}[5/5]{RESET} Out-of-sample evaluation on test set...")
     print()
 
-    validator = WalkForwardValidator()
+    WalkForwardValidator()
     ensemble = AdaptiveEnsemble()
 
     # Collect results per model
@@ -244,8 +243,7 @@ def main(force_refresh: bool = False):
 
     per_symbol_metrics = {}
 
-    for sym in test_X_dict:
-        test_X = test_X_dict[sym]
+    for sym, test_X in test_X_dict.items():
         test_y = test_y_dict[sym]
 
         preds = {}
@@ -399,7 +397,6 @@ def main(force_refresh: bool = False):
             recall_score,
         )
 
-        regimes = ["HIGH", "ELEVATED", "NORMAL", "LOW", "COMPRESSED"]
 
         for model_name in model_names:
             true = regime_true_all
@@ -434,7 +431,7 @@ def main(force_refresh: bool = False):
                 labels_present = sorted(set(true + pred))
                 cm = confusion_matrix(true, pred, labels=labels_present)
                 # Print header
-                header = "        " + "  ".join(f"{l:>8}" for l in labels_present)
+                header = "        " + "  ".join(f"{lbl:>8}" for lbl in labels_present)
                 print(header)
                 for i, row_label in enumerate(labels_present):
                     row = "  ".join(f"{v:>8}" for v in cm[i])

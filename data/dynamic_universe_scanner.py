@@ -30,7 +30,6 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from utils.logger import get_logger
 
@@ -61,18 +60,18 @@ class ScanCandidate:
 
 @dataclass
 class ScanResult:
-    candidates: List[ScanCandidate] = field(default_factory=list)
+    candidates: list[ScanCandidate] = field(default_factory=list)
     n_screened: int = 0
     n_rejected_filters: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 def _choppy_to_regime(score: float) -> str:
     if score < 0.17:
         return "GREEN"
-    elif score < 0.27:
+    if score < 0.27:
         return "YELLOW"
-    elif score < 0.40:
+    if score < 0.40:
         return "ORANGE"
     return "RED"
 
@@ -121,7 +120,7 @@ class DynamicUniverseScanner:
     def scan(
         self,
         choppy_score: float = 0.0,
-        existing_universe: Optional[set] = None,
+        existing_universe: set | None = None,
     ) -> ScanResult:
         """
         Run the universe scan.
@@ -158,8 +157,8 @@ class DynamicUniverseScanner:
         Use Alpaca API to get tradeable assets and filter them.
         """
         try:
-            from alpaca.trading.requests import GetAssetsRequest
             from alpaca.trading.enums import AssetClass as AlpacaAssetClass
+            from alpaca.trading.requests import GetAssetsRequest
 
             request = GetAssetsRequest(
                 asset_class=AlpacaAssetClass.US_EQUITY,
@@ -217,7 +216,7 @@ class DynamicUniverseScanner:
     def scan_safe(
         self,
         choppy_score: float = 0.0,
-        existing_universe: Optional[set] = None,
+        existing_universe: set | None = None,
     ) -> ScanResult:
         """
         Safe wrapper: never raises, always returns a ScanResult.

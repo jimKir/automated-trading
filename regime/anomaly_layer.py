@@ -19,13 +19,16 @@ Composite → regime label → position scale:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 log = get_logger("AnomalyLayer")
 
@@ -105,9 +108,9 @@ class AnomalyRegimeLayer:
         """Map composite score to regime label."""
         if composite >= 0.50:
             return "CRISIS"
-        elif composite >= 0.35:
+        if composite >= 0.35:
             return "STRESSED"
-        elif composite >= 0.20:
+        if composite >= 0.20:
             return "ELEVATED"
         return "NORMAL"
 

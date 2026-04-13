@@ -5,17 +5,19 @@ Validate AnomalyRegimeLayer:
   STEP 5: OOS comparison (Sep 2025 – Apr 2026)
 """
 import json
-import sys
 import os
+import sys
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # Ensure repo root on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 from data.data_store import get_store
 
@@ -175,20 +177,20 @@ def main():
     }
     with open(RESULTS_DIR / "anomaly_layer_results.json", "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nResults saved to results/anomaly_layer_results.json")
+    print("\nResults saved to results/anomaly_layer_results.json")
 
     # Generate chart
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        import matplotlib as mpl
+        mpl.use("Agg")
         import matplotlib.dates as mdates
+        import matplotlib.pyplot as plt
 
         cum_spy = (1 + spy_ret).cumprod()
         cum_choppy = (1 + ret_choppy).cumprod()
         cum_combined = (1 + ret_combined).cumprod()
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 9), gridspec_kw={"height_ratios": [3, 1]})
+        _fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 9), gridspec_kw={"height_ratios": [3, 1]})
 
         ax1.plot(cum_spy.index, cum_spy, label=f"SPY B&H (Sharpe={m_spy['sharpe']:.2f})", color="gray", alpha=0.7)
         ax1.plot(cum_choppy.index, cum_choppy, label=f"Choppy Only (Sharpe={m_choppy['sharpe']:.2f})", color="blue")
@@ -213,7 +215,7 @@ def main():
 
         plt.tight_layout()
         plt.savefig(RESULTS_DIR / "anomaly_layer_oos.png", dpi=150, bbox_inches="tight")
-        print(f"Chart saved to results/anomaly_layer_oos.png")
+        print("Chart saved to results/anomaly_layer_oos.png")
     except Exception as e:
         print(f"Chart generation failed: {e}")
 

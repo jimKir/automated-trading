@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-import os
 from pathlib import Path
 
 # Ensure tests can find all modules
@@ -16,8 +15,10 @@ import pytest
 
 # Conditionally import market_data fixtures (may not be available in all envs)
 try:
-    import pyarrow as pa
     from datetime import UTC, datetime
+
+    import pyarrow as pa
+
     from market_data.storage.analytics_lake import OHLCV_SCHEMA, AnalyticsLake
     from market_data.storage.cloud_storage import LocalStorageBackend
     from market_data.storage.symbol_master import SymbolMaster, SymbolRecord

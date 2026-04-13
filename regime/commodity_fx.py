@@ -20,7 +20,7 @@ Score: 0.0 (risk-on, benign) → 1.0 (maximum commodity/FX stress)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -234,7 +234,7 @@ class CommodityFXScorer:
 
     def score_today(self) -> float:
         """Score for live/paper trading."""
-        end = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        start = (datetime.now(timezone.utc) - timedelta(days=120)).strftime("%Y-%m-%d")
+        end = datetime.now(UTC).strftime("%Y-%m-%d")
+        start = (datetime.now(UTC) - timedelta(days=120)).strftime("%Y-%m-%d")
         series = self.compute_series(start, end)
         return float(series.iloc[-1]) if not series.empty else 0.0

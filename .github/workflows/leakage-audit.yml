@@ -26,13 +26,7 @@ jobs:
 
       - name: Run ruff
         run: |
-          ruff check \
-            scripts/paper_monitor.py \
-            scripts/daily_summary.py \
-            infra/lambda-gmail-draft/handler.py \
-            run_wf_12m_oos.py \
-            tests/test_leakage_audit.py \
-            2>&1 | tee ruff_output.txt
+          ruff check . 2>&1 | tee ruff_output.txt
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_ENV
 
       - name: Summary

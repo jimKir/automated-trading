@@ -4,10 +4,10 @@ Production Readiness Dress Rehearsal — All Phases
 Runs Phase 1c, 1d, and all Phase 2 dry-run tests.
 """
 import json
-import sys
 import os
+import sys
+from datetime import datetime
 from pathlib import Path
-from datetime import datetime, time, timedelta
 
 import numpy as np
 import pandas as pd
@@ -198,7 +198,7 @@ try:
 
     # Print last 5 days
     last5 = score_series.tail(5)
-    print(f"  Last 5 days scores:")
+    print("  Last 5 days scores:")
     for d, s in last5.items():
         scale, colour = detector.score_to_scale(s)
         print(f"    {d.date()}: score={s:.3f} → {colour} (scale={scale:.0%})")
@@ -217,7 +217,8 @@ try:
 
 except Exception as e:
     log_result("2a", "choppy_detector_overall", "FAIL", str(e)[:200])
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 
 # ============================================================
@@ -262,7 +263,8 @@ try:
 
 except Exception as e:
     log_result("2b", "signal_engine_overall", "FAIL", str(e)[:200])
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 
 # ============================================================
@@ -270,7 +272,7 @@ except Exception as e:
 # ============================================================
 print("\n=== PHASE 2c: PositionAnomalyScorer Dry-Run ===")
 try:
-    from risk.position_anomaly import PositionAnomalyScorer, classify, AssetClass
+    from risk.position_anomaly import AssetClass, PositionAnomalyScorer, classify
 
     scorer = PositionAnomalyScorer()
 
@@ -314,7 +316,7 @@ try:
 
     log_result("2c", "floor_enforcement", "PASS")
 
-    print(f"  Scales:")
+    print("  Scales:")
     for sym, scale in sorted(scales.items()):
         ac = classify(sym)
         print(f"    {sym} ({ac.value}): scale={scale:.3f}")
@@ -323,7 +325,8 @@ try:
 
 except Exception as e:
     log_result("2c", "position_anomaly_overall", "FAIL", str(e)[:200])
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 
 # ============================================================
@@ -358,21 +361,21 @@ try:
     # Case 2: 10:00 ET (14:00 UTC) → should wait (before preferred hour)
     t2 = datetime(2026, 4, 10, 14, 0)
     result2 = timer.should_enter_now("SPY", mock_bars, t2)
-    log_result("2d", "case2_10ET_wait", "PASS" if result2 == False else "FAIL", f"got {result2}")
+    log_result("2d", "case2_10ET_wait", "PASS" if not result2 else "FAIL", f"got {result2}")
 
     # Case 3: 13:05 ET (17:05 UTC) → fallback, enter regardless
     t3 = datetime(2026, 4, 10, 17, 5)
     result3 = timer.should_enter_now("SPY", mock_bars, t3)
-    log_result("2d", "case3_1305ET_fallback", "PASS" if result3 == True else "FAIL", f"got {result3}")
+    log_result("2d", "case3_1305ET_fallback", "PASS" if result3 else "FAIL", f"got {result3}")
 
     # Case 4: GLD → bypass symbol, always True
     result4 = timer.should_enter_now("GLD", mock_bars, t2)
-    log_result("2d", "case4_GLD_bypass", "PASS" if result4 == True else "FAIL", f"got {result4}")
+    log_result("2d", "case4_GLD_bypass", "PASS" if result4 else "FAIL", f"got {result4}")
 
     # Case 5: BTC at 12:00 UTC (outside 14-17 window) → False
     t5 = datetime(2026, 4, 10, 12, 0)
     result5 = timer.should_enter_now("BTC-USD", mock_bars, t5)
-    log_result("2d", "case5_BTC_outside_window", "PASS" if result5 == False else "FAIL", f"got {result5}")
+    log_result("2d", "case5_BTC_outside_window", "PASS" if not result5 else "FAIL", f"got {result5}")
 
     # Case 6: BTC at 15:30 UTC (inside window)
     t6 = datetime(2026, 4, 10, 15, 30)
@@ -392,7 +395,8 @@ try:
 
 except Exception as e:
     log_result("2d", "hourly_timer_overall", "FAIL", str(e)[:200])
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 
 # ============================================================
@@ -451,7 +455,8 @@ try:
 
 except Exception as e:
     log_result("2e", "scanner_overall", "FAIL", str(e)[:200])
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 
 # ============================================================
@@ -509,7 +514,8 @@ try:
 
 except Exception as e:
     log_result("2f", "live_engine_overall", "FAIL", str(e)[:200])
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
 
 
 # ============================================================
@@ -540,7 +546,7 @@ for phase in sorted(phases.keys()):
 
 print(f"\n  TOTAL: {total_pass}/{total_pass + total_fail} passed")
 if total_fail > 0:
-    print(f"\n  FAILURES:")
+    print("\n  FAILURES:")
     for r in RESULTS:
         if r["status"] == "FAIL":
             print(f"    [{r['phase']}] {r['test']}: {r['detail']}")

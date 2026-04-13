@@ -34,15 +34,18 @@ CLI — list all cached items:
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import hashlib
 import json
 import logging
 import os
-from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +85,8 @@ def _save_manifest(manifest: dict):
         os.replace(tmp, MANIFEST_FILE)
     except Exception as e:
         logger.warning(f"[DataStore] Could not save manifest: {e}")
-        try:
+        with contextlib.suppress(Exception):
             tmp.unlink(missing_ok=True)
-        except Exception:
-            pass
 
 
 def _safe_key(key: str) -> str:

@@ -174,7 +174,7 @@ def walk_forward_test(
         # Apply vol targeting on test period only, using seeded EWMA
         scales = []
         curr_var = ewma_var
-        for i, r in enumerate(test_rets):
+        for _i, r in enumerate(test_rets):
             ann_vol = np.sqrt(curr_var * PERIODS_PER_YEAR)
             scale = float(np.clip(target_vol / ann_vol if ann_vol > 0 else 1.0, 0.1, 1.5))
             scales.append(scale)
@@ -233,8 +233,8 @@ def sensitivity_test(
         target_vols = [0.08, 0.10, 0.12, 0.15, 0.18, 0.20, 0.25]
 
     baseline_sharpe = _sharpe(returns)
-    baseline_mdd = _max_drawdown(returns)
-    baseline_vol = _ann_vol(returns)
+    _max_drawdown(returns)
+    _ann_vol(returns)
 
     results = []
     for tv in target_vols:

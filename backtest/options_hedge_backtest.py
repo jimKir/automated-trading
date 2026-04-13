@@ -9,21 +9,24 @@ ChoppyDetector score approximated from price/vol data.
 
 Run: python backtest/options_hedge_backtest.py --save-results
 """
-import os, sys, json, math, warnings, argparse
-import pandas as pd
+import argparse
+import os
+import sys
+import warnings
+
+import matplotlib as mpl
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
+import pandas as pd
+
+mpl.use("Agg")
+from datetime import datetime
+
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from datetime import date, timedelta, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore")
 
-from execution.options_hedge import (
-    ProtectivePutHedge, estimate_put_premium, HedgeState
-)
+from execution.options_hedge import ProtectivePutHedge
 
 PERIODS = [
     {"name": "COVID_Crash_2020",
@@ -97,7 +100,6 @@ def simulate(df: pd.DataFrame, use_hedge: bool = True,
     Rebalance weekly.
     """
     weights = {"spy": 0.40, "tlt": 0.20, "gld": 0.15}
-    cash_w  = 0.25
 
     # Daily returns per asset
     rets = {}
@@ -248,7 +250,7 @@ def make_chart(period: dict,
     ax3.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else ".", exist_ok=True)
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
     plt.savefig(save_path, dpi=130, bbox_inches="tight")
     plt.close()
     print(f"  Chart → {save_path}")
@@ -279,8 +281,11 @@ def make_summary_chart(all_results: list,
         ax.annotate(f"{delta:+.1f}%", xy=(i+w/2, h),
                     ha="center", va="bottom", fontsize=9,
                     color="green" if delta > 0 else "red")
-    ax.set_xticks(x); ax.set_xticklabels(periods, rotation=10)
-    ax.set_ylabel("Max Drawdown (%)"); ax.legend(); ax.grid(axis="y", alpha=0.3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(periods, rotation=10)
+    ax.set_ylabel("Max Drawdown (%)")
+    ax.legend()
+    ax.grid(axis="y", alpha=0.3)
     ax.set_title("Max Drawdown")
 
     # Sharpe comparison
@@ -292,8 +297,11 @@ def make_summary_chart(all_results: list,
         ax.annotate(f"{delta:+.2f}", xy=(i+w/2, max(h,0)+0.02),
                     ha="center", va="bottom", fontsize=9,
                     color="green" if delta > 0 else "red")
-    ax.set_xticks(x); ax.set_xticklabels(periods, rotation=10)
-    ax.set_ylabel("Sharpe Ratio"); ax.legend(); ax.grid(axis="y", alpha=0.3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(periods, rotation=10)
+    ax.set_ylabel("Sharpe Ratio")
+    ax.legend()
+    ax.grid(axis="y", alpha=0.3)
     ax.set_title("Sharpe Ratio")
 
     # Hedge cost
@@ -309,7 +317,7 @@ def make_summary_chart(all_results: list,
     ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
-    os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else ".", exist_ok=True)
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
     plt.savefig(save_path, dpi=130, bbox_inches="tight")
     plt.close()
     print(f"  Summary chart → {save_path}")
@@ -352,14 +360,15 @@ def run(save: bool = False):
         print(f"\n  {'Metric':<20} {'Unhedged':>12} {'Hedged':>12} {'Delta':>10}")
         print(f"  {'─'*56}")
         for key in ["total_return","sharpe","max_dd","worst_day","calmar"]:
-            u = um[key]; h = hm[key]
+            u = um[key]
+            h = hm[key]
             d = h - u
             flag = "✅" if (key in ("sharpe","total_return","calmar") and d > 0) or \
                            (key in ("max_dd","worst_day") and d > 0) else \
                    "⚠" if abs(d) < 0.005 else "❌"
             print(f"  {key:<20} {u:>12.4f} {h:>12.4f} {flag}{d:>+9.4f}")
 
-        print(f"\n  Hedge stats:")
+        print("\n  Hedge stats:")
         print(f"    Puts opened:     {hs.get('n_opened',0)}")
         print(f"    Premium paid:    ${total_paid:,.0f}")
         print(f"    Payoff received: ${total_payoff:,.0f}")

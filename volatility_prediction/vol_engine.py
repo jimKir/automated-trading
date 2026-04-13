@@ -34,7 +34,7 @@ try:
     import sys as _sys
 
     _sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
-    from utils.indicators import compute_adx as _compute_adx_shared
+    from utils.indicators import compute_adx as _compute_adx_shared  # noqa: F401
 
     _USE_SHARED_ADX = True
 except ImportError:
@@ -562,7 +562,7 @@ class FeatureEngine:
         Build full feature matrix for a single symbol.
         Returns (features_df, targets_dict).
         """
-        o, h, l, c, v = df["open"], df["high"], df["low"], df["close"], df["volume"]
+        o, h, lo, c, v = df["open"], df["high"], df["low"], df["close"], df["volume"]
         log_ret = np.log(c / c.shift(1))
 
         feats = pd.DataFrame(index=df.index)
@@ -570,9 +570,9 @@ class FeatureEngine:
         # ── A. Multi-window volatility estimators ──────────────────────
         for w in [5, 10, 20, 60]:
             feats[f"vol_cc_{w}"] = self.vol_est.close_to_close(c, w)
-            feats[f"vol_pk_{w}"] = self.vol_est.parkinson(h, l, w)
-            feats[f"vol_gk_{w}"] = self.vol_est.garman_klass(o, h, l, c, w)
-            feats[f"vol_yz_{w}"] = self.vol_est.yang_zhang(o, h, l, c, w)
+            feats[f"vol_pk_{w}"] = self.vol_est.parkinson(h, lo, w)
+            feats[f"vol_gk_{w}"] = self.vol_est.garman_klass(o, h, lo, c, w)
+            feats[f"vol_yz_{w}"] = self.vol_est.yang_zhang(o, h, lo, c, w)
 
         # ── B. HAR components (Corsi 2009) ─────────────────────────────
         # HAR decomposes vol into daily (1d), weekly (5d), monthly (22d)
@@ -606,7 +606,7 @@ class FeatureEngine:
         feats["vol_volume_corr"] = abs_ret.rolling(20).corr(v)
 
         # ── E. Range features ──────────────────────────────────────────
-        tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
+        tr = pd.concat([h - lo, (h - c.shift(1)).abs(), (lo - c.shift(1)).abs()], axis=1).max(axis=1)
         feats["atr_14"] = tr.rolling(14).mean() / c  # normalised ATR
         feats["atr_5"] = tr.rolling(5).mean() / c
 
@@ -616,7 +616,7 @@ class FeatureEngine:
         feats["bband_width"] = 2 * bb_std / bb_ma.replace(0, np.nan)
 
         # Intraday range ratio (today's range vs average)
-        daily_range = (h - l) / c
+        daily_range = (h - lo) / c
         feats["range_ratio"] = daily_range / daily_range.rolling(20).mean()
 
         # ── F. Cross-asset features ────────────────────────────────────
@@ -716,7 +716,7 @@ class FeatureEngine:
         # Compares close to high-low range — identifies reversals
         # High stochastic + reversal → vol expansion signal
         for stoch_period in [14, 21]:
-            lowest_low = l.rolling(stoch_period).min()
+            lowest_low = lo.rolling(stoch_period).min()
             highest_high = h.rolling(stoch_period).max()
             denom = (highest_high - lowest_low).replace(0, np.nan)
             stoch_k = ((c - lowest_low) / denom) * 100
@@ -734,11 +734,11 @@ class FeatureEngine:
         # Strong trends (ADX > 25) tend to have different vol dynamics
         adx_period = 14
         plus_dm = h.diff()
-        minus_dm = -l.diff()
+        minus_dm = -lo.diff()
         plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
         minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
 
-        tr_adx = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(
+        tr_adx = pd.concat([h - lo, (h - c.shift(1)).abs(), (lo - c.shift(1)).abs()], axis=1).max(
             axis=1
         )
 
@@ -1104,12 +1104,12 @@ class GBMVolModel:
         if self._backend:
             return self._backend
         try:
-            import lightgbm
+            import lightgbm  # noqa: F401
 
             self._backend = "lightgbm"
         except ImportError:
             try:
-                import xgboost
+                import xgboost  # noqa: F401
 
                 self._backend = "xgboost"
             except ImportError:
@@ -1321,12 +1321,12 @@ class AdaptiveEnsemble:
             return {m: 1.0 / len(self.model_names) for m in self.model_names}
 
         # Inverse loss weights
-        inv_losses = {m: 1.0 / l for m, l in losses.items()}
+        inv_losses = {m: 1.0 / loss for m, loss in losses.items()}
         total = sum(inv_losses.values())
         weights = {m: v / total for m, v in inv_losses.items()}
 
         # Floor at 10% per model
-        n = len(weights)
+        len(weights)
         floor = 0.10
         for m in weights:
             weights[m] = max(weights[m], floor)
@@ -1532,8 +1532,7 @@ class VolatilityPredictor:
 
         # ── 4. Generate per-symbol predictions ────────────────────────
         logger.info("Generating predictions...")
-        for sym in global_features_dict:
-            feats = global_features_dict[sym]
+        for sym, feats in global_features_dict.items():
             target = global_targets_dict[sym]
 
             preds = {}
@@ -1625,16 +1624,16 @@ class VolatilityPredictor:
                 sector_summary[sec]["predicted"].append(info["predicted_vol"])
             sector_summary[sec]["directions"].append(info["direction"])
 
-        for sec in sector_summary:
-            vols = sector_summary[sec]["vols"]
-            preds = sector_summary[sec]["predicted"]
-            dirs = sector_summary[sec]["directions"]
+        for sec, sec_data in sector_summary.items():
+            vols = sec_data["vols"]
+            preds = sec_data["predicted"]
+            dirs = sec_data["directions"]
             sector_summary[sec]["avg_current_vol"] = round(np.mean(vols), 1) if vols else None
             sector_summary[sec]["avg_predicted_vol"] = round(np.mean(preds), 1) if preds else None
             sector_summary[sec]["dominant_direction"] = (
                 max(set(dirs), key=dirs.count) if dirs else "UNKNOWN"
             )
-            sector_summary[sec]["n_stocks"] = len(sector_summary[sec]["symbols"])
+            sector_summary[sec]["n_stocks"] = len(sec_data["symbols"])
 
         return {
             "predictions": all_predictions,
@@ -1735,7 +1734,7 @@ class VolatilityPredictionEngine:
             har_vol = float(np.sqrt(max(0.4 * rv_d + 0.35 * rv_w + 0.25 * rv_m, 1e-8)))
 
             # Add technical regime context
-            recent_vol = float(log_ret.rolling(21).std().iloc[-1] * np.sqrt(252))
+            float(log_ret.rolling(21).std().iloc[-1] * np.sqrt(252))
             vix_adj = 1.0
             if "vix" in features.columns:
                 vix_val = float(features["vix"].iloc[-1])

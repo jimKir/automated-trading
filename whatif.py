@@ -51,10 +51,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import matplotlib
+import matplotlib as mpl
 import pandas as pd
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -432,7 +432,7 @@ def generate_comparison_report(
     fig.suptitle(f"What-If Analysis: {suite_name.upper()} Suite", fontsize=14, fontweight="bold")
     fig.patch.set_facecolor("#0d1117")
 
-    colors = plt.cm.get_cmap("tab10")(np.linspace(0, 1, n_scenarios))
+    plt.cm.get_cmap("tab10")(np.linspace(0, 1, n_scenarios))
 
     for ax_idx, (metric_label, metric_key) in enumerate(chart_metrics):
         ax = axes[ax_idx] if n_metrics > 1 else axes

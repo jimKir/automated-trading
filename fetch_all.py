@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -498,8 +499,8 @@ def print_stats():
     legacy_crypto = list(CRYPTO_DIR.glob("*/*.parquet")) if CRYPTO_DIR.exists() else []
 
     total_size = sum(f.stat().st_size for f in legacy_ohlcv + legacy_crypto)
-    unique_syms_eq = len(set(f.parent.name for f in legacy_ohlcv))
-    unique_syms_cr = len(set(f.parent.name for f in legacy_crypto))
+    unique_syms_eq = len({f.parent.name for f in legacy_ohlcv})
+    unique_syms_cr = len({f.parent.name for f in legacy_crypto})
 
     print(f"""
 {"=" * 60}
@@ -634,10 +635,8 @@ def migrate_to_canonical():
             if _atomic_write(canonical, merged):
                 # Remove legacy files
                 for f in legacy:
-                    try:
+                    with contextlib.suppress(Exception):
                         f.unlink()
-                    except Exception:
-                        pass
                 migrated += 1
 
     logger.info(f"Migrated {migrated} symbols to canonical format")

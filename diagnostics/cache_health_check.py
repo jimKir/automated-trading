@@ -269,7 +269,7 @@ def analyse_coverage(
 
     for sd in step_dates:
         gw = guard_window(sd)
-        sw = signal_window(sd)
+        signal_window(sd)
         phantom = [d for d in gw if not is_td(d)]
 
         hits = sum(1 for d in gw if is_fetched(d))
@@ -612,7 +612,7 @@ def run_health_check(auto_fix: bool = True, verbose: bool = True) -> dict:
                     issues_fixed += 1
                     continue
                 # Infer date from _ts timestamp — use as a readable label
-                ts = data.get("_ts", 0)
+                data.get("_ts", 0)
                 # We can't recover the original key, so just leave as-is;
                 # the hash-based lookup in preflight will still find it.
                 renamed += 1  # counted but not renamed (hash lookup handles both)

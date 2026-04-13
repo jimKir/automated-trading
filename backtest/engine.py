@@ -336,12 +336,12 @@ class BacktestEngine:
                             isd_obj._volume_history = isd_obj._volume_history[-VOL_LOOKBACK:]
 
                 if vix_prev > 0 and eq_prev > 0:
-                    from core.intraday_shock import SCALE_RECOVERY as _SR, ShockState as _SS
+                    from core.intraday_shock import SCALE_RECOVERY as _SR, ShockState as _ShockState
 
-                    if isd_obj.current_state == _SS.RECOVERY:
+                    if isd_obj.current_state == _ShockState.RECOVERY:
                         isd_obj._recovery_day += 1
                         if isd_obj._recovery_day >= len(_SR):
-                            isd_obj._state = _SS.CLEAR
+                            isd_obj._state = _ShockState.CLEAR
                             isd_obj._recovery_day = 0
 
                     isd_obj._morning_vix = vix_prev

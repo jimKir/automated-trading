@@ -55,7 +55,7 @@ REFRESH_TAIL_DAYS = 7
 
 
 def _symbols_hash(symbols: list[str]) -> str:
-    joined = ",".join(sorted(set(s.upper() for s in symbols)))
+    joined = ",".join(sorted({s.upper() for s in symbols}))
     return hashlib.md5(joined.encode()).hexdigest()[:8]
 
 

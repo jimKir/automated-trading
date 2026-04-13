@@ -1,11 +1,19 @@
 """Unit tests for PositionAnomalyScorer."""
+import os
+import sys
+
 import pytest
-import sys, os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from risk.position_anomaly import (
-    PositionAnomalyScorer, classify, AssetClass,
-    _CLASS_CONFIG, _VOL_SPIKE_CEILING, _DD_CEILING_CRYPTO, _DD_CEILING_EQUITY,
+    _CLASS_CONFIG,
+    _DD_CEILING_CRYPTO,
+    _DD_CEILING_EQUITY,
+    _VOL_SPIKE_CEILING,
+    AssetClass,
+    PositionAnomalyScorer,
+    classify,
 )
 
 
@@ -27,14 +35,14 @@ class TestConfiguration:
 
     def test_g1_ceiling_corrected(self, scorer):
         """G1 ceiling must be 1.55 (corrected from broken 3.0)."""
-        assert _VOL_SPIKE_CEILING == pytest.approx(1.55), \
+        assert pytest.approx(1.55) == _VOL_SPIKE_CEILING, \
             f"G1_ceiling should be 1.55 (WF-calibrated), got {_VOL_SPIKE_CEILING}"
 
     def test_g3_dd_ceil_crypto(self, scorer):
-        assert _DD_CEILING_CRYPTO == pytest.approx(0.25)
+        assert pytest.approx(0.25) == _DD_CEILING_CRYPTO
 
     def test_g3_dd_ceil_equity(self, scorer):
-        assert _DD_CEILING_EQUITY == pytest.approx(0.15)
+        assert pytest.approx(0.15) == _DD_CEILING_EQUITY
 
 
 class TestClassification:

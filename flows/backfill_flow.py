@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
 import structlog
 from prefect import flow, task
@@ -13,7 +14,9 @@ from market_data.ingestion.backfill import BackfillOrchestrator, BackfillSummary
 from market_data.ingestion.checkpoint import CheckpointManager
 from market_data.ingestion.databento_client import DatabentoClient
 from market_data.ingestion.rate_limiter import TokenBucketRateLimiter
-from market_data.monitoring.alerts import AlertManager
+
+if TYPE_CHECKING:
+    from market_data.monitoring.alerts import AlertManager
 
 logger = structlog.get_logger(__name__)
 

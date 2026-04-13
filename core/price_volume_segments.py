@@ -333,7 +333,7 @@ class PriceVolumeSegmenter:
 
         scores = pd.Series(0.0, index=close.index)
         for i in range(25, len(close)):
-            date = close.index[i]
+            close.index[i]
             feats = self.extract_features(
                 close.iloc[: i + 1],
                 volume.iloc[: i + 1] if volume is not None else None,

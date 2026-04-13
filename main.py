@@ -23,6 +23,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+import contextlib
+
 from utils.config_loader import load_config
 from utils.logger import get_logger
 
@@ -163,7 +165,7 @@ def _print_three_way(base: dict, vt: dict, full: dict) -> None:
     """Print a three-way metric comparison to the log."""
     from utils.logger import get_logger
 
-    l = get_logger("Compare")
+    log = get_logger("Compare")
     rows = [
         ("Total Return (%)", "total_return_pct", True),
         ("Ann. Return (%)", "ann_return_pct", True),
@@ -178,22 +180,20 @@ def _print_three_way(base: dict, vt: dict, full: dict) -> None:
         ("CVaR 99% (%)", "cvar_hist_99_pct", False),
         ("Omega Ratio", "omega_ratio", True),
     ]
-    l.info("\n" + "=" * 80)
-    l.info("  THREE-WAY COMPARISON")
-    l.info("=" * 80)
-    l.info(f"  {'Metric':<28} {'Baseline':>12} {'Vol Target':>12} {'VT+EWS':>12}")
-    l.info("-" * 80)
-    for label, key, hb in rows:
+    log.info("\n" + "=" * 80)
+    log.info("  THREE-WAY COMPARISON")
+    log.info("=" * 80)
+    log.info(f"  {'Metric':<28} {'Baseline':>12} {'Vol Target':>12} {'VT+EWS':>12}")
+    log.info("-" * 80)
+    for label, key, _hb in rows:
         bv = base.get(key)
         vv = vt.get(key)
         fv = full.get(key)
         if any(x is None for x in [bv, vv, fv]):
             continue
-        try:
-            l.info(f"  {label:<28} {bv:>12.4f} {vv:>12.4f} {fv:>12.4f}")
-        except Exception:
-            pass
-    l.info("=" * 80)
+        with contextlib.suppress(Exception):
+            log.info(f"  {label:<28} {bv:>12.4f} {vv:>12.4f} {fv:>12.4f}")
+    log.info("=" * 80)
 
 
 def run_validation(config: dict) -> None:
@@ -251,7 +251,7 @@ def run_validation(config: dict) -> None:
 
     # Permutation summary
     perm_path = Path(out_dir) / "validation_permutation.json"
-    perm_clean = {k: v for k, v in summary["method3_details"].items()}
+    perm_clean = dict(summary["method3_details"].items())
     with open(perm_path, "w") as f:
         json.dump(perm_clean, f, indent=2)
     log.info(f"Permutation test saved: {perm_path}")

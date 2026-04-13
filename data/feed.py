@@ -140,8 +140,8 @@ def fetch_ccxt(
     """
     try:
         import ccxt
-    except ImportError:
-        raise ImportError("pip install ccxt")
+    except ImportError as e:
+        raise ImportError("pip install ccxt") from e
 
     exchange_cls = getattr(ccxt, exchange_id)
     kwargs: dict = {"enableRateLimit": True}

@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -169,9 +168,9 @@ class ChoppyRegimeDetector:
         scale, colour = ChoppyRegimeDetector.score_to_scale(score)
     """
 
-    def __init__(self, data_dir: Optional[Path] = None, mode: str = 'backtest'):
+    def __init__(self, data_dir: Path | None = None, mode: str = 'backtest'):
         self._data_dir = Path(data_dir) if data_dir else _DATA_DIR
-        self._cache: Dict[str, pd.Series] = {}
+        self._cache: dict[str, pd.Series] = {}
         self.order_flow_detector = OrderFlowAnomalyDetector()
         self.feature_groups = [
             'volatility', 'vix_dynamics', 'macro_credit', 'commodity_fx',
@@ -180,7 +179,8 @@ class ChoppyRegimeDetector:
         self._load_thresholds()
 
     def _load_thresholds(self):
-        import json, os
+        import json
+        import os
         params_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'regime_params_validated.json')
         try:
             with open(params_path) as f:
@@ -197,7 +197,7 @@ class ChoppyRegimeDetector:
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
-    def _load(self, sym: str) -> Optional[pd.Series]:
+    def _load(self, sym: str) -> pd.Series | None:
         """Load a Close price series from DataStore (local or S3)."""
         if sym in self._cache:
             return self._cache[sym]
@@ -219,7 +219,7 @@ class ChoppyRegimeDetector:
             log.warning(f"ChoppyRegime: failed to load {sym}: {e}")
             return None
 
-    def _load_vol(self, sym: str) -> Optional[pd.Series]:
+    def _load_vol(self, sym: str) -> pd.Series | None:
         """Load Volume series from DataStore (local or S3)."""
         key = f"vol_{sym}"
         if key in self._cache:
@@ -256,11 +256,10 @@ class ChoppyRegimeDetector:
             if abs(denom) < 1e-10:
                 return pd.Series(0.0, index=raw.index)
             return ((baseline - raw) / denom).clip(0, 1)
-        else:
-            denom = ceiling - baseline
-            if abs(denom) < 1e-10:
-                return pd.Series(0.0, index=raw.index)
-            return ((raw - baseline) / denom).clip(0, 1)
+        denom = ceiling - baseline
+        if abs(denom) < 1e-10:
+            return pd.Series(0.0, index=raw.index)
+        return ((raw - baseline) / denom).clip(0, 1)
 
     # ── Group A: Volume spike features ───────────────────────────────────────
 
@@ -285,7 +284,7 @@ class ChoppyRegimeDetector:
             components.append(self._rescale(spike_freq, base, ceil).reindex(idx, method="ffill").fillna(0))
 
         # F2: 5-day max volume / 20d mean (sustained surge detector)
-        for vol_s, sym in [(spy_vol, "SPY"), (qqq_vol, "QQQ")]:
+        for vol_s, _sym in [(spy_vol, "SPY"), (qqq_vol, "QQQ")]:
             if vol_s is not None:
                 ma20   = vol_s.rolling(20).mean().replace(0, np.nan)
                 surge  = vol_s.rolling(5).max() / ma20
@@ -714,19 +713,18 @@ class ChoppyRegimeDetector:
         """Return regime label for a given score using v4 thresholds."""
         if score < self.GREEN_MAX:
             return 'GREEN'
-        elif score < self.YELLOW_MAX:
+        if score < self.YELLOW_MAX:
             return 'YELLOW'
-        elif score < self.ORANGE_MAX:
+        if score < self.ORANGE_MAX:
             return 'ORANGE'
-        else:
-            return 'RED'
+        return 'RED'
 
     def current_score(self) -> float:
         """Return the most recently computed score (for live engine integration)."""
         return getattr(self, '_last_score', 0.0)
 
     @staticmethod
-    def score_to_scale(score: float) -> Tuple[float, str]:
+    def score_to_scale(score: float) -> tuple[float, str]:
         """Convert choppy score → (position scale factor, colour label)."""
         for threshold, scale, colour, _ in CHOPPY_SCALE_THRESHOLDS:
             if score < threshold:
@@ -745,7 +743,7 @@ class ChoppyRegimeDetector:
         Useful for diagnostics, visualisation, and calibration verification.
         """
         det   = ChoppyRegimeDetector()
-        score, groups = det.score_series(prices, vix, return_groups=True)
+        _score, groups = det.score_series(prices, vix, return_groups=True)
         return groups.loc[start:end]
 
 
@@ -754,7 +752,7 @@ class ChoppyRegimeDetector:
 def run_diagnostic(
     prices: pd.DataFrame,
     vix: pd.Series,
-    periods: Dict[str, Tuple[str, str]],
+    periods: dict[str, tuple[str, str]],
 ) -> pd.DataFrame:
     """
     Run the detector across specified periods and return a summary DataFrame.

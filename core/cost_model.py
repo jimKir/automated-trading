@@ -96,7 +96,7 @@ def _classify(symbol: str) -> str:
     """
     if symbol in ("ES=F", "NQ=F", "GC=F", "CL=F"):
         return "future"
-    if symbol.endswith("-USD") or symbol.endswith("USDT"):
+    if symbol.endswith(("-USD", "USDT")):
         if symbol in ("BTC-USD", "ETH-USD", "BTCUSDT", "ETHUSDT"):
             return "crypto_major"
         return "crypto_minor"

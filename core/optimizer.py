@@ -88,7 +88,7 @@ log = get_logger("Optimizer")
 
 def _classify_asset(symbol: str) -> str:
     """Classify a symbol into equity / futures / crypto."""
-    if symbol.endswith("-USD") or symbol.endswith("USDT"):
+    if symbol.endswith(("-USD", "USDT")):
         return "crypto"
     if symbol.endswith("=F"):
         return "futures"

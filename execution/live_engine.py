@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import signal
 import time
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -159,6 +158,7 @@ class LiveEngine:
         if config.get("execution", {}).get("dynamic_universe_enabled", False):
             try:
                 import os
+
                 from data.dynamic_universe_scanner import DynamicUniverseScanner
                 alpaca_cfg = config.get("brokers", {}).get("alpaca", {})
                 ak = alpaca_cfg.get("api_key") or os.environ.get("ALPACA_API_KEY", "")
@@ -172,7 +172,7 @@ class LiveEngine:
                 log.warning(f"DynamicUniverseScanner failed to load: {e}")
 
         # Price data cache for live mode
-        self._price_df_live: Optional[pd.DataFrame] = None
+        self._price_df_live: pd.DataFrame | None = None
 
     def start(self, loop_interval_seconds: int = 60) -> None:
         """Main trading loop."""
@@ -207,7 +207,7 @@ class LiveEngine:
                 import yfinance as yf
 
                 vix_open = float(yf.Ticker("^VIX").history(period="2d")["Close"].iloc[-1])
-                self._isd.reset_day(vix_open, account.equity, datetime.now(timezone.utc).date())
+                self._isd.reset_day(vix_open, account.equity, datetime.now(UTC).date())
             except Exception:
                 pass
 
@@ -224,7 +224,7 @@ class LiveEngine:
         log.info("Trading engine stopped.")
 
     def _trading_cycle(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Check circuit breakers
         account = self.broker.get_account()
@@ -292,7 +292,6 @@ class LiveEngine:
         anomaly_label = "NORMAL"
         if self._anomaly_layer is not None:
             try:
-                from regime.anomaly_layer import AnomalyScore as _AS
                 anomaly_result = self._anomaly_layer.compute(price_data)
                 anomaly_scale = anomaly_result.position_scale
                 anomaly_label = anomaly_result.label
@@ -533,16 +532,16 @@ class LiveEngine:
         if self._rebalance_freq == "daily":
             return elapsed >= timedelta(hours=20)
 
-        elif self._rebalance_freq == "weekly":
+        if self._rebalance_freq == "weekly":
             return elapsed >= timedelta(days=5) and now.weekday() == 4  # Friday
 
-        elif self._rebalance_freq == "biweekly":
+        if self._rebalance_freq == "biweekly":
             return elapsed >= timedelta(days=14)
 
-        elif self._rebalance_freq == "monthly":
+        if self._rebalance_freq == "monthly":
             return elapsed >= timedelta(days=25) and now.day <= 3
 
-        elif self._rebalance_freq == "adaptive":
+        if self._rebalance_freq == "adaptive":
             # Get ChoppyDetector score for today (uses latest available prices)
             choppy_score = 0.0
             thr = float(
@@ -566,10 +565,9 @@ class LiveEngine:
                 # YELLOW/ORANGE/RED → weekly cadence
                 log.debug(f"Adaptive: choppy={choppy_score:.3f} >= {thr} → weekly mode")
                 return elapsed >= timedelta(days=5) and now.weekday() == 4
-            else:
-                # GREEN → biweekly cadence
-                log.debug(f"Adaptive: choppy={choppy_score:.3f} < {thr} → biweekly mode")
-                return elapsed >= timedelta(days=14)
+            # GREEN → biweekly cadence
+            log.debug(f"Adaptive: choppy={choppy_score:.3f} < {thr} → biweekly mode")
+            return elapsed >= timedelta(days=14)
 
         return elapsed >= timedelta(hours=24)
 
@@ -577,8 +575,9 @@ class LiveEngine:
 if __name__ == "__main__":
     import argparse
     import logging
-    import yaml
     from pathlib import Path
+
+    import yaml
 
     parser = argparse.ArgumentParser(description="Automated Trading Engine")
     parser.add_argument("--mode", choices=["paper", "live", "dry_run"], default="paper")
@@ -628,7 +627,7 @@ if __name__ == "__main__":
         logger.info("Stopped by user (Ctrl+C)")
     except Exception as e:
         logger.critical(f"Engine crashed: {e}", exc_info=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from e
 
 # ── Options hedge integration (appended) ─────────────────────────────────────
 # To activate: set options_hedge_enabled: true in config/settings.yaml

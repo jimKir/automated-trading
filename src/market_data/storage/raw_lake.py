@@ -6,11 +6,12 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from market_data.storage.cloud_storage import StorageBackend
+if TYPE_CHECKING:
+    from market_data.storage.cloud_storage import StorageBackend
 
 logger = structlog.get_logger(__name__)
 

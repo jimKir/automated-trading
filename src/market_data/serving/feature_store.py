@@ -6,7 +6,7 @@ import io
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -14,8 +14,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import structlog
 
-from market_data.storage.cloud_storage import StorageBackend
 from market_data.transforms.features import FeatureEngineer
+
+if TYPE_CHECKING:
+    from market_data.storage.cloud_storage import StorageBackend
 
 logger = structlog.get_logger(__name__)
 

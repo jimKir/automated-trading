@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -14,7 +14,9 @@ from market_data.ingestion.base import (
     IngestionResult,
     Schema,
 )
-from market_data.ingestion.checkpoint import CheckpointManager
+
+if TYPE_CHECKING:
+    from market_data.ingestion.checkpoint import CheckpointManager
 
 logger = structlog.get_logger(__name__)
 

@@ -5,13 +5,15 @@ from __future__ import annotations
 import hashlib
 from collections import OrderedDict
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import structlog
 
-from market_data.storage.analytics_lake import AnalyticsLake
-from market_data.storage.symbol_master import SymbolMaster
-from market_data.transforms.corporate_actions import CorporateActionsManager
+if TYPE_CHECKING:
+    from market_data.storage.analytics_lake import AnalyticsLake
+    from market_data.storage.symbol_master import SymbolMaster
+    from market_data.transforms.corporate_actions import CorporateActionsManager
 
 logger = structlog.get_logger(__name__)
 
@@ -175,7 +177,7 @@ class BacktestAPI:
             # Apply as-of filter
             if as_of_date:
                 as_of_dt = datetime.fromisoformat(as_of_date).replace(tzinfo=UTC)
-                as_of_ns = int(as_of_dt.timestamp() * 1e9)
+                int(as_of_dt.timestamp() * 1e9)
                 ingestion_col = "ingestion_time"
                 if ingestion_col in df.columns:
                     df = df[df[ingestion_col] <= pd.Timestamp(as_of_dt)]

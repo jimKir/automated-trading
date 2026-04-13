@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from data.data_store import get_store
@@ -85,7 +84,7 @@ def calibrate():
     prices_df, vix_series = load_prices()
 
     detector = ChoppyRegimeDetector()
-    score_series, groups_df = detector.score_series(
+    score_series, _groups_df = detector.score_series(
         prices_df, vix_series, return_groups=True
     )
 

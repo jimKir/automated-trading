@@ -37,9 +37,7 @@ Config keys (under ews: section):
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -318,8 +316,8 @@ class EarlyWarningSystem:
         self._load_modules()
 
         _now = datetime.now(UTC)
-        end = _now.strftime("%Y-%m-%d")
-        start = (_now - timedelta(days=400)).strftime("%Y-%m-%d")
+        _now.strftime("%Y-%m-%d")
+        (_now - timedelta(days=400)).strftime("%Y-%m-%d")
 
         scores_by_layer = {}
 
@@ -371,7 +369,8 @@ class EarlyWarningSystem:
                 vix_col = None
                 for vn in ["VIX", "^VIX", "vix"]:
                     if hasattr(price_df, "columns") and vn in price_df.columns:
-                        vix_col = price_df[vn]; break
+                        vix_col = price_df[vn]
+                        break
                 if vix_col is None and "SPY" in price_df.columns:
                     vix_col = price_df["SPY"].pct_change().rolling(10).std() * np.sqrt(252) * 100
                 if vix_col is not None:

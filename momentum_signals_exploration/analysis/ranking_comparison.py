@@ -145,9 +145,9 @@ class RankingComparison:
         vol_weighted = self.ranking_engine.rank_by_volume_weighted_momentum(scan_results)[:top_n]
         surprise = self.ranking_engine.rank_by_surprise_factor(scan_results)[:top_n]
 
-        standard_syms = set(s["symbol"] for s in standard)
-        vol_weighted_syms = set(s["symbol"] for s in vol_weighted)
-        surprise_syms = set(s["symbol"] for s in surprise)
+        standard_syms = {s["symbol"] for s in standard}
+        vol_weighted_syms = {s["symbol"] for s in vol_weighted}
+        surprise_syms = {s["symbol"] for s in surprise}
 
         overlap = {
             "standard_only": len(standard_syms - vol_weighted_syms - surprise_syms),

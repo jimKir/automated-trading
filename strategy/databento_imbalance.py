@@ -39,6 +39,7 @@ Anti-lookahead:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -161,9 +162,7 @@ _HOLIDAY_DATES = np.array(_US_HOLIDAYS, dtype="datetime64[D]")
 def _is_trading_day(d: date) -> bool:
     """Return True if d is a US equity market trading day."""
     np_date = np.datetime64(d, "D")
-    if np.is_busday(np_date, holidays=_HOLIDAY_DATES):
-        return True
-    return False
+    return bool(np.is_busday(np_date, holidays=_HOLIDAY_DATES))
 
 
 def _prev_trading_day(d: date) -> date:
@@ -413,7 +412,7 @@ class _DatabentoFetcher:
             _cache_save(ck, {str(k): v for k, v in cache_dict.items()})
             # Record in data catalogue
             if _CATALOGUE_AVAILABLE:
-                try:
+                with contextlib.suppress(Exception):
                     _get_catalogue().record(
                         source="databento",
                         dataset="XNAS.ITCH",
@@ -427,8 +426,6 @@ class _DatabentoFetcher:
                         notes="closing auction window 3:50-4:01 PM ET (DST-aware)",
                         tags=["signal", "microstructure", "imbalance"],
                     )
-                except Exception:
-                    pass
             log.debug(
                 f"Fetched {len(df)} imbalance records for {len(symbols)} symbols on {trading_date}"
             )
@@ -665,10 +662,7 @@ class ClosingImbalanceSignal:
         mu = raw_scores.mean()
         std = raw_scores.std(ddof=1)
 
-        if std > 0:
-            normalised = (raw_scores - mu) / std
-        else:
-            normalised = raw_scores * 0.0  # all identical → zero signal
+        normalised = (raw_scores - mu) / std if std > 0 else raw_scores * 0.0  # all identical → zero signal
 
         # Clip to [-1, +1]
         clipped = normalised.clip(-1.0, 1.0)

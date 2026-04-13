@@ -20,6 +20,7 @@ Or in code:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -129,10 +130,8 @@ def _round_trip_test(schema: str, symbols: list[str], day: date) -> tuple[bool, 
             return False, "round-trip mismatch"
         return True, "ok"
     except Exception as e:
-        try:
+        with contextlib.suppress(OSError):
             test_path.unlink()
-        except OSError:
-            pass
         return False, str(e)
 
 

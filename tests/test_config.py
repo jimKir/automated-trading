@@ -1,7 +1,8 @@
 """Unit tests for config/settings.yaml integrity."""
+import os
+
 import pytest
 import yaml
-import os
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'settings.yaml')
 
@@ -41,11 +42,11 @@ class TestRebalanceConfig:
 class TestExecutionConfig:
     def test_hourly_timing_enabled(self, config):
         exec_conf = config.get('execution', {})
-        assert exec_conf.get('hourly_timing_enabled') == True
+        assert exec_conf.get('hourly_timing_enabled')
 
     def test_dynamic_universe_enabled(self, config):
         exec_conf = config.get('execution', {})
-        assert exec_conf.get('dynamic_universe_enabled') == True
+        assert exec_conf.get('dynamic_universe_enabled')
 
 
 class TestWeightVectors:

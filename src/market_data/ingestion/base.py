@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import abc
 import time
-from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from enum import Enum
-from typing import Any
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from tenacity import (
@@ -19,10 +17,14 @@ from tenacity import (
     wait_exponential,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from datetime import date, datetime
+
 logger = structlog.get_logger(__name__)
 
 
-class AssetClass(str, Enum):
+class AssetClass(StrEnum):
     """Supported asset classes."""
 
     EQUITY = "equity"
@@ -31,7 +33,7 @@ class AssetClass(str, Enum):
     CRYPTO = "crypto"
 
 
-class Schema(str, Enum):
+class Schema(StrEnum):
     """Supported data schemas."""
 
     TRADES = "trades"
@@ -170,13 +172,13 @@ class BaseIngestionClient(abc.ABC):
                 duration_seconds=round(duration, 2),
             )
             yield from results
-        except RetryError:
+        except RetryError as e:
             self.logger.error(
                 "fetch_failed_after_retries",
                 max_retries=self.MAX_RETRIES,
                 symbols=request.symbols,
             )
-            raise IngestionError(f"Failed to fetch data after {self.MAX_RETRIES} retries")
+            raise IngestionError(f"Failed to fetch data after {self.MAX_RETRIES} retries") from e
 
     def __enter__(self) -> BaseIngestionClient:
         self.connect()

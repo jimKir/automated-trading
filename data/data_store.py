@@ -25,7 +25,6 @@ import io
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -124,9 +123,9 @@ class DataStore:
     def load(
         self,
         symbol: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> Optional[pd.DataFrame]:
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> pd.DataFrame | None:
         """
         Load daily OHLCV data for a symbol.
         Returns None if symbol not found (never raises).
@@ -139,10 +138,7 @@ class DataStore:
         fname = self._symbol_to_filename(symbol)
 
         try:
-            if self.use_s3:
-                df = self._load_from_s3(fname)
-            else:
-                df = self._load_from_local(fname)
+            df = self._load_from_s3(fname) if self.use_s3 else self._load_from_local(fname)
 
             if df is None:
                 return None
@@ -167,7 +163,7 @@ class DataStore:
             logger.warning(f"[DataStore] Failed to load {symbol}: {e}")
             return None
 
-    def _load_from_local(self, fname: str) -> Optional[pd.DataFrame]:
+    def _load_from_local(self, fname: str) -> pd.DataFrame | None:
         """Load parquet from local disk — tries multiple naming conventions."""
         # Build list of candidate filenames to try
         base = fname.replace('.parquet', '')
@@ -201,7 +197,7 @@ class DataStore:
         logger.debug(f"[DataStore] Not found locally: {fname}")
         return None
 
-    def _load_from_s3(self, fname: str) -> Optional[pd.DataFrame]:
+    def _load_from_s3(self, fname: str) -> pd.DataFrame | None:
         """Load parquet from S3 using s3fs or boto3 fallback."""
         s3_path = f's3://{self.s3_bucket}/{self.s3_prefix}/{fname}'
 
@@ -235,10 +231,10 @@ class DataStore:
 
     def load_universe(
         self,
-        symbols: List[str],
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> Dict[str, pd.DataFrame]:
+        symbols: list[str],
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, pd.DataFrame]:
         """
         Load multiple symbols. Returns dict of {symbol: DataFrame}.
         Silently skips missing symbols.
@@ -252,18 +248,18 @@ class DataStore:
                 logger.warning(f"[DataStore] Skipping {symbol} — no data available")
         return result
 
-    def list_available(self) -> List[str]:
+    def list_available(self) -> list[str]:
         """List all available symbols."""
         if self.use_s3:
             return self._list_s3()
         return self._list_local()
 
-    def _list_local(self) -> List[str]:
+    def _list_local(self) -> list[str]:
         if not self.local_dir.exists():
             return []
         return [f.stem.replace('_', '/') for f in self.local_dir.glob('*.parquet')]
 
-    def _list_s3(self) -> List[str]:
+    def _list_s3(self) -> list[str]:
         try:
             client = self._get_s3_client()
             response = client.list_objects_v2(
@@ -309,7 +305,7 @@ class DataStore:
 
 
 # Module-level singleton — import and use directly
-_store: Optional[DataStore] = None
+_store: DataStore | None = None
 
 
 def get_store() -> DataStore:

@@ -155,7 +155,7 @@ def _ts_momentum(close: pd.Series) -> pd.Series:
 
 def _cs_momentum(panel: pd.DataFrame) -> pd.Series:
     """Cross-sectional 20-day momentum rank (per date)."""
-    ret20 = panel.groupby("symbol")["close"].transform(lambda s: s.pct_change(20))
+    panel.groupby("symbol")["close"].transform(lambda s: s.pct_change(20))
     return panel.groupby("date")["close"].rank(pct=True) - 0.5
 
 

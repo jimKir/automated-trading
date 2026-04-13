@@ -24,12 +24,11 @@ Anti-whipsaw = regime must persist for min_days_in_regime consecutive
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional
+from dataclasses import dataclass
+from enum import StrEnum
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class CrisisAlphaConfig:
     scale_max: float = 2.0
 
     @classmethod
-    def from_dict(cls, cfg: dict) -> "CrisisAlphaConfig":
+    def from_dict(cls, cfg: dict) -> CrisisAlphaConfig:
         """Build from a plain dict (e.g. parsed from YAML ``crisis_alpha`` key)."""
         section = cfg.get("crisis_alpha", cfg)
         return cls(
@@ -88,7 +87,7 @@ class CrisisAlphaConfig:
 # Regime enum
 # ---------------------------------------------------------------------------
 
-class VIXRegime(str, Enum):
+class VIXRegime(StrEnum):
     CRISIS = "CRISIS"
     ELEVATED = "ELEVATED"
     NORMAL = "NORMAL"
@@ -117,7 +116,7 @@ class CrisisAlphaAmplifier:
     >>> position_size *= scale
     """
 
-    def __init__(self, config: Optional[CrisisAlphaConfig | dict] = None) -> None:
+    def __init__(self, config: CrisisAlphaConfig | dict | None = None) -> None:
         if config is None:
             self.cfg = CrisisAlphaConfig()
         elif isinstance(config, dict):
@@ -173,7 +172,7 @@ class CrisisAlphaAmplifier:
 
         # --- 1. Slice to causal window -----------------------------------------
         vix = vix_series[vix_series.index <= as_of_date].copy()
-        spy = spy_returns[spy_returns.index <= as_of_date].copy()
+        spy_returns[spy_returns.index <= as_of_date].copy()
 
         if vix.empty:
             logger.warning("VIX series is empty up to %s; returning neutral scale", as_of_date)
@@ -262,12 +261,11 @@ class CrisisAlphaAmplifier:
         cfg = self.cfg
         if vix_level > cfg.vix_crisis_threshold and vix_rising:
             return VIXRegime.CRISIS
-        elif vix_level > cfg.vix_elevated_threshold:
+        if vix_level > cfg.vix_elevated_threshold:
             return VIXRegime.ELEVATED
-        elif vix_level > cfg.vix_normal_threshold:
+        if vix_level > cfg.vix_normal_threshold:
             return VIXRegime.NORMAL
-        else:
-            return VIXRegime.SUPPRESSED
+        return VIXRegime.SUPPRESSED
 
     def _update_regime_state(self, raw_regime: VIXRegime) -> VIXRegime:
         """Anti-whipsaw state machine.

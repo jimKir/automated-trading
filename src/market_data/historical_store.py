@@ -656,7 +656,7 @@ def cmd_status(args):
     print("=" * 55)
     print("  DATA COVERAGE STATUS")
     print("=" * 55)
-    meta = load_meta()
+    load_meta()
     all_syms = EQUITY_SYMS + list(MACRO_SYMS.keys())
     missing = [
         s

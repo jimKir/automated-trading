@@ -184,9 +184,8 @@ class UnifiedCache:
         for f in sorted(self._price.glob("*.parquet"), reverse=True):
             try:
                 df = pd.read_parquet(f)
-                if isinstance(df.index, pd.MultiIndex):
-                    if symbol in df.index.get_level_values(0):
-                        return df.loc[symbol]
+                if isinstance(df.index, pd.MultiIndex) and symbol in df.index.get_level_values(0):
+                    return df.loc[symbol]
                 return df
             except Exception:
                 continue

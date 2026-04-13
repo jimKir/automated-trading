@@ -12,13 +12,12 @@ import sys
 import warnings
 from datetime import datetime
 
-import matplotlib
-import matplotlib.patches as mpatches
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore")
@@ -87,7 +86,7 @@ def build_fred_proxy_stress(start="2005-01-01", end="2026-04-05") -> pd.DataFram
 
     tnx = align(prices.get("TNX"))  # 10yr yield
     fvx = align(prices.get("FVX"))  # 5yr yield
-    irx = align(prices.get("IRX"))  # 3mo yield
+    align(prices.get("IRX"))  # 3mo yield
     spy_s = align(spy)
 
     # ── 1. Yield curve stress ─────────────────────────────────────────────
@@ -179,7 +178,7 @@ def load_returns(start, end) -> pd.Series:
     # Multi-asset proxy: blend SPY(40%) + QQQ(20%) + GLD(15%) + TLT(15%) + BTC(10%)
     weights = {"SPY": 0.40, "QQQ": 0.20, "GLD": 0.15, "TLT": 0.15}
     rets = {}
-    for sym, w in weights.items():
+    for sym in weights:
         df = store.load(sym, start_date=start, end_date=end)
         if df is not None and len(df) > 10:
             rets[sym] = df["close"].pct_change()
@@ -205,10 +204,13 @@ def apply_kalshi_scale(returns: pd.Series,
     Weight: 25% Kalshi, 75% unscaled (additive on top of base strategy).
     """
     def s2scale(s):
-        if   s < 0.20: return 1.00
-        elif s < 0.35: return 0.85
-        elif s < 0.50: return 0.65
-        else:          return 0.40
+        if s < 0.20:
+            return 1.00
+        if s < 0.35:
+            return 0.85
+        if s < 0.50:
+            return 0.65
+        return 0.40
 
     aligned = stress.reindex(returns.index).ffill().fillna(0)
     scales  = aligned.map(s2scale)
@@ -298,8 +300,6 @@ def make_charts(fold_results: list, stress_df: pd.DataFrame,
 
         dsh = r["delta_sharpe"]
         ddd = r["delta_max_dd"]
-        color_sh = "green" if dsh > 0 else "red"
-        color_dd = "green" if ddd > 0.001 else "red"
 
         ax.set_title(
             f"{r['fold']}\n"
@@ -320,7 +320,8 @@ def make_charts(fold_results: list, stress_df: pd.DataFrame,
 def make_summary_table(fold_results, save_path="results/kalshi_fred_proxy_table.png"):
     rows = []
     for r in fold_results:
-        b = r["base"]; k = r["kalshi"]
+        b = r["base"]
+        k = r["kalshi"]
         rows.append([
             r["fold"],
             f"{b['sharpe']:.3f}", f"{k['sharpe']:.3f}",
@@ -335,7 +336,7 @@ def make_summary_table(fold_results, save_path="results/kalshi_fred_proxy_table.
             "Base DD","Kalshi DD","ΔDD",
             "Base Ret","Kalshi Ret","DD↑?"]
 
-    fig, ax = plt.subplots(figsize=(18, len(rows)*0.55 + 1.5))
+    _fig, ax = plt.subplots(figsize=(18, len(rows)*0.55 + 1.5))
     ax.axis("off")
     tbl = ax.table(cellText=rows, colLabels=cols,
                    loc="center", cellLoc="center")

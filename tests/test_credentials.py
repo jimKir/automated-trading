@@ -1,7 +1,9 @@
 """Unit tests for credential loading — ensures no hardcoded secrets."""
-import pytest
 import os
 import sys
+
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Secrets stored as prefix+suffix to avoid THIS file triggering the scan
@@ -29,7 +31,8 @@ class TestNoHardcodedSecrets:
 
     def test_no_alpaca_key_in_source(self):
         for filepath in self._get_all_py_files():
-            content = open(filepath).read()
+            with open(filepath) as _f:
+                content = _f.read()
             for secret in KNOWN_SECRETS:
                 assert secret not in content, \
                     f"Hardcoded secret found in {filepath}"
@@ -41,7 +44,8 @@ class TestNoHardcodedSecrets:
                 continue
             for f in filenames:
                 if f.endswith(('.yaml', '.yml')):
-                    content = open(os.path.join(dirpath, f)).read()
+                    with open(os.path.join(dirpath, f)) as _f:
+                        content = _f.read()
                     for secret in KNOWN_SECRETS:
                         assert secret not in content, \
                             f"Hardcoded secret in YAML: {os.path.join(dirpath, f)}"
@@ -53,7 +57,8 @@ class TestNoHardcodedSecrets:
                 continue
             for f in filenames:
                 if f.endswith('.md'):
-                    content = open(os.path.join(dirpath, f)).read()
+                    with open(os.path.join(dirpath, f)) as _f:
+                        content = _f.read()
                     for secret in KNOWN_SECRETS:
                         assert secret not in content, \
                             f"Hardcoded secret in MD: {os.path.join(dirpath, f)}"
@@ -71,10 +76,14 @@ class TestCredentialModule:
             with pytest.raises(EnvironmentError):
                 get_alpaca_credentials()
         finally:
-            if key: os.environ['ALPACA_API_KEY'] = key
-            if alt_key: os.environ['APCA_API_KEY_ID'] = alt_key
-            if secret: os.environ['ALPACA_SECRET_KEY'] = secret
-            if alt_secret: os.environ['APCA_API_SECRET_KEY'] = alt_secret
+            if key:
+                os.environ['ALPACA_API_KEY'] = key
+            if alt_key:
+                os.environ['APCA_API_KEY_ID'] = alt_key
+            if secret:
+                os.environ['ALPACA_SECRET_KEY'] = secret
+            if alt_secret:
+                os.environ['APCA_API_SECRET_KEY'] = alt_secret
 
     def test_returns_tuple_with_valid_env(self):
         from config.credentials import get_alpaca_credentials

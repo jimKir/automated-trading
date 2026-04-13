@@ -323,17 +323,13 @@ class H2OTrendClassifier:
         log.info(f"TrendClassifier: training on data up to {train_end}...")
 
         all_features = []
-        all_labels = []
 
-        for sym, df in all_data.items():
+        for df in all_data.values():
             if "Close" not in df.columns or len(df) < 252:
                 continue
 
             close = df["Close"]
-            if train_end is not None:
-                close_tr = close[close.index <= train_end]
-            else:
-                close_tr = close
+            close_tr = close[close.index <= train_end] if train_end is not None else close
 
             if len(close_tr) < 252:
                 continue

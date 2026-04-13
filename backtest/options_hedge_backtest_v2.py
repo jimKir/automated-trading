@@ -9,17 +9,24 @@ Fixes from v1:
 
 Run: python backtest/options_hedge_backtest_v2.py --save-results
 """
-import os, sys, json, math, warnings, argparse
-import pandas as pd
+import argparse
+import json
+import os
+import sys
+import warnings
+
+import matplotlib as mpl
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
+import pandas as pd
+
+mpl.use("Agg")
+from datetime import datetime, timedelta
+
 import matplotlib.pyplot as plt
-from datetime import date, timedelta, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore")
-from execution.options_hedge import estimate_put_premium, bs_put_price
+from execution.options_hedge import estimate_put_premium
 
 PERIODS = [
     {"name": "COVID_Crash_2020",
@@ -175,10 +182,14 @@ def simulate(df, use_hedge=True, initial_equity=100_000.0):
         today     = dt.date()
 
         # Classify regime
-        if score >= RED_MIN:       regime = "RED"
-        elif score >= ORANGE_MIN:  regime = "ORANGE"
-        elif score >= GREEN_MAX:   regime = "YELLOW"
-        else:                      regime = "GREEN"
+        if score >= RED_MIN:
+            regime = "RED"
+        elif score >= ORANGE_MIN:
+            regime = "ORANGE"
+        elif score >= GREEN_MAX:
+            regime = "YELLOW"
+        else:
+            regime = "GREEN"
 
         # Portfolio P&L
         port_ret = sum(weights[a] * rets[a].iloc[i] for a in weights)
@@ -234,7 +245,8 @@ def metrics(df, label=""):
     ret = df["equity"].pct_change().dropna()
     cum = df["equity"] / df["equity"].iloc[0]
     dd  = (cum - cum.cummax()) / cum.cummax()
-    ann_r = ret.mean() * 252; ann_v = ret.std() * np.sqrt(252)
+    ann_r = ret.mean() * 252
+    ann_v = ret.std() * np.sqrt(252)
     return {
         "label":        label,
         "total_return": round(float(cum.iloc[-1]-1), 4),
@@ -290,8 +302,10 @@ def make_chart(period, unhedged, hedged, spy_bah, save_path):
             except Exception:
                 pass
 
-    ax.legend(fontsize=9); ax.grid(True, alpha=0.3)
-    ax.set_ylabel("Cumulative Return"); ax.set_title("Returns (orange/red shading = hedge active)")
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylabel("Cumulative Return")
+    ax.set_title("Returns (orange/red shading = hedge active)")
 
     # ChoppyDetector score
     ax2 = axes[1]
@@ -299,14 +313,17 @@ def make_chart(period, unhedged, hedged, spy_bah, save_path):
     ax2.axhline(0.229, color="orange", ls="--", lw=1.2, label="ORANGE (0.229)")
     ax2.axhline(0.296, color="red",    ls="--", lw=1.2, label="RED (0.296)")
     ax2.axhline(0.192, color="green",  ls=":",  lw=1.0, label="GREEN (0.192)")
-    ax2.set_ylim(0, 0.9); ax2.set_ylabel("Score")
-    ax2.legend(fontsize=8, loc="upper left"); ax2.grid(True, alpha=0.3)
+    ax2.set_ylim(0, 0.9)
+    ax2.set_ylabel("Score")
+    ax2.legend(fontsize=8, loc="upper left")
+    ax2.grid(True, alpha=0.3)
     ax2.set_title("ChoppyDetector Score (proxy)")
 
     # Open puts count
     ax3 = axes[2]
     ax3.bar(hedged.index, hedged["n_puts"], color="steelblue", alpha=0.6, width=1)
-    ax3.set_ylabel("Open puts"); ax3.set_title("Number of open put contracts")
+    ax3.set_ylabel("Open puts")
+    ax3.set_title("Number of open put contracts")
     ax3.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -330,7 +347,8 @@ def run(save=False):
         try:
             df = load_data(period["start"], period["end"])
         except Exception as e:
-            print(f"  ERROR: {e}"); continue
+            print(f"  ERROR: {e}")
+            continue
 
         print(f"  SPY: ${df['spy'].iloc[0]:.0f} → ${df['spy'].iloc[-1]:.0f} "
               f"| {len(df)} days | VIX mean {df['vix'].mean():.1f}")
@@ -352,7 +370,10 @@ def run(save=False):
         print(f"\n  {'Metric':<20} {'Unhedged':>12} {'Hedged':>12} {'SPY B&H':>12} {'ΔHedge':>9}")
         print(f"  {'─'*67}")
         for key in ["total_return","sharpe","max_dd","worst_day"]:
-            u=um[key]; h=hm[key]; s=sm[key]; d=h-u
+            u = um[key]
+            h = hm[key]
+            s = sm[key]
+            d = h - u
             better = (key in ("sharpe","total_return") and d>0.02) or \
                      (key in ("max_dd","worst_day") and d>0.005)
             worse  = (key in ("sharpe","total_return") and d<-0.02) or \
@@ -360,14 +381,14 @@ def run(save=False):
             flag = "✅" if better else "❌" if worse else "⚠"
             print(f"  {key:<20} {u:>12.4f} {h:>12.4f} {s:>12.4f} {flag}{d:>+8.4f}")
 
-        print(f"\n  Hedge activity:")
+        print("\n  Hedge activity:")
         print(f"    Puts opened:     {len(book.positions)}")
         print(f"    Premium paid:    ${book.total_premium:,.0f}")
         print(f"    Payoff received: ${book.total_payoff:,.0f}")
         print(f"    Net cost:        ${book.total_premium-book.total_payoff:+,.0f} "
               f"({net_cost_pct:+.2f}% of portfolio)")
         if book.log:
-            print(f"  First 5 hedge events:")
+            print("  First 5 hedge events:")
             for line in book.log[:5]:
                 print(f"    {line}")
 
@@ -387,7 +408,8 @@ def run(save=False):
             make_chart(period, unhedged, hedged, spy_bah,
                        f"results/options_hedge_v2_{period['name'].lower()}.png")
 
-    if not all_results: return
+    if not all_results:
+        return
 
     print(f"\n{'='*65}")
     n_dd   = sum(1 for r in all_results if r["delta_max_dd"] > 0.005)

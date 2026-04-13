@@ -128,15 +128,34 @@ ignore = [
     "ISC001",  # conflicts with ruff formatter
     "S101",    # assert — allowed globally, more specific in per-file below
     "RUF002",  # ambiguous unicode in docstrings — false positives
+    "RUF001",  # ambiguous unicode in strings — intentional (× multiplication, – date ranges)
+    "RUF003",  # ambiguous unicode in comments — intentional (× multiplication, – date ranges)
     "RUF013",  # implicit-optional — mypy catches this better
     "PLR2004", # magic-value-comparison — too noisy for trading code with thresholds
     "PLR0913", # too-many-arguments — trading functions legitimately have many params
     "PLR0912", # too-many-branches — strategy code is inherently branchy
     "PLR0915", # too-many-statements
     "DTZ005",  # datetime.now() without tz — will fix incrementally
+    "DTZ001",  # datetime() without tzinfo — will fix incrementally
+    "DTZ002",  # datetime.today() without tz — will fix incrementally
+    "DTZ003",  # datetime.utcnow() without tz — will fix incrementally
+    "DTZ004",  # datetime.utcfromtimestamp() without tz — will fix incrementally
+    "DTZ006",  # datetime.fromtimestamp() without tz — will fix incrementally
+    "DTZ007",  # strptime without tz — will fix incrementally
+    "DTZ011",  # datetime.date.today() without tz — will fix incrementally
     "S110",    # try-except-pass — used intentionally in resilient fetchers
+    "S112",    # try-except-continue — used intentionally in resilient fetchers
+    "S324",    # insecure hash — used for data checksumming, not security
     "B905",    # zip-without-explicit-strict — too noisy for pandas-heavy code
     "N806",    # non-lowercase variable — trading uses SPY, QQQ, etc as vars
+    "N802",    # non-lowercase function name — trading uses tickers as function names
+    "N803",    # non-lowercase argument — trading uses tickers as argument names
+    "PLW0603", # global-statement — used in trading config modules
+    "PLW2901", # redefined-loop-name — common pattern to normalize types in trading code
+    "RUF012",  # mutable-class-variable — data classes with mutable defaults work fine
+    "PERF401", # manual-list-comprehension — complex appends in loops are intentional
+    "PERF402", # manual-list-copy — explicit copy patterns are clearer
+    "E402",    # module-level-import-not-at-top — conditional imports are intentional
     "PLC0415", # import-outside-top-level — conditional imports are intentional
     "RET504",  # unnecessary-assign-before-return — often clearer to name the result
 ]

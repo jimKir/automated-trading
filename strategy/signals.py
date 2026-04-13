@@ -698,13 +698,13 @@ class SignalGenerator:
             log.debug(f"Stochastic contrarian failed for {sym}: {exc}")
 
         # --- Factor 14: VWAP daily proxy (low weight, full signal in microstructure) ---
-        vwap_sig = pd.Series(0.0, index=close.index)
+        pd.Series(0.0, index=close.index)
         try:
             if "High" in df.columns and "Low" in df.columns and "Volume" in df.columns:
                 h_col = df["High"][df.index <= as_of_date] if as_of_date else df["High"]
                 l_col = df["Low"][df.index <= as_of_date] if as_of_date else df["Low"]
                 v_col = df["Volume"][df.index <= as_of_date] if as_of_date else df["Volume"]
-                vwap_sig = self._vwap_daily_proxy(close, h_col, l_col, v_col).fillna(0)
+                self._vwap_daily_proxy(close, h_col, l_col, v_col).fillna(0)
         except Exception as exc:
             log.debug(f"VWAP computation failed for {sym}: {exc}")
 
@@ -712,16 +712,16 @@ class SignalGenerator:
         # IC +0.042 at 10d in bull regime (t=+6.02), IC -0.150 in deep bear.
         # Momentum signal in bull (above SMA → keeps rising).
         # Added post v1.0.0-paper-baseline to bull_blend at 0.10 weight.
-        vwap_sma_sig = self._vwap_sma_proxy(close).fillna(0)
+        self._vwap_sma_proxy(close).fillna(0)
 
         # --- ADX gate: halve position size in choppy (non-trending) regime ----
-        adx_mult = pd.Series(1.0, index=close.index)
+        pd.Series(1.0, index=close.index)
         try:
             if "High" in df.columns and "Low" in df.columns:
                 h_col = df["High"][df.index <= as_of_date] if as_of_date else df["High"]
                 l_col = df["Low"][df.index <= as_of_date] if as_of_date else df["Low"]
                 adx_s = self._adx(h_col, l_col, close)
-                adx_mult = self._adx_position_multiplier(adx_s)
+                self._adx_position_multiplier(adx_s)
         except Exception as exc:
             log.debug(f"ADX computation failed for {sym}: {exc}")
 
@@ -736,7 +736,7 @@ class SignalGenerator:
         imbalance_sig = pd.Series(0.0, index=close.index)
         try:
             vix_data = self._macro_data.get("^VIX")
-            spy_data = self._macro_data.get("SPY")
+            self._macro_data.get("SPY")
             if vix_data is not None and not vix_data.empty:
                 vix_close = vix_data["Close"].squeeze().reindex(close.index).ffill()
                 # VIX regime gate: active above 18, full weight above 25
@@ -1024,10 +1024,9 @@ class SignalGenerator:
 
         if choppy_score >= self.ORANGE_THRESHOLD:
             return self._choppy_blend(spy_within_15pct_200d)
-        elif spy_above_200d:
+        if spy_above_200d:
             return self._bull_blend()
-        else:
-            return self._bear_blend()
+        return self._bear_blend()
 
     def generate(
         self,
@@ -1106,7 +1105,7 @@ class SignalGenerator:
         # --- Cross-sectional overlay ---
         eq_syms = [s for s in signal_df.columns if not any(s.endswith(x) for x in ["-USD", "=F"])]
         if len(eq_syms) > 1:
-            eq_signals = signal_df[eq_syms].copy()
+            signal_df[eq_syms].copy()
             cs_mom = closes[eq_syms].copy()
             cs_ranks = cs_mom.pct_change(min(231, len(cs_mom) - 1)).rank(axis=1, pct=True)
             cs_ranks = (cs_ranks - 0.5) * 2

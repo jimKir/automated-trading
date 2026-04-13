@@ -42,29 +42,24 @@ from __future__ import annotations
 import json
 import sys
 import warnings
-from copy import deepcopy
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+mpl.use("Agg")
 import matplotlib.dates as mdates
-from matplotlib.gridspec import GridSpec
-from matplotlib.ticker import FuncFormatter
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.gridspec import GridSpec
+from matplotlib.ticker import FuncFormatter
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).parent))
 
+from paper_trading_emulator import PaperTradingEmulator, load_sym
 from utils.config_loader import load_config
 from utils.logger import get_logger
-from paper_trading_emulator import (
-    PaperTradingEmulator, load_sym, COSTS, SYM_MAP, DATA_DIR
-)
-from regime.choppy_regime import ChoppyRegimeDetector, CHOPPY_SCALE_THRESHOLDS
-from risk.position_anomaly import PositionAnomalyScorer, classify, AssetClass
 
 log = get_logger("WFEmulation")
 
@@ -232,7 +227,7 @@ def run_period(
     warmup_start: str,
     paper_start:  str,
     paper_end:    str,
-    all_data:     Dict[str, pd.DataFrame],
+    all_data:     dict[str, pd.DataFrame],
     config:       dict,
 ) -> dict:
     """Run one paper-trading period and return full results."""
@@ -289,7 +284,7 @@ def run_period(
 
 # ── Chart generation ──────────────────────────────────────────────────────────
 
-def generate_chart(period_results: List[dict], spy_close: pd.Series) -> str:
+def generate_chart(period_results: list[dict], spy_close: pd.Series) -> str:
     """
     5-row chart: one row per period.
     Each row: equity curve (vs SPY) + choppy score colour bands.
@@ -326,7 +321,8 @@ def generate_chart(period_results: List[dict], spy_close: pd.Series) -> str:
         eq_log = pd.DataFrame(res["equity_log"]).set_index("date")
         eq_log.index = pd.to_datetime(eq_log.index)
 
-        start = res["paper_start"]; end = res["paper_end"]
+        start = res["paper_start"]
+        end = res["paper_end"]
         spy_sub = spy_close.loc[start:end]
         spy_cum = spy_sub / spy_sub.iloc[0]
         strat_cum = eq_log["equity"] / eq_log["equity"].iloc[0]
@@ -384,7 +380,8 @@ def generate_chart(period_results: List[dict], spy_close: pd.Series) -> str:
                            fontsize=6.5, color=C["muted"], va="bottom")
 
         # ── Metrics text ──────────────────────────────────────────────────
-        p = res["performance"]; d = res["detector"]
+        p = res["performance"]
+        d = res["detector"]
         metrics_lines = [
             ("STRATEGY", C["text"], 10.5, "bold"),
             (f"Return:  {p.get('total_return_pct',0):+.1f}%", C["text"], 9, "normal"),
@@ -417,7 +414,7 @@ def generate_chart(period_results: List[dict], spy_close: pd.Series) -> str:
     ax_sum.tick_params(colors=C["muted"], labelsize=9)
     ax_sum.grid(True, color=C["grid"], linewidth=0.5, alpha=0.7, axis="y")
 
-    labels  = [r["label"].replace(" + ", "\n+\n").replace(" - ", "\n−\n") for r in period_results]
+    [r["label"].replace(" + ", "\n+\n").replace(" - ", "\n−\n") for r in period_results]
     labels_short = ["COVID\nCrash", "Post-COVID\nBull", "Rate Hike\nBear",
                     "Bear-to-Bull\nRecovery", "AI Bull\nRun"]
     sharpes = [r["performance"].get("sharpe", 0) for r in period_results]
@@ -478,7 +475,7 @@ def generate_chart(period_results: List[dict], spy_close: pd.Series) -> str:
 
 # ── Cross-period summary table ────────────────────────────────────────────────
 
-def print_summary(period_results: List[dict]) -> dict:
+def print_summary(period_results: list[dict]) -> dict:
     """Print a formatted summary table and return the summary dict."""
     print(f"\n{'='*110}")
     print("WALK-FORWARD EMULATION SUMMARY — 5 REGIME TYPES (2020–2024)")
@@ -490,10 +487,11 @@ def print_summary(period_results: List[dict]) -> dict:
     print("-"*110)
 
     for res in period_results:
-        p = res["performance"]; d = res["detector"]
+        p = res["performance"]
+        d = res["detector"]
         alpha = p.get("alpha_pct", 0)
         alpha_arrow = "▲" if alpha > 0 else "▼"
-        green_bar = "█" * int(d.get("pct_green", 0) / 10)
+        "█" * int(d.get("pct_green", 0) / 10)
         print(f"{res['label']:<28} "
               f"{p.get('total_return_pct',0):>+7.1f}% "
               f"{p.get('sharpe',0):>6.2f} "
@@ -527,19 +525,13 @@ def print_summary(period_results: List[dict]) -> dict:
     print(f"\n{'='*110}")
     print("ChoppyRegimeDetector STRESS TEST VERDICT")
     print(f"{'='*110}")
-    verdict_map = {
-        "COVID Crash & Recovery":       ("crash_recovery", 40),   # expect >40% ORANGE+RED
-        "Post-COVID Bull + Rate Fears":  ("bull_with_fears", 20),  # expect <20% FP
-        "Rate Hike Bear Market":         ("sustained_bear", 50),   # expect >50% YELLOW+
-        "Bear-to-Bull Recovery":         ("recovery_bull", 15),    # expect moderate
-        "AI Bull Run":                   ("sustained_bull", 15),   # expect <15% FP (key test)
-    }
     for res in period_results:
-        p = res["performance"]; d = res["detector"]
+        p = res["performance"]
+        d = res["detector"]
         orange_red = d.get("pct_orange", 0) + d.get("pct_red", 0)
         yellow_plus = d.get("pct_yellow", 0) + orange_red
         fp = d.get("false_positive_rate_pct", 0)
-        miss = d.get("miss_rate_pct", 0)
+        d.get("miss_rate_pct", 0)
 
         if "COVID" in res["label"]:
             verdict = "✓ PASS" if orange_red > 25 else "✗ FAIL — detector didn't fire during crash"
@@ -579,7 +571,7 @@ def main():
     config = load_config("config/settings.yaml")
 
     log.info("Loading all data (full history)...")
-    all_data: Dict[str, pd.DataFrame] = {}
+    all_data: dict[str, pd.DataFrame] = {}
     for sym in UNIVERSE:
         df = load_sym(sym)
         if df is not None and len(df) > 200:
@@ -590,7 +582,7 @@ def main():
     spy_close.index = pd.to_datetime(spy_close.index).tz_localize(None)
 
     period_results = []
-    for label, warmup, start, end, rtype, desc in PERIODS:
+    for label, warmup, start, end, _rtype, desc in PERIODS:
         log.info(f"\nStarting period: {label} ({start} → {end})")
         log.info(f"  {desc}")
         try:
@@ -603,7 +595,8 @@ def main():
                      f"GREEN={d.get('pct_green',0):.0f}%  FP={d.get('false_positive_rate_pct',0):.0f}%")
         except Exception as e:
             log.error(f"  FAILED: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
 
     # Summary
     summary = print_summary(period_results)
@@ -627,7 +620,7 @@ def main():
         json.dump(full_summary, f, indent=2, default=str)
 
     print(f"\n  Chart: {chart_path}")
-    print(f"  Summary: results/wf_emulation_summary.json")
+    print("  Summary: results/wf_emulation_summary.json")
     return period_results, summary
 
 

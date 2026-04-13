@@ -5,13 +5,16 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import structlog
 
 from market_data.storage.analytics_lake import OHLCV_SCHEMA, TRADES_SCHEMA
-from market_data.storage.symbol_master import SymbolMaster
+
+if TYPE_CHECKING:
+    from market_data.storage.symbol_master import SymbolMaster
 
 logger = structlog.get_logger(__name__)
 
@@ -138,7 +141,7 @@ class DataNormalizer:
         records = []
         for bar in bars:
             ts_str = bar.get("timestamp", bar.get("t", ""))
-            ts_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            ts_dt = datetime.fromisoformat(ts_str)
             ts_ns = int(ts_dt.timestamp() * 1e9)
 
             records.append(

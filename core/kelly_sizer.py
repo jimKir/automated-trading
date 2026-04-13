@@ -35,10 +35,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +64,7 @@ class KellyConfig:
     ic_lag: int = 10                # forward-return horizon matching signal IC peak
 
     @classmethod
-    def from_dict(cls, cfg: dict) -> "KellyConfig":
+    def from_dict(cls, cfg: dict) -> KellyConfig:
         section = cfg.get("kelly", cfg)
         return cls(
             enabled=bool(section.get("enabled", True)),
@@ -95,7 +97,7 @@ class KellySizer:
     >>> # weights is a dict[symbol → position weight], summing ≤ max_portfolio_heat
     """
 
-    def __init__(self, config: Optional[KellyConfig | dict] = None) -> None:
+    def __init__(self, config: KellyConfig | dict | None = None) -> None:
         if config is None:
             self.cfg = KellyConfig()
         elif isinstance(config, dict):
@@ -119,10 +121,10 @@ class KellySizer:
 
     def compute_weights(
         self,
-        signals: Dict[str, float],
-        returns_history: Dict[str, pd.Series],
+        signals: dict[str, float],
+        returns_history: dict[str, pd.Series],
         as_of_date: pd.Timestamp,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compute Kelly-fractional position weights.
 
         Parameters
@@ -148,7 +150,7 @@ class KellySizer:
             uniform = self.cfg.max_portfolio_heat / n
             return {sym: sig * uniform for sym, sig in signals.items()}
 
-        raw_weights: Dict[str, float] = {}
+        raw_weights: dict[str, float] = {}
 
         for symbol, signal in signals.items():
             if abs(signal) < 1e-9:
@@ -178,7 +180,7 @@ class KellySizer:
         self,
         symbol: str,
         signal: float,
-        hist: Optional[pd.Series],
+        hist: pd.Series | None,
         as_of_date: pd.Timestamp,
     ) -> float:
         """Return the unsigned Kelly-fractional size for one symbol."""
@@ -308,12 +310,12 @@ class KellySizer:
     # Portfolio normalisation
     # ------------------------------------------------------------------
 
-    def _normalise(self, raw_weights: Dict[str, float]) -> Dict[str, float]:
+    def _normalise(self, raw_weights: dict[str, float]) -> dict[str, float]:
         """Scale weights so total gross exposure ≤ max_portfolio_heat."""
         total_gross = sum(abs(w) for w in raw_weights.values())
 
         if total_gross < 1e-9:
-            return {sym: 0.0 for sym in raw_weights}
+            return dict.fromkeys(raw_weights, 0.0)
 
         if total_gross <= self.cfg.max_portfolio_heat:
             return dict(raw_weights)

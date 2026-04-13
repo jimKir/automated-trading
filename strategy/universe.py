@@ -64,7 +64,7 @@ DEFENSIVE_SYMS = {"TLT", "AGG", "LQD", "SHY", "HYG", "GLD", "SLV", "GC=F", "ZB=F
 
 
 def _classify(symbol: str) -> str:
-    if symbol.endswith("-USD") or symbol.endswith("USDT"):
+    if symbol.endswith(("-USD", "USDT")):
         return "crypto"
     if symbol.endswith("=F"):
         return "futures"
@@ -371,7 +371,7 @@ class DynamicUniverseSelector:
         limits = {"equity": max_equity, "futures": max_futures, "crypto": max_crypto}
 
         selected = []
-        for sym, score in ranked:
+        for sym, _score in ranked:
             if len(selected) >= self.top_n:
                 break
             ac = _classify(sym)
@@ -620,10 +620,7 @@ class DynamicCandidateBuilder:
         stocks = [s for s in stocks if s not in fixed_etfs]
 
         # 3. Filter stocks for liquidity + history
-        if stocks:
-            valid_stocks = self._filter_stocks(stocks, data_start, data_end, verbose)
-        else:
-            valid_stocks = []
+        valid_stocks = self._filter_stocks(stocks, data_start, data_end, verbose) if stocks else []
 
         if verbose:
             log.info(f"  Stocks passing filters: {len(valid_stocks)}")
@@ -675,14 +672,14 @@ class DynamicCandidateBuilder:
 
         if self.include_ndx100:
             # Use curated Nasdaq-100 list (always available, no HTTP needed)
-            ndx_tickers = [
+            [
                 t for t in self.NDX100_TICKERS if t not in tickers
             ]  # skip duplicates with S&P500
             tickers.update(self.NDX100_TICKERS)
             if verbose:
                 log.info(f"  Nasdaq-100: {len(self.NDX100_TICKERS)} tickers added")
 
-        result = sorted(list(tickers))[: self.max_stocks]
+        result = sorted(tickers)[: self.max_stocks]
         self._constituent_cache = result
         self._cache_time = time.time()
         return result

@@ -5,7 +5,6 @@ Usage: python scripts/verify_data.py
        python scripts/verify_data.py --download-missing
 """
 import argparse
-import datetime
 import os
 import sys
 
@@ -66,7 +65,7 @@ for symbol in ALL_SYMBOLS:
         if days_old > 5:
             stale.append(symbol)
         print(f"{symbol:<12} {status:<12} {len(df):>7} "
-              f"{str(df.index.min().date()):<12} {str(latest.date()):<12} "
+              f"{df.index.min().date()!s:<12} {latest.date()!s:<12} "
               f"{days_old:>11}d")
 
 line_sep = '\u2500' * 68

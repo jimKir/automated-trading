@@ -14,13 +14,12 @@ Usage:
     # Returns: {'fed_hike_prob': 0.12, 'cpi_surprise_risk': 0.34,
     #           'recession_prob': 0.18, 'composite_stress': 0.21}
 """
-import os
-import time
 import logging
-import requests
+import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+
+import requests
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class MacroSignals:
     recession_prob: float = 0.0      # 0-1: probability of recession
     composite_stress: float = 0.0    # 0-1: weighted composite for ChoppyDetector
     available: bool = False          # False = Kalshi unavailable, use fallback
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
     raw: dict = field(default_factory=dict)
 
 
@@ -71,7 +70,7 @@ class KalshiMacroFeed:
     CACHE_SECONDS = 3600  # refresh hourly in live mode
 
     def __init__(self, cache_seconds: int = CACHE_SECONDS):
-        self._cache: Optional[MacroSignals] = None
+        self._cache: MacroSignals | None = None
         self._cache_ts: float = 0.0
         self.cache_seconds = cache_seconds
         self.session = requests.Session()
@@ -109,7 +108,7 @@ class KalshiMacroFeed:
     # ── internal fetch ────────────────────────────────────────────────────────
 
     def _fetch_all(self) -> MacroSignals:
-        signals = MacroSignals(timestamp=datetime.now(timezone.utc))
+        signals = MacroSignals(timestamp=datetime.now(UTC))
         raw = {}
 
         # 1. Fed rate markets

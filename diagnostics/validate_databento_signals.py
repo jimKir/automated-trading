@@ -58,7 +58,7 @@ import shutil
 from pathlib import Path
 
 _old_roots = [
-    Path("/tmp/databento_cache"),
+    Path("/tmp/databento_cache"),  # noqa: S108
     Path.home() / ".databento_cache",
 ]
 _new_root = Path(__file__).parent.parent / ".cache" / "databento"
@@ -66,7 +66,7 @@ _new_root.mkdir(parents=True, exist_ok=True)
 # Migration: run ONCE only (sentinel file prevents repeated copies of bad data)
 _migration_done = _new_root / ".migrated"
 if not _migration_done.exists():
-    for _old_root in [Path("/tmp/databento_cache"), Path.home() / ".databento_cache"]:
+    for _old_root in [Path("/tmp/databento_cache"), Path.home() / ".databento_cache"]:  # noqa: S108
         if _old_root.exists():
             _moved = 0
             for _f in _old_root.glob("*.json"):
@@ -327,7 +327,7 @@ print(f"\n  Imbalance: {len(imb_df)} observations collected")
 
 # ── POST-FETCH VERIFICATION ───────────────────────────────────────────────────
 if step_dates:  # only verify if we actually fetched anything
-    _fetched_dates = [d if isinstance(d, date) else _date.fromisoformat(str(d)) for d in step_dates]
+    _fetched_dates = [d if isinstance(d, date) else date.fromisoformat(str(d)) for d in step_dates]
     _guard.verify_written(_fetched_dates, SYMS, "imbalance")
 
 # ── SIGNAL 2: OPRA OPTIONS FLOW (disabled by default — $245 to re-fetch) ──
@@ -400,9 +400,9 @@ for name, sig_df in [
     sig_oos = sig_df[sig_df.index >= OOS_START].reindex(wc.index).ffill()
     ics = ic_suite(sig_oos, wr)
     sh, wf, pv = print_results(name, sig_oos, wr, ics)
-    results[name] = dict(
-        sharpe=sh, wf_pos=wf, perm_p=pv, ics={str(k): v[0] for k, v in ics.items()}
-    )
+    results[name] = {
+        "sharpe": sh, "wf_pos": wf, "perm_p": pv, "ics": {str(k): v[0] for k, v in ics.items()}
+    }
 
 # ── COMPOSITE TEST ────────────────────────────────────────────────────────────
 valid_signals = [
@@ -420,7 +420,7 @@ if len(valid_signals) >= 2:
     all_cols = list(set.union(*[set(s.columns) for _, s in valid_signals]))
     comp = pd.DataFrame(0.0, index=wc.index, columns=all_cols)
     weights = {0: 0.35, 1: 0.40, 2: 0.25}
-    for i, (name, sig_df) in enumerate(valid_signals):
+    for i, (_name, sig_df) in enumerate(valid_signals):
         sig_oos = sig_df[sig_df.index >= OOS_START].reindex(wc.index).ffill()
         w = weights.get(i, 1 / len(valid_signals))
         for col in sig_oos.columns:
@@ -444,7 +444,7 @@ for name, r in results.items():
     )
     print(f"  {name:<30} {r['sharpe']:>+8.3f} {r['wf_pos']:>4}/4 {r['perm_p']:>8.4f} {verdict:>14}")
 
-with open("/tmp/databento_validation.json", "w") as f:
+with open("/tmp/databento_validation.json", "w") as f:  # noqa: S108
     json.dump(results, f, indent=2, default=str)
 print("\n  Saved: /tmp/databento_validation.json")
 

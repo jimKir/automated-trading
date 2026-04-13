@@ -77,7 +77,7 @@ class MomentumTradingStrategy:
         symbols = get_symbol_list(universe)
 
         # Run scan
-        gainers, losers = self.scanner.run_full_scan(symbols, top_n=top_n)
+        _gainers, _losers = self.scanner.run_full_scan(symbols, top_n=top_n)
 
         # Apply quality filters
         filter_config = {
@@ -145,8 +145,8 @@ class MomentumTradingStrategy:
         # BUY signals (gainers with low volatility)
         for symbol, metrics in gainers[:5]:  # Top 5 gainers
             momentum = metrics["intra_momentum"]
-            volume = metrics["volume"]
-            price = metrics["price"]
+            metrics["volume"]
+            metrics["price"]
 
             # Score: 0-100
             score = min(100, momentum * 1000)  # Scale to 0-100
@@ -165,8 +165,8 @@ class MomentumTradingStrategy:
         # SELL signals (losers with high volatility)
         for symbol, metrics in losers[:3]:  # Top 3 losers
             momentum = metrics["intra_momentum"]
-            volume = metrics["volume"]
-            price = metrics["price"]
+            metrics["volume"]
+            metrics["price"]
 
             score = min(100, abs(momentum) * 1000)
 

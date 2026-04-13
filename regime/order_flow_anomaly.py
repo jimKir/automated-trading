@@ -14,8 +14,6 @@ from Alpaca or Databento for more accurate order flow measurement.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 import pandas as pd
 

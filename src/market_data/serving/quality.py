@@ -5,12 +5,13 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from market_data.storage.analytics_lake import AnalyticsLake
-from market_data.storage.symbol_master import SymbolMaster
+if TYPE_CHECKING:
+    from market_data.storage.analytics_lake import AnalyticsLake
+    from market_data.storage.symbol_master import SymbolMaster
 
 logger = structlog.get_logger(__name__)
 

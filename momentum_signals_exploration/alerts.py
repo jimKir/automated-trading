@@ -48,7 +48,7 @@ class AlertManager:
 
         try:
             message = self._format_slack_message(gainers, losers)
-            response = requests.post(webhook_url, json=message)
+            response = requests.post(webhook_url, json=message, timeout=10)
 
             if response.status_code == 200:
                 logger.info("✓ Slack alert sent")
@@ -275,7 +275,7 @@ class AlertManager:
                 ],
             }
 
-            response = requests.post(webhook_url, json=payload)
+            response = requests.post(webhook_url, json=payload, timeout=10)
 
             if response.status_code in [200, 201]:
                 logger.info("✓ Webhook alert sent")

@@ -11,11 +11,15 @@ Handles:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 log = get_logger("RiskManager")
 
@@ -376,7 +380,7 @@ class RiskManager:
             "1987 Black Monday (-22% in one day)": -0.22,
             "Dotcom bust 2000-2002 (-78% Nasdaq)": -0.78,
         }
-        beta = returns.corr(returns)  # simplified: assume beta=1 in stress
+        returns.corr(returns)  # simplified: assume beta=1 in stress
         vol_scale = returns.std() / 0.01  # scale by relative vol vs 1% daily
         results = {}
         for name, shock in scenarios.items():

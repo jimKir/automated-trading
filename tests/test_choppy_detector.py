@@ -1,8 +1,11 @@
 """Unit tests for ChoppyRegimeDetector v4."""
-import pytest
-import pandas as pd
+import os
+import sys
+
 import numpy as np
-import sys, os
+import pandas as pd
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from regime.choppy_regime import ChoppyRegimeDetector
@@ -42,9 +45,9 @@ class TestInitialization:
     def test_v4_thresholds_values(self, detector):
         """v4 thresholds from regime_params_validated.json."""
         # The JSON has green_ceiling=0.17, yellow_ceiling=0.27, orange_ceiling=0.40
-        assert detector.GREEN_MAX == pytest.approx(0.17, abs=0.03)
-        assert detector.YELLOW_MAX == pytest.approx(0.27, abs=0.03)
-        assert detector.ORANGE_MAX == pytest.approx(0.40, abs=0.05)
+        assert pytest.approx(0.17, abs=0.03) == detector.GREEN_MAX
+        assert pytest.approx(0.27, abs=0.03) == detector.YELLOW_MAX
+        assert pytest.approx(0.40, abs=0.05) == detector.ORANGE_MAX
 
     def test_order_flow_group_present(self, detector):
         assert 'order_flow' in detector.feature_groups, \

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -10,6 +10,9 @@ from market_data.storage.cloud_storage import (
     CloudStorageFactory,
     LocalStorageBackend,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestLocalStorageBackend:

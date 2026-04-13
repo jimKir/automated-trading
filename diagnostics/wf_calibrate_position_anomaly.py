@@ -55,7 +55,6 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -183,7 +182,7 @@ def backtest_crypto(
     start: str,
     end:   str,
     rt_cost: float = 0.001,   # 0.1% round-trip per weekly rebalance
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Simulate a 100% crypto position scaled by the anomaly factor.
     Weekly rebalance (scale changes, position adjusts).
@@ -221,9 +220,9 @@ def backtest_crypto(
 
 
 def score_params(
-    is_metrics:  Dict[str, float],
-    oos_metrics: Dict[str, float],
-    baseline_metrics: Dict[str, float],   # unscaled = always scale=1.0
+    is_metrics:  dict[str, float],
+    oos_metrics: dict[str, float],
+    baseline_metrics: dict[str, float],   # unscaled = always scale=1.0
     fp_rate:     float,                   # fraction of IS bull days over-cut
 ) -> float:
     """
@@ -265,7 +264,7 @@ def score_params(
 def run_wf_calibration(
     close_btc: pd.Series,
     close_eth: pd.Series,
-) -> Dict:
+) -> dict:
     """
     Run the full walk-forward grid search across all folds.
     Returns a dict with fold results and recommended locked params.
@@ -296,7 +295,7 @@ def run_wf_calibration(
             fold_score = 0.0
             valid      = True
 
-            for close, sym in [(close_btc, "BTC"), (close_eth, "ETH")]:
+            for close, _sym in [(close_btc, "BTC"), (close_eth, "ETH")]:
                 # Pre-compute scale series on full history (causal)
                 scale = compute_score_series(
                     close, g1_base, g1_ceil, g3_dd, sens
@@ -311,7 +310,8 @@ def run_wf_calibration(
                 base_res = backtest_crypto(close, ones, oos_s, oos_e)
 
                 if oos_res["n"] < 10:
-                    valid = False; break
+                    valid = False
+                    break
 
                 # False positive rate: fraction of IS calm days where scale < 0.75
                 # "calm" = IS periods where unscaled 30d drawdown < 10%
@@ -383,7 +383,7 @@ def run_wf_calibration(
     return fold_results
 
 
-def derive_locked_params(fold_results: List[dict]) -> dict:
+def derive_locked_params(fold_results: list[dict]) -> dict:
     """
     Derive the final production thresholds from the OOS-validated fold params.
 
@@ -473,11 +473,11 @@ if __name__ == "__main__":
               f"{f['base_btc_oos'].get('max_dd',0)-f['oos_btc'].get('max_dd',0):>+8.1f}pp")
 
     locked = derive_locked_params(fold_results)
-    print(f"\nLOCKED PARAMS (median across OOS-validated folds):")
+    print("\nLOCKED PARAMS (median across OOS-validated folds):")
     for k, v in locked.items():
         if k != "diagnostics":
             print(f"  {k:<20} = {v}")
-    print(f"\nDiagnostics:")
+    print("\nDiagnostics:")
     for k, v in locked.get("diagnostics", {}).items():
         print(f"  {k:<30} = {v}")
 

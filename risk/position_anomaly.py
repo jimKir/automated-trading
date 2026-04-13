@@ -58,7 +58,6 @@ from __future__ import annotations
 
 import warnings
 from enum import Enum
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -117,7 +116,7 @@ def classify(symbol: str) -> AssetClass:
 # vol_baseline   : expected daily vol (for z-scoring vol spikes)
 # feature_weights: blend of G1/G2/G3/G4 signals for this class
 
-_CLASS_CONFIG: Dict[AssetClass, dict] = {
+_CLASS_CONFIG: dict[AssetClass, dict] = {
     AssetClass.CRYPTO: {
         "sensitivity":     1.40,          # aggressive — crypto drawdowns are severe
         "floor":           0.10,          # allow up to 90% cut
@@ -267,7 +266,7 @@ class PositionAnomalyScorer:
 
     def __init__(
         self,
-        portfolio_choppy_score: Optional[pd.Series] = None,
+        portfolio_choppy_score: pd.Series | None = None,
         vol_window: int = 20,
         baseline_window: int = 60,
     ):
@@ -283,7 +282,7 @@ class PositionAnomalyScorer:
         self._vw  = vol_window
         self._bw  = baseline_window
         # Per-symbol score cache (smoothed)
-        self._score_cache: Dict[str, pd.Series] = {}
+        self._score_cache: dict[str, pd.Series] = {}
 
     # ── Feature computation (per-symbol) ─────────────────────────────────────
 
@@ -299,7 +298,7 @@ class PositionAnomalyScorer:
         """
         ret = close.pct_change()
         cfg = _CLASS_CONFIG[asset_class]
-        vol_baseline_daily = cfg["vol_baseline"]
+        cfg["vol_baseline"]
 
         feat = pd.DataFrame(index=close.index)
 
@@ -342,7 +341,7 @@ class PositionAnomalyScorer:
         symbol: str,
         close: pd.Series,
         asset_class: AssetClass,
-        portfolio_score: Optional[float] = None,
+        portfolio_score: float | None = None,
     ) -> pd.Series:
         """
         Blend all four features → raw score → EMA-smoothed → scale factor.
@@ -391,9 +390,9 @@ class PositionAnomalyScorer:
     def score_day(
         self,
         date: pd.Timestamp,
-        price_history: Dict[str, pd.DataFrame],
-        portfolio_score: Optional[float] = None,
-    ) -> Dict[str, float]:
+        price_history: dict[str, pd.DataFrame],
+        portfolio_score: float | None = None,
+    ) -> dict[str, float]:
         """
         Compute per-symbol scale factors for a single rebalance date.
         Uses all available history up to and including `date`.
@@ -415,7 +414,7 @@ class PositionAnomalyScorer:
             except Exception:
                 portfolio_score = 0.0
 
-        result: Dict[str, float] = {}
+        result: dict[str, float] = {}
 
         for sym, df in price_history.items():
             try:
@@ -472,7 +471,7 @@ class PositionAnomalyScorer:
         self,
         price_df: pd.DataFrame,
         portfolio_score: float = 0.0,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Live mode: compute per-symbol scales using the most recent data.
 
@@ -485,7 +484,7 @@ class PositionAnomalyScorer:
         -------
         Dict[symbol, scale_factor]
         """
-        result: Dict[str, float] = {}
+        result: dict[str, float] = {}
         for sym in price_df.columns:
             try:
                 close = price_df[sym].dropna()
@@ -504,8 +503,8 @@ class PositionAnomalyScorer:
         self,
         symbol: str,
         close: pd.Series,
-        portfolio_score_series: Optional[pd.Series] = None,
-    ) -> Tuple[pd.Series, pd.Series]:
+        portfolio_score_series: pd.Series | None = None,
+    ) -> tuple[pd.Series, pd.Series]:
         """
         Compute full score and scale-factor series for one symbol.
         Useful for backtesting diagnostics and charting.
@@ -539,9 +538,9 @@ class PositionAnomalyScorer:
 # ── Module-level helpers ──────────────────────────────────────────────────────
 
 def apply_position_scales(
-    signals: Dict[str, float],
-    scales:  Dict[str, float],
-) -> Dict[str, float]:
+    signals: dict[str, float],
+    scales:  dict[str, float],
+) -> dict[str, float]:
     """
     Multiply signal weights by per-symbol anomaly scales.
     Symbols with no scale default to 1.0 (no change).

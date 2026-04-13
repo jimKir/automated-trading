@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from market_data.serving.feature_store import (
     FeatureStore,
     TrainingDatasetConfig,
 )
-from market_data.storage.cloud_storage import LocalStorageBackend
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from market_data.storage.cloud_storage import LocalStorageBackend
 
 
 class TestFeatureStore:

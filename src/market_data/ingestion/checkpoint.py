@@ -176,9 +176,7 @@ class CheckpointManager:
         """
         if records >= self.checkpoint_every_records:
             return True
-        if bytes_size >= self.checkpoint_every_mb * 1024 * 1024:
-            return True
-        return False
+        return bytes_size >= self.checkpoint_every_mb * 1024 * 1024
 
     def mark_completed(self, state: CheckpointState) -> None:
         """Mark a checkpoint as completed.

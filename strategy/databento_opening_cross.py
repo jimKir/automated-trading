@@ -57,7 +57,7 @@ import numpy as np
 import pandas as pd
 
 try:
-    from src.market_data.catalogue import get_catalogue as _get_catalogue
+    from src.market_data.catalogue import get_catalogue as _get_catalogue  # noqa: F401
 
     _CATALOGUE_AVAILABLE = True
 except ImportError:
@@ -507,7 +507,7 @@ class OpeningCrossSignal:
 
         # Use only the last `n` days (the genuine signal window)
         signal_anomaly = anomaly.iloc[-n:].copy()
-        signal_dates = valid_dates[-n:]
+        valid_dates[-n:]
 
         # Gap direction: we don't have prev_close here, so use sign of anomaly - 1.
         # Positive anomaly > 1 = above-average volume = institutional interest.

@@ -51,7 +51,7 @@ class TestCostTracker:
         tracker.record_cost(50.0)
         costs = tracker.get_all_costs()
         assert len(costs) == 1
-        assert list(costs.values())[0] == 50.0
+        assert next(iter(costs.values())) == 50.0
 
 
 class TestPriorityRequestQueue:

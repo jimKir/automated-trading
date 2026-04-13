@@ -37,6 +37,7 @@ Academic basis:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -56,7 +57,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="alpaca")
 ALPACA_KEY = os.environ.get("ALPACA_API_KEY", "")
 ALPACA_SECRET = os.environ.get("ALPACA_API_SECRET", "")
 
-CACHE_DIR = Path("/tmp/alpaca_signal_cache")
+CACHE_DIR = Path("/tmp/alpaca_signal_cache")  # noqa: S108
 CACHE_DIR.mkdir(exist_ok=True)
 
 LOOKBACK_WEEKS = 8  # weeks of 1-min data for microstructure features
@@ -111,10 +112,8 @@ class AlpacaDataFetcher:
         return None
 
     def _cache_save(self, path: Path, value):
-        try:
+        with contextlib.suppress(Exception):
             path.write_text(json.dumps({"v": value, "_ts": time.time()}, default=str))
-        except Exception:
-            pass
 
     def get_1min_bars(self, symbol: str, start: datetime, end: datetime) -> pd.DataFrame:
         """
@@ -569,7 +568,7 @@ class RealOptionsFlowSignal:
         Returns: float in [-1, +1], positive = net call buying.
         """
         call_vol = put_vol = 0.0
-        for cid, snap in chain.items():
+        for snap in chain.values():
             v = snap.get("volume", 0) or 0
             d = abs(snap.get("delta") or 0.5)
             otm = d < 0.4  # OTM if delta < 0.4
@@ -592,7 +591,7 @@ class RealOptionsFlowSignal:
         Returns: float in [-1, +1].
         """
         call_ivs, put_ivs = [], []
-        for cid, snap in chain.items():
+        for snap in chain.values():
             iv = snap.get("iv")
             d = abs(snap.get("delta") or 0)
             if iv is None or d == 0:
@@ -618,7 +617,7 @@ class RealOptionsFlowSignal:
         Returns: float in [-1, +1].
         """
         call_prem = put_prem = 0.0
-        for cid, snap in chain.items():
+        for snap in chain.values():
             v = snap.get("volume", 0) or 0
             bid = snap.get("bid", 0) or 0
             mid = (bid + (snap.get("ask", bid) or bid)) / 2

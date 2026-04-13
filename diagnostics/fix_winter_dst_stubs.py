@@ -126,7 +126,7 @@ def main():
         print(f"  Run with --delete to remove {len(stubs)} stubs")
     elif args.delete:
         deleted = 0
-        for d, f in stubs:
+        for _d, f in stubs:
             try:
                 f.unlink()
                 deleted += 1

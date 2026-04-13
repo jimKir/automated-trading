@@ -12,7 +12,6 @@ try:
         Counter,
         Gauge,
         Histogram,
-        Summary,
         generate_latest,
     )
 

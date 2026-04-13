@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Paper trading status. Usage: python scripts/status.py [--watch] [--interval 30]"""
-import argparse, os, sys, time
+import argparse
+import os
+import sys
+import time
 from datetime import datetime
 
 parser = argparse.ArgumentParser()
@@ -11,19 +14,26 @@ args = parser.parse_args()
 def load_env():
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
     if os.path.exists(p):
-        for line in open(p):
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
+        with open(p) as _env_f:
+            for line in _env_f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
 load_env()
 
-G = lambda t: f"\033[92m{t}\033[0m"
-R = lambda t: f"\033[91m{t}\033[0m"
-B = lambda t: f"\033[1m{t}\033[0m"
-D = lambda t: f"\033[2m{t}\033[0m"
-pnl = lambda v: (G if float(v)>=0 else R)(f"{float(v):+,.2f}")
-pct = lambda v: (G if float(v)*100>=0 else R)(f"{float(v)*100:+.2f}%")
+def G(t):
+    return f"\033[92m{t}\033[0m"
+def R(t):
+    return f"\033[91m{t}\033[0m"
+def B(t):
+    return f"\033[1m{t}\033[0m"
+def D(t):
+    return f"\033[2m{t}\033[0m"
+def pnl(v):
+    return (G if float(v)>=0 else R)(f"{float(v):+,.2f}")
+def pct(v):
+    return (G if float(v)*100>=0 else R)(f"{float(v)*100:+.2f}%")
 
 def run():
     key = os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID")
@@ -32,11 +42,13 @@ def run():
         sys.exit(R("No credentials. Set ALPACA_API_KEY + ALPACA_API_SECRET in .env"))
     from alpaca.trading.client import TradingClient
     from alpaca.trading.requests import GetOrdersRequest
-    from alpaca.trading.enums import OrderStatus as OS
     c = TradingClient(key, sec, paper=True)
-    acct = c.get_account(); pos = c.get_all_positions()
+    acct = c.get_account()
+    pos = c.get_all_positions()
     ords = c.get_orders(filter=GetOrdersRequest(limit=5))
-    eq = float(acct.equity); le = float(acct.last_equity); td = eq - le
+    eq = float(acct.equity)
+    le = float(acct.last_equity)
+    td = eq - le
     BAR = "=" * 52
     print(f"\n{B(BAR)}")
     print(f"  {B('PAPER TRADING')}  {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -58,7 +70,8 @@ def run():
                   f" {float(p.current_price):>9.2f} {pnl(p.unrealized_pl):>16}"
                   f" {pct(float(p.unrealized_plpc)):>13}")
     print(f"\n{B('ORDERS (last 5)')}")
-    if not ords: print(f"  {D('none')}")
+    if not ords:
+        print(f"  {D('none')}")
     else:
         for o in ords:
             t = o.created_at.strftime("%H:%M:%S") if o.created_at else "—"
@@ -70,7 +83,10 @@ def run():
 if args.watch:
     try:
         while True:
-            os.system("clear"); run(); time.sleep(args.interval)
-    except KeyboardInterrupt: print("\nStopped.")
+            os.system("clear")  # noqa: S605,S607
+            run()
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        print("\nStopped.")
 else:
     run()

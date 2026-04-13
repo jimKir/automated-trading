@@ -193,8 +193,8 @@ def _rebalance_schedule(self, dates: list) -> set:
     vix_thresh = float(getattr(self, "vix_spike_threshold", 0.20))
     biweekly_n = int(getattr(self, "biweekly_n_trading_days", 10))
 
-    signal_series: Optional[pd.Series] = getattr(self, "signal_series", None)
-    vix_series: Optional[pd.Series] = getattr(self, "vix_series", None)
+    signal_series: pd.Series | None = getattr(self, "signal_series", None)
+    vix_series: pd.Series | None = getattr(self, "vix_series", None)
 
     return build_rebalance_schedule(
         dates=dates,
@@ -222,11 +222,11 @@ def _base_schedule(
     if freq_lower == "daily":
         return set(s.index)
 
-    elif freq_lower == "weekly":
+    if freq_lower == "weekly":
         # Last trading day of each calendar week (Friday anchor)
         return set(s.resample("W-FRI").last().dropna())
 
-    elif freq_lower == "biweekly":
+    if freq_lower == "biweekly":
         # Every ``biweekly_n`` *trading* days, starting from the first date
         sorted_dates = sorted(s.index.tolist())
         schedule = set()
@@ -234,15 +234,14 @@ def _base_schedule(
             schedule.add(sorted_dates[i])
         return schedule
 
-    elif freq_lower == "monthly":
+    if freq_lower == "monthly":
         # Last business day of each calendar month
         return set(s.resample("BME").last().dropna())
 
-    else:
-        logger.warning(
-            "Unknown rebalance_freq '%s'; defaulting to all dates.", freq
-        )
-        return set(s.index)
+    logger.warning(
+        "Unknown rebalance_freq '%s'; defaulting to all dates.", freq
+    )
+    return set(s.index)
 
 
 def _apply_signal_filter(
