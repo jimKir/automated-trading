@@ -99,24 +99,33 @@ else
 fi
 
 # ── ECS Service ─────────────────────────────────────────────────────────────
-# If a pre-existing service blocks terraform apply, we scale it to 0
-# and delete it so Terraform can recreate it with the correct config.
+# ECS service import is unreliable (known provider bug). If a stale
+# service blocks terraform apply, force-delete it and poll until AWS
+# fully removes it, then let Terraform recreate it cleanly.
 if terraform state show "aws_ecs_service.trading" &>/dev/null; then
   echo "  ✓ aws_ecs_service.trading already in state — skipping"
 else
   SERVICE_STATUS=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-    --region "$REGION" --query 'services[?status==`ACTIVE`].status | [0]' --output text 2>/dev/null || echo "None")
-  if [[ "$SERVICE_STATUS" == "ACTIVE" ]]; then
-    echo "  ! ECS service ${PREFIX}-service exists but is not in Terraform state"
-    echo "  → Scaling to 0 and deleting stale service so Terraform can recreate it..."
-    aws ecs update-service --cluster "${PREFIX}-cluster" --service "${PREFIX}-service" \
-      --desired-count 0 --region "$REGION" --no-cli-pager 2>&1 || true
+    --region "$REGION" --query 'services[?status!=`INACTIVE`].status | [0]' --output text 2>/dev/null || echo "None")
+  if [[ "$SERVICE_STATUS" != "None" && "$SERVICE_STATUS" != "null" && -n "$SERVICE_STATUS" ]]; then
+    echo "  ! ECS service ${PREFIX}-service exists (status=${SERVICE_STATUS}) but is not in Terraform state"
+    echo "  → Force-deleting stale service so Terraform can recreate it..."
+    # --force stops running tasks immediately (paper env has 0 anyway)
     aws ecs delete-service --cluster "${PREFIX}-cluster" --service "${PREFIX}-service" \
-      --region "$REGION" --no-cli-pager 2>&1 || true
-    echo "  → Waiting for service to drain (up to 60s)..."
-    aws ecs wait services-inactive --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-      --region "$REGION" 2>&1 || sleep 30
-    echo "  ✓ Stale ECS service deleted — Terraform will recreate it"
+      --force --region "$REGION" --no-cli-pager 2>&1 || true
+    # Poll until the service is truly INACTIVE (up to 5 minutes)
+    echo "  → Waiting for service to reach INACTIVE state..."
+    for i in $(seq 1 30); do
+      STATUS=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+        --region "$REGION" --query 'services[0].status' --output text 2>/dev/null || echo "GONE")
+      if [[ "$STATUS" == "INACTIVE" || "$STATUS" == "GONE" || "$STATUS" == "None" ]]; then
+        echo "  ✓ Service is now ${STATUS} after ${i}0 seconds"
+        break
+      fi
+      echo "    ... status=${STATUS}, waiting (${i}0s / 300s)"
+      sleep 10
+    done
+    echo "  ✓ Stale ECS service removed — Terraform will recreate it"
   else
     echo "  ○ ECS service ${PREFIX}-service not found — will be created"
   fi
