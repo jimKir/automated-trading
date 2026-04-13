@@ -1,0 +1,132 @@
+name: Daily Performance Summary
+
+on:
+  schedule:
+    # Every weekday (Mon-Fri) at 21:30 UTC = 00:30 EEST next day
+    # ~30 min after US market close (16:00 ET = 20:00 UTC)
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch:  # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  daily-summary:
+    name: Generate & Email Daily Summary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet numpy pandas
+
+      # ── Fetch latest equity from Alpaca ──
+      - name: Fetch equity snapshot from Alpaca
+        if: env.ALPACA_API_KEY != ''
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          pip install --quiet alpaca-py
+          python - << 'PYEOF'
+          import json, os
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          state_path = Path("results/paper_state.json")
+
+          if state_path.exists():
+              state = json.load(open(state_path))
+          else:
+              state = {"equity_history": [], "initial_equity": 25000}
+
+          try:
+              from alpaca.trading.client import TradingClient
+              client = TradingClient(
+                  api_key=os.environ["ALPACA_API_KEY"],
+                  secret_key=os.environ["ALPACA_API_SECRET"],
+                  paper=True,
+              )
+              account = client.get_account()
+              equity = float(account.equity)
+              today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+              history = state.get("equity_history", [])
+              existing_dates = {e["date"] for e in history}
+              if today not in existing_dates:
+                  history.append({"date": today, "equity": equity})
+                  state["equity_history"] = history
+                  state_path.parent.mkdir(parents=True, exist_ok=True)
+                  with open(state_path, "w") as f:
+                      json.dump(state, f, indent=2)
+                  print(f"Alpaca snapshot: ${equity:,.2f} on {today}")
+              else:
+                  print(f"Already have data for {today}, skipping")
+          except Exception as e:
+              print(f"Alpaca fetch skipped: {e}")
+          PYEOF
+
+      # ── Run the daily summary ──
+      - name: Generate daily summary
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: python scripts/daily_summary.py --email --verbose
+
+      # ── Commit updated state files ──
+      - name: Commit state updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add results/paper_state.json results/daily_summary.json 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(auto): daily summary state update [skip ci]"
+            git push origin main
+            echo "State committed and pushed"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Daily Performance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f results/daily_summary.json ]; then
+            python - << 'PYEOF' >> $GITHUB_STEP_SUMMARY
+          import json
+          m = json.load(open("results/daily_summary.json"))
+          if m.get("has_data"):
+              cap = m["capital"]
+              perf = m["performance"]
+              risk = m["risk"]
+              print(f"**Equity: ${cap['current_equity']:,.2f}** | "
+                    f"Daily: {cap['pnl_daily_pct']:+.2f}% | "
+                    f"Total: {cap['pnl_total_pct']:+.2f}%")
+              print("")
+              print("| Metric | Value |")
+              print("|--------|-------|")
+              print(f"| Sharpe | {perf['sharpe_ratio']:.3f} |")
+              print(f"| Sortino | {perf['sortino_ratio']:.3f} |")
+              print(f"| Win Rate | {perf['win_rate_pct']:.1f}% |")
+              print(f"| Max DD | {risk['max_drawdown_pct']:.2f}% |")
+              print(f"| VaR (95%) | {risk['var_95_pct']:.3f}% |")
+              print(f"| Uptime | {risk['system_uptime_pct']:.1f}% |")
+          else:
+              print(f"No data — {m.get('error', 'paper trading not yet started')}")
+          PYEOF
+          else
+            echo "No summary generated." >> $GITHUB_STEP_SUMMARY
+          fi
