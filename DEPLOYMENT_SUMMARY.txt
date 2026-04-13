@@ -1,0 +1,188 @@
+═══════════════════════════════════════════════════════════════════════════════
+  TRADING SYSTEM v2 — AWS DEPLOYMENT READY
+═══════════════════════════════════════════════════════════════════════════════
+
+WHAT'S INCLUDED
+───────────────────────────────────────────────────────────────────────────────
+
+✅ Trading Engine
+  • LiveEngine with dry-run verified ✓
+  • 6-layer EWS (anomaly, macro, event_shock, commodity_fx, intraday, choppy)
+  • ChoppyRegimeDetector v4 with 9 feature groups
+  • Position anomaly scoring (asymmetric crypto protection)
+  • Volatility prediction ensemble (HAR+GBM)
+  • TimeInForce.DAY for fractional orders (Alpaca fix) ✓
+  • Non-tradeable symbol filter (futures excluded) ✓
+
+✅ AWS Infrastructure (Terraform)
+  • ECR: Docker image registry (keep 5 images)
+  • ECS Fargate: 0.5 vCPU / 1GB RAM (minimal, cost-optimized)
+  • Secrets Manager: Alpaca credentials (10-day recovery window)
+  • CloudWatch: Logs + alarm (bot dead detection)
+  • EventBridge Schedules: Production only (market hours)
+  • IAM: Least-privilege roles (secrets read, S3 access)
+  • Security Group: Egress-only (no inbound)
+
+✅ CI/CD Pipeline (GitHub Actions)
+  • Lint (ruff): 27 rule groups
+  • Test: pytest with coverage
+  • Dress Rehearsal: Module smoke tests, config validation
+  • Docker Build: Container smoke test
+  • Terraform Plan: PR comments for both envs
+  • Deploy: Automatic (production), on-demand (paper)
+  • Paper Control: Quick start/stop without rebuild
+
+✅ Two Environments
+  • Production: Always active, market hours only
+    - EventBridge: start 14:25 UTC, stop 21:05 UTC (Mon-Fri)
+    - Auto-deploys on git push main
+    - Cost: ~$11/month
+
+  • Paper: On-demand testing
+    - No auto-schedules
+    - Manual control via workflow_dispatch
+    - Cost: $0 when stopped, ~$3–5/session when running
+
+✅ Diagnostics & Monitoring
+  • scripts/status.py: Portfolio dashboard
+  • healthcheck.py: Environment validation (sections 1-6)
+  • CloudWatch logs: Tailable in real-time
+  • ECS health checks: Auto-restart on failure
+  • No hardcoded secrets (verified in CI)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DEPLOYMENT STEPS (from Mac)
+───────────────────────────────────────────────────────────────────────────────
+
+1. COMMIT & PUSH (triggers production deploy)
+   ─────────────────────────────────────────
+   git add .github/ infra/
+   git commit -m "feat: AWS IaC v2 — dual envs, terraform plan on PRs"
+   git push origin main
+
+   ⏱️  GitHub Actions starts immediately:
+       lint → test → dress-rehearsal → docker → deploy-production
+   ⏱️  Total time: 5–10 minutes
+
+2. VERIFY PRODUCTION (while waiting)
+   ─────────────────────────────────
+   # Check if cluster exists
+   aws ecs list-services --cluster trading-bot-production-cluster \
+     --region eu-north-1
+
+   # Tail logs
+   aws logs tail /ecs/trading-bot-production --follow --region eu-north-1
+
+   ✅ Watch for: "=== Trading Cycle @" messages
+
+3. DEPLOY PAPER TRADING
+   ────────────────────
+   a) Go to GitHub Actions → CI / CD
+   b) Click "Run workflow"
+   c) Select:
+      - Environment: paper
+      - Action: deploy
+   d) Wait 3–5 min for build + deploy
+
+   ⏱️  This creates a fresh paper environment and starts trading
+
+4. MONITOR BOTH
+   ────────────
+   # Terminal 1: Production
+   aws logs tail /ecs/trading-bot-production --follow --region eu-north-1
+
+   # Terminal 2: Paper
+   aws logs tail /ecs/trading-bot-paper --follow --region eu-north-1
+
+   # Terminal 3: Status (Mac local)
+   cd ~/Documents/trading/automated-trading
+   python scripts/status.py
+
+5. TEST QUICK CONTROLS (optional)
+   ─────────────────────────────
+   # Stop paper
+   GitHub Actions → Run workflow → paper → action: stop
+
+   # Verify stopped (desired_count = 0)
+   aws ecs describe-services \
+     --cluster trading-bot-paper-cluster \
+     --services trading-bot-paper-service \
+     --region eu-north-1 | grep desiredCount
+
+   # Resume paper
+   GitHub Actions → Run workflow → paper → action: start
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY DIFFERENCES FROM V1
+───────────────────────────────────────────────────────────────────────────────
+
+❌ V1: Manual terraform apply after pushing code
+✅ V2: Auto-applies on main push (no manual steps)
+
+❌ V1: Single environment (paper only)
+✅ V2: Two Terraform workspaces (production always-on, paper on-demand)
+
+❌ V1: No terraform plan visibility on PRs
+✅ V2: Terraform plan diffs posted as PR comments (review before merge)
+
+❌ V1: Always-on paper trading (24/7 cost)
+✅ V2: Paper runs on-demand only (cost $0 when stopped)
+
+❌ V1: No cost optimization
+✅ V2: EventBridge schedules + SPOT + minimal resources = ~$11/month prod
+
+❌ V1: Manual image builds
+✅ V2: Docker → ECR → ECS all automated
+
+═══════════════════════════════════════════════════════════════════════════════
+
+COST ESTIMATE
+───────────────────────────────────────────────────────────────────────────────
+
+Production (always on during market hours):
+  • ECS Fargate 0.5 vCPU/1GB: $3/month (market hours only)
+  • CloudWatch logs: $3/month
+  • Other (ECR, Secrets, ALB): $5/month
+  ─────────────────────────────
+  Total: ~$11/month
+
+Paper (on-demand):
+  • Per test session: ~$0.50–1.00 (1 hour)
+  • Per month (if testing 10 sessions): ~$5–10
+  • When stopped: $0
+
+═══════════════════════════════════════════════════════════════════════════════
+
+CRITICAL FILES
+───────────────────────────────────────────────────────────────────────────────
+
+Code (unchanged, already tested):
+  • execution/alpaca_broker.py (fixed TimeInForce.DAY)
+  • execution/live_engine.py (fixed: signal try-except, futures filter)
+  • config/settings.yaml (18 equities, 3 crypto, 3 futures, 3 indices)
+  • All risk/regime/strategy modules (fully integrated)
+
+New (Ready to Deploy):
+  • .github/workflows/ci.yml (8 jobs, terraform-plan on PRs, dual deploy)
+  • infra/terraform/aws/main.tf (ECR, ECS, Secrets, IAM, conditional EventBridge)
+  • infra/terraform/aws/variables.tf (environment, enable_schedules)
+  • infra/terraform/aws/envs/production.tfvars (always-on config)
+  • infra/terraform/aws/envs/paper.tfvars (on-demand config)
+  • Dockerfile (Java 17 for H2O, Python 3.11, boto3 included)
+  • AWS_DEPLOYMENT_GUIDE.md (comprehensive reference)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+NEXT ACTIONS
+───────────────────────────────────────────────────────────────────────────────
+
+1. Push to main → Production auto-deploys
+2. Monitor production logs (check for trading cycles)
+3. Deploy paper via workflow_dispatch
+4. Start paper trading
+5. Watch both environments
+6. Profit 📈
+
+═══════════════════════════════════════════════════════════════════════════════
