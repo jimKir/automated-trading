@@ -385,11 +385,15 @@ jobs:
         with:
           terraform_version: "1.7.0"
 
-      - name: Terraform init (${{ matrix.env }})
+      - name: Terraform init + import (${{ matrix.env }})
         working-directory: infra/terraform/aws
+        env:
+          TF_VAR_alpaca_api_key:    ${{ secrets.ALPACA_API_KEY }}
+          TF_VAR_alpaca_api_secret: ${{ secrets.ALPACA_API_SECRET }}
         run: |
           terraform init -input=false
           terraform workspace select ${{ matrix.env }} || terraform workspace new ${{ matrix.env }}
+          bash import_existing.sh ${{ matrix.env }}
 
       - name: Terraform plan (${{ matrix.env }})
         id: plan
@@ -531,6 +535,7 @@ jobs:
         run: |
           terraform init -input=false
           terraform workspace select production || terraform workspace new production
+          bash import_existing.sh production
           terraform apply -auto-approve -input=false -var-file=envs/production.tfvars
 
       - name: Force ECS deployment
@@ -606,6 +611,7 @@ jobs:
         run: |
           terraform init -input=false
           terraform workspace select paper || terraform workspace new paper
+          bash import_existing.sh paper
           terraform apply -auto-approve -input=false -var-file=envs/paper.tfvars
 
       - name: Deployment summary
