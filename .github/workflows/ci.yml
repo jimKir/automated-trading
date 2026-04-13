@@ -5,6 +5,23 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options:
+          - paper
+          - production
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - deploy
+          - start
+          - stop
 
 # Cancel in-progress runs on new push to same PR/branch
 concurrency:
@@ -21,6 +38,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +61,7 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
+    if: github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +105,7 @@ jobs:
     name: Dress Rehearsal
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -286,6 +306,7 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: dress-rehearsal
+    if: github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -314,13 +335,138 @@ jobs:
                   raise
           "
 
-  # ── 5. Deploy (main branch only, all gates must pass) ───────────────────────
-  deploy:
-    name: Deploy to ECS
+  # ── 5. Terraform Plan on PRs (posts diff as PR comment) ────────────────────
+  terraform-plan:
+    name: "Terraform Plan"
+    runs-on: ubuntu-latest
+    needs: lint
+    if: github.event_name == 'pull_request'
+    strategy:
+      matrix:
+        env: [production, paper]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform init (${{ matrix.env }})
+        working-directory: infra/terraform/aws
+        run: |
+          terraform init -input=false
+          terraform workspace select ${{ matrix.env }} || terraform workspace new ${{ matrix.env }}
+
+      - name: Terraform plan (${{ matrix.env }})
+        id: plan
+        working-directory: infra/terraform/aws
+        env:
+          TF_VAR_alpaca_api_key:    ${{ secrets.ALPACA_API_KEY }}
+          TF_VAR_alpaca_api_secret: ${{ secrets.ALPACA_API_SECRET }}
+        continue-on-error: true
+        run: |
+          terraform plan \
+            -var-file=envs/${{ matrix.env }}.tfvars \
+            -input=false \
+            -no-color \
+            -out=tfplan \
+            2>&1 | tee plan_output.txt
+
+          # Extract summary line for the comment header
+          SUMMARY=$(grep -E "Plan:|No changes" plan_output.txt | tail -1 || echo "See details below")
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+
+      - name: Post plan as PR comment
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTPUT: ${{ steps.plan.outputs.stdout || '' }}
+          PLAN_STDERR: ${{ steps.plan.outputs.stderr || '' }}
+          PLAN_EXIT:   ${{ steps.plan.outcome }}
+          ENV_NAME:    ${{ matrix.env }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const env = process.env.ENV_NAME;
+            const exitCode = process.env.PLAN_EXIT;
+
+            // Read plan output from file (more reliable than env var for large plans)
+            let planOutput = '';
+            try {
+              planOutput = fs.readFileSync('infra/terraform/aws/plan_output.txt', 'utf8');
+            } catch (e) {
+              planOutput = process.env.PLAN_OUTPUT || process.env.PLAN_STDERR || 'No plan output captured.';
+            }
+
+            // Truncate if too large for a GH comment (max ~65k chars)
+            const MAX_LEN = 60000;
+            if (planOutput.length > MAX_LEN) {
+              planOutput = planOutput.substring(0, MAX_LEN) + '\n\n... (truncated — full plan in Actions log)';
+            }
+
+            const icon = exitCode === 'success' ? '✅' : '❌';
+            const status = exitCode === 'success' ? 'succeeded' : 'failed';
+
+            const body = `### ${icon} Terraform Plan — \`${env}\` (eu-north-1)
+
+            <details>
+            <summary>Plan ${status} — click to expand</summary>
+
+            \`\`\`hcl
+            ${planOutput}
+            \`\`\`
+
+            </details>
+
+            *Workflow: \`${context.workflow}\` | Run: [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+
+            // Find and update existing comment for this env, or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const marker = `Terraform Plan — \`${env}\``;
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+
+      - name: Fail job if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  # ── 6. Deploy Production (push to main — always active) ────────────────────
+  deploy-production:
+    name: "Deploy: Production"
     runs-on: ubuntu-latest
     needs: [lint, test, dress-rehearsal, docker]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: paper-trading
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -345,44 +491,151 @@ jobs:
                       $ECR_REGISTRY/trading-bot:latest
           docker push $ECR_REGISTRY/trading-bot:$IMAGE_TAG
           docker push $ECR_REGISTRY/trading-bot:latest
-          echo "image=$ECR_REGISTRY/trading-bot:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.7.0"
 
-      - name: Terraform init + apply
+      - name: Terraform apply (production)
         working-directory: infra/terraform/aws
         env:
           TF_VAR_alpaca_api_key:    ${{ secrets.ALPACA_API_KEY }}
           TF_VAR_alpaca_api_secret: ${{ secrets.ALPACA_API_SECRET }}
         run: |
           terraform init -input=false
-          terraform apply -auto-approve -input=false
+          terraform workspace select production || terraform workspace new production
+          terraform apply -auto-approve -input=false -var-file=envs/production.tfvars
 
       - name: Force ECS deployment
+        working-directory: infra/terraform/aws
         run: |
-          CLUSTER=$(terraform -chdir=infra/terraform/aws output -raw ecs_cluster_name)
-          SERVICE=$(terraform -chdir=infra/terraform/aws output -raw ecs_service_name)
+          CLUSTER=$(terraform output -raw ecs_cluster_name)
+          SERVICE=$(terraform output -raw ecs_service_name)
           aws ecs update-service \
             --cluster $CLUSTER \
-            --service  $SERVICE \
+            --service $SERVICE \
             --force-new-deployment \
             --region eu-north-1
-          echo "Deployed: $CLUSTER / $SERVICE @ ${{ github.sha }}"
+          echo "Deployed production: $CLUSTER / $SERVICE @ ${{ github.sha }}"
 
       - name: Deployment summary
         run: |
-          echo "### ✅ Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Production Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mode   | paper trading |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **production** (always active) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Schedules | EventBridge market-hours (14:25–21:05 UTC) |" >> $GITHUB_STEP_SUMMARY
           echo "| Region | eu-north-1 |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "aws logs tail /ecs/trading-bot-production --follow --region eu-north-1" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ── 7. Deploy Paper (on-demand via workflow_dispatch) ───────────────────────
+  deploy-paper:
+    name: "Deploy: Paper (on-demand)"
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.action == 'deploy'
+    environment: paper-trading
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG:     paper-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/trading-bot:$IMAGE_TAG .
+          docker tag  $ECR_REGISTRY/trading-bot:$IMAGE_TAG \
+                      $ECR_REGISTRY/trading-bot:paper-latest
+          docker push $ECR_REGISTRY/trading-bot:$IMAGE_TAG
+          docker push $ECR_REGISTRY/trading-bot:paper-latest
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform apply (paper)
+        working-directory: infra/terraform/aws
+        env:
+          TF_VAR_alpaca_api_key:    ${{ secrets.ALPACA_API_KEY }}
+          TF_VAR_alpaca_api_secret: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          terraform init -input=false
+          terraform workspace select paper || terraform workspace new paper
+          terraform apply -auto-approve -input=false -var-file=envs/paper.tfvars
+
+      - name: Deployment summary
+        run: |
+          echo "### 🧪 Paper Environment Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **paper** (on-demand) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Schedules | none (manual start/stop) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# Start paper trading" >> $GITHUB_STEP_SUMMARY
+          echo "aws ecs update-service --cluster trading-bot-paper-cluster --service trading-bot-paper-service --desired-count 1 --region eu-north-1" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Tail logs" >> $GITHUB_STEP_SUMMARY
           echo "aws logs tail /ecs/trading-bot-paper --follow --region eu-north-1" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Stop when done" >> $GITHUB_STEP_SUMMARY
+          echo "aws ecs update-service --cluster trading-bot-paper-cluster --service trading-bot-paper-service --desired-count 0 --region eu-north-1" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ── 8. Start/Stop paper (quick dispatch without full deploy) ────────────────
+  paper-control:
+    name: "Paper: ${{ github.event.inputs.action }}"
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.action != 'deploy'
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: ${{ github.event.inputs.action }} paper environment
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          ACTION="${{ github.event.inputs.action }}"
+          CLUSTER="trading-bot-${ENV}-cluster"
+          SERVICE="trading-bot-${ENV}-service"
+
+          if [ "$ACTION" = "start" ]; then
+            COUNT=1
+          else
+            COUNT=0
+          fi
+
+          aws ecs update-service \
+            --cluster $CLUSTER \
+            --service $SERVICE \
+            --desired-count $COUNT \
+            --region eu-north-1
+
+          echo "### ${ACTION^} — $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "Set desired_count=$COUNT on $CLUSTER / $SERVICE" >> $GITHUB_STEP_SUMMARY

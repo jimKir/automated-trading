@@ -11,17 +11,17 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Deployment environment"
+  description = "Deployment environment (production = always active, paper = on-demand testing)"
   type        = string
   default     = "paper"
   validation {
-    condition     = contains(["paper", "live"], var.environment)
-    error_message = "Must be paper or live."
+    condition     = contains(["production", "paper"], var.environment)
+    error_message = "Must be 'production' or 'paper'."
   }
 }
 
 variable "trading_mode" {
-  description = "Engine trading mode"
+  description = "Engine trading mode passed to live_engine.py --mode"
   type        = string
   default     = "paper"
 }
@@ -45,9 +45,15 @@ variable "task_memory" {
 }
 
 variable "desired_count" {
-  description = "Initial ECS service desired count"
+  description = "Initial ECS service desired count (production=1, paper=0)"
   type        = number
   default     = 0
+}
+
+variable "enable_schedules" {
+  description = "Create EventBridge market-hours schedules (true for production, false for paper)"
+  type        = bool
+  default     = false
 }
 
 variable "alpaca_api_key" {

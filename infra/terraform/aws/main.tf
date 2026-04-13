@@ -3,6 +3,17 @@
 #  Region: eu-north-1 (Stockholm)
 #  Resources: ECR, ECS Fargate, S3, IAM, Security Group,
 #             Secrets Manager, CloudWatch, EventBridge
+#
+#  Two environments share this config via Terraform workspaces:
+#    production — always active (EventBridge market-hours schedules)
+#    paper      — on-demand (manual start/stop for strategy testing)
+#
+#  Usage:
+#    terraform workspace select production
+#    terraform apply -var-file=envs/production.tfvars
+#
+#    terraform workspace select paper
+#    terraform apply -var-file=envs/paper.tfvars
 # ============================================================
 
 terraform {
@@ -15,7 +26,9 @@ terraform {
     }
   }
 
-  # State stored in existing S3 bucket
+  # State stored in existing S3 bucket — workspaces auto-namespace:
+  #   env:/production/terraform/trading-bot.tfstate
+  #   env:/paper/terraform/trading-bot.tfstate
   backend "s3" {
     bucket = "trading-data-380277571671-eu-north-1-an"
     key    = "terraform/trading-bot.tfstate"
@@ -71,7 +84,7 @@ resource "aws_ecr_lifecycle_policy" "trading" {
 # ── Secrets Manager ──────────────────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "alpaca_key" {
   name                    = "trading/alpaca_api_key"
-  recovery_window_in_days = 0
+  recovery_window_in_days = 10
   tags                    = local.common_tags
 }
 
@@ -82,7 +95,7 @@ resource "aws_secretsmanager_secret_version" "alpaca_key" {
 
 resource "aws_secretsmanager_secret" "alpaca_secret" {
   name                    = "trading/alpaca_api_secret"
-  recovery_window_in_days = 0
+  recovery_window_in_days = 10
   tags                    = local.common_tags
 }
 
@@ -325,8 +338,14 @@ resource "aws_ecs_service" "trading" {
   tags = local.common_tags
 }
 
-# ── EventBridge — Start at market open (Mon-Fri 14:25 UTC = 09:25 ET) ────────
+# ── EventBridge — Market-hours schedules (production only) ───────────────────
+#
+# Production: auto start/stop on market hours (always active)
+# Paper:      manual start/stop only (on-demand strategy testing)
+
 resource "aws_iam_role" "eventbridge" {
+  count = var.enable_schedules ? 1 : 0
+
   name = "${local.name_prefix}-eventbridge"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -340,8 +359,10 @@ resource "aws_iam_role" "eventbridge" {
 }
 
 resource "aws_iam_role_policy" "eventbridge_ecs" {
+  count = var.enable_schedules ? 1 : 0
+
   name = "ecs-scale"
-  role = aws_iam_role.eventbridge.id
+  role = aws_iam_role.eventbridge[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -353,6 +374,7 @@ resource "aws_iam_role_policy" "eventbridge_ecs" {
 }
 
 resource "aws_scheduler_schedule" "start_trading" {
+  count      = var.enable_schedules ? 1 : 0
   name       = "${local.name_prefix}-start"
   group_name = "default"
 
@@ -364,7 +386,7 @@ resource "aws_scheduler_schedule" "start_trading" {
 
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:ecs:updateService"
-    role_arn = aws_iam_role.eventbridge.arn
+    role_arn = aws_iam_role.eventbridge[0].arn
     input = jsonencode({
       Cluster      = aws_ecs_cluster.trading.name
       Service      = aws_ecs_service.trading.name
@@ -374,6 +396,7 @@ resource "aws_scheduler_schedule" "start_trading" {
 }
 
 resource "aws_scheduler_schedule" "stop_trading" {
+  count      = var.enable_schedules ? 1 : 0
   name       = "${local.name_prefix}-stop"
   group_name = "default"
 
@@ -385,7 +408,7 @@ resource "aws_scheduler_schedule" "stop_trading" {
 
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:ecs:updateService"
-    role_arn = aws_iam_role.eventbridge.arn
+    role_arn = aws_iam_role.eventbridge[0].arn
     input = jsonencode({
       Cluster      = aws_ecs_cluster.trading.name
       Service      = aws_ecs_service.trading.name

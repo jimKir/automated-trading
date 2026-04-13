@@ -18,13 +18,23 @@ output "cloudwatch_log_group" {
   value       = aws_cloudwatch_log_group.trading.name
 }
 
+output "environment" {
+  description = "Active environment"
+  value       = var.environment
+}
+
+output "schedules_enabled" {
+  description = "Whether EventBridge market-hours schedules are active"
+  value       = var.enable_schedules
+}
+
 output "start_command" {
-  description = "Command to start paper trading"
+  description = "Command to manually start the service"
   value       = "aws ecs update-service --cluster ${aws_ecs_cluster.trading.name} --service ${aws_ecs_service.trading.name} --desired-count 1 --region ${var.aws_region}"
 }
 
 output "stop_command" {
-  description = "Command to stop paper trading"
+  description = "Command to manually stop the service"
   value       = "aws ecs update-service --cluster ${aws_ecs_cluster.trading.name} --service ${aws_ecs_service.trading.name} --desired-count 0 --region ${var.aws_region}"
 }
 
