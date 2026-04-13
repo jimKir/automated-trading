@@ -9,9 +9,9 @@ description = "Market Data Ingestion and Storage Platform"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = [
-    # Keep in sync with requirements.txt
+    # Keep in sync with requirements.in
     # Run: pip install -e ".[dev]" for development
-    # Run: pip install -r requirements.txt for direct install
+    # Run: pip install -r requirements.lock for direct install
     "pyarrow>=15.0.0",
     "pandas>=2.2.0",
     "prometheus-client>=0.20.0",
@@ -25,7 +25,7 @@ dependencies = [
     "aiofiles>=23.2.0",
     "tenacity>=8.2.0",
     "numpy>=1.26.0",
-    # --- Trading dependencies (synced from requirements.txt) ---
+    # --- Trading dependencies (synced from requirements.in) ---
     "yfinance>=0.2.40",
     "scipy>=1.12.0",
     "matplotlib>=3.8.0",

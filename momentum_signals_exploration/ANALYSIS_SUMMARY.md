@@ -137,7 +137,7 @@ analysis/
 
 ### Install & Verify
 ```bash
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.lock --break-system-packages
 export APCA_API_KEY_ID="your-key"
 export APCA_API_SECRET_KEY="your-secret"
 python main.py --universe sp500 --action scan

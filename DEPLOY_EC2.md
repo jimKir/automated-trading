@@ -134,7 +134,7 @@ echo "Data synced: $(ls data/historical/daily/*.parquet | wc -l) parquet files"
 python3.11 -m venv venv
 source venv/bin/activate
 pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
+pip install --quiet -r requirements.lock
 pip install --quiet -e .
 
 # Run health check

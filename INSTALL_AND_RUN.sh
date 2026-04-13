@@ -41,8 +41,8 @@ source venv/bin/activate
 # Ensure core packages
 pip install --upgrade pip --quiet 2>/dev/null
 
-# Install all dependencies from requirements.txt, then register the package
-pip install --quiet -r requirements.txt
+# Install all dependencies from the locked requirements file
+pip install --quiet -r requirements.lock
 pip install --quiet -e .
 echo "✓ All dependencies installed"
 

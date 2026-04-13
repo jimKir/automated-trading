@@ -129,7 +129,7 @@ for profile_name, filters in filter_profiles.items():
 
 ```bash
 # 1. Install dependencies
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.lock --break-system-packages
 
 # 2. Set Alpaca credentials
 export APCA_API_KEY_ID="your-key"

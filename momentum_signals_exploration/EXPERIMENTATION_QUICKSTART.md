@@ -28,7 +28,7 @@ Your complete toolkit for experimenting with ranking methods and expanding to la
 ```bash
 # 1. Install dependencies
 cd /path/to/momentum_signals_exploration
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.lock --break-system-packages
 
 # 2. Set Alpaca credentials (IMPORTANT - don't commit these)
 export APCA_API_KEY_ID="your-api-key-id"

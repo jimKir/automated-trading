@@ -56,11 +56,37 @@ jobs:
       - name: Ruff format check
         run: ruff format --check . --exclude venv,__pycache__,.git,infra
 
+  # ── 1b. Lock check ──────────────────────────────────────────────────────────
+  lock-check:
+    name: Lock Check
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Verify requirements.lock is up to date
+        run: |
+          pip-compile --generate-hashes --strip-extras --allow-unsafe \
+            --output-file=/tmp/requirements.lock requirements.in
+          diff requirements.lock /tmp/requirements.lock || {
+            echo "::error::requirements.lock is out of date. Run: pip-compile --generate-hashes --strip-extras --allow-unsafe --output-file=requirements.lock requirements.in"
+            exit 1
+          }
+          echo "requirements.lock is up to date with requirements.in"
+
   # ── 2. Unit tests ───────────────────────────────────────────────────────────
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, lock-check]
     if: github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +98,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --quiet -r requirements.txt
+          pip install --quiet -r requirements.lock
           pip install --quiet -e .
           pip install --quiet pytest pytest-cov
 
@@ -116,7 +142,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --quiet -r requirements.txt
+          pip install --quiet -r requirements.lock
           pip install --quiet -e .
 
       - name: Run health check

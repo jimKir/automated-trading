@@ -71,7 +71,7 @@ sudo dnf install python3.11 python3.11-pip git java-17-amazon-corretto -y
 # Clone repo
 git clone https://github.com/jimKir/automated-trading.git
 cd automated-trading
-pip3.11 install -r requirements.txt
+pip3.11 install -r requirements.lock
 
 # Sync historical data from S3 (much faster than yfinance redownload)
 aws s3 sync s3://trading-data-380277571671-eu-north-1-an/historical/daily/ data/historical/daily/
@@ -209,7 +209,7 @@ Suitable if you only need daily rebalance decisions (no persistent state or WebS
 
 ```bash
 # Package the strategy
-pip install -r requirements.txt -t ./package
+pip install -r requirements.lock -t ./package
 cd package && zip -r ../deployment.zip . && cd ..
 zip -g deployment.zip main.py strategy/ regime/ risk/ core/ config/ data/ utils/
 

@@ -202,7 +202,7 @@ automated-trading/
 ```bash
 git clone https://github.com/jimKir/automated-trading.git
 cd automated-trading
-pip install -r requirements.txt
+pip install -r requirements.lock
 ```
 
 ### Set credentials
