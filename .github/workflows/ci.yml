@@ -522,6 +522,24 @@ jobs:
           docker push $ECR_REGISTRY/trading-bot:$IMAGE_TAG
           docker push $ECR_REGISTRY/trading-bot:latest
 
+      - name: Verify image in ECR
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          for TAG in "$IMAGE_TAG" "latest"; do
+            echo "Checking trading-bot:${TAG}..."
+            DIGEST=$(aws ecr describe-images \
+              --repository-name trading-bot \
+              --image-ids imageTag="$TAG" \
+              --region eu-north-1 \
+              --query 'imageDetails[0].imageDigest' \
+              --output text 2>&1) || {
+                echo "::error::Image trading-bot:${TAG} not found in ECR — aborting deploy"
+                exit 1
+              }
+            echo "  trading-bot:${TAG} -> ${DIGEST}"
+          done
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -597,6 +615,24 @@ jobs:
                       $ECR_REGISTRY/trading-bot:paper-latest
           docker push $ECR_REGISTRY/trading-bot:$IMAGE_TAG
           docker push $ECR_REGISTRY/trading-bot:paper-latest
+
+      - name: Verify image in ECR
+        env:
+          IMAGE_TAG: paper-${{ github.sha }}
+        run: |
+          for TAG in "$IMAGE_TAG" "paper-latest"; do
+            echo "Checking trading-bot:${TAG}..."
+            DIGEST=$(aws ecr describe-images \
+              --repository-name trading-bot \
+              --image-ids imageTag="$TAG" \
+              --region eu-north-1 \
+              --query 'imageDetails[0].imageDigest' \
+              --output text 2>&1) || {
+                echo "::error::Image trading-bot:${TAG} not found in ECR — aborting deploy"
+                exit 1
+              }
+            echo "  trading-bot:${TAG} -> ${DIGEST}"
+          done
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
