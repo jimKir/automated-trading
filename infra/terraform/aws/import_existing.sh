@@ -99,38 +99,27 @@ else
 fi
 
 # ── ECS Service ─────────────────────────────────────────────────────────────
-# AWS provider expects: <cluster>/<service> where both can be name or ARN.
-# Try multiple formats to handle provider version differences.
-SERVICE_JSON=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-  --region "$REGION" --query 'services[?status!=`INACTIVE`] | [0]' --output json 2>/dev/null || echo "null")
-if [[ "$SERVICE_JSON" != "null" && -n "$SERVICE_JSON" ]]; then
-  SERVICE_ARN=$(echo "$SERVICE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('serviceArn',''))" 2>/dev/null || echo "")
-  CLUSTER_ARN=$(echo "$SERVICE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('clusterArn',''))" 2>/dev/null || echo "")
-  echo "  Found ECS service: ${SERVICE_ARN}"
-  echo "  Cluster ARN: ${CLUSTER_ARN}"
-
-  if terraform state show "aws_ecs_service.trading" &>/dev/null; then
-    echo "  ✓ aws_ecs_service.trading already in state — skipping"
-  else
-    # Try import with cluster_arn/service_name format (preferred by AWS provider)
-    echo "  → Attempting ECS service import..."
-    if terraform import -var-file="envs/${ENV}.tfvars" "aws_ecs_service.trading" "${CLUSTER_ARN}/${PREFIX}-service" 2>&1; then
-      echo "  ✓ ECS service imported"
-    else
-      echo "  → Retrying with cluster_name/service_name..."
-      if terraform import -var-file="envs/${ENV}.tfvars" "aws_ecs_service.trading" "${PREFIX}-cluster/${PREFIX}-service" 2>&1; then
-        echo "  ✓ ECS service imported (name format)"
-      else
-        echo "  → Retrying with service ARN only..."
-        terraform import -var-file="envs/${ENV}.tfvars" "aws_ecs_service.trading" "${SERVICE_ARN}" 2>&1 || {
-          echo "  ✗ All ECS service import attempts failed"
-          echo "  ✗ Manual fix: delete the stale ECS service via AWS console, then re-run CI"
-        }
-      fi
-    fi
-  fi
+# If a pre-existing service blocks terraform apply, we scale it to 0
+# and delete it so Terraform can recreate it with the correct config.
+if terraform state show "aws_ecs_service.trading" &>/dev/null; then
+  echo "  ✓ aws_ecs_service.trading already in state — skipping"
 else
-  echo "  ○ ECS service ${PREFIX}-service not found — will be created"
+  SERVICE_STATUS=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+    --region "$REGION" --query 'services[?status==`ACTIVE`].status | [0]' --output text 2>/dev/null || echo "None")
+  if [[ "$SERVICE_STATUS" == "ACTIVE" ]]; then
+    echo "  ! ECS service ${PREFIX}-service exists but is not in Terraform state"
+    echo "  → Scaling to 0 and deleting stale service so Terraform can recreate it..."
+    aws ecs update-service --cluster "${PREFIX}-cluster" --service "${PREFIX}-service" \
+      --desired-count 0 --region "$REGION" --no-cli-pager 2>&1 || true
+    aws ecs delete-service --cluster "${PREFIX}-cluster" --service "${PREFIX}-service" \
+      --region "$REGION" --no-cli-pager 2>&1 || true
+    echo "  → Waiting for service to drain (up to 60s)..."
+    aws ecs wait services-inactive --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+      --region "$REGION" 2>&1 || sleep 30
+    echo "  ✓ Stale ECS service deleted — Terraform will recreate it"
+  else
+    echo "  ○ ECS service ${PREFIX}-service not found — will be created"
+  fi
 fi
 
 # ── EventBridge Schedules (production only) ─────────────────────────────────
