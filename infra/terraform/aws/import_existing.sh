@@ -99,35 +99,60 @@ else
 fi
 
 # ── ECS Service ─────────────────────────────────────────────────────────────
-# ECS service import is unreliable (known provider bug). If a stale
-# service blocks terraform apply, force-delete it and poll until AWS
-# fully removes it, then let Terraform recreate it cleanly.
-if terraform state show "aws_ecs_service.trading" &>/dev/null; then
+# ECS service import is unreliable (known provider bug hashicorp/terraform-
+# provider-aws#2283). Strategy: if a service exists outside TF state,
+# force-delete it and wait until AWS fully removes it, then let
+# Terraform recreate it with the correct config.
+echo ""
+echo "  [ECS Service] Checking state and AWS..."
+IN_STATE="no"
+terraform state show "aws_ecs_service.trading" &>/dev/null && IN_STATE="yes"
+echo "  [ECS Service] In TF state: ${IN_STATE}"
+
+if [[ "$IN_STATE" == "yes" ]]; then
   echo "  ✓ aws_ecs_service.trading already in state — skipping"
 else
-  SERVICE_STATUS=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-    --region "$REGION" --query 'services[?status!=`INACTIVE`].status | [0]' --output text 2>/dev/null || echo "None")
-  if [[ "$SERVICE_STATUS" != "None" && "$SERVICE_STATUS" != "null" && -n "$SERVICE_STATUS" ]]; then
-    echo "  ! ECS service ${PREFIX}-service exists (status=${SERVICE_STATUS}) but is not in Terraform state"
+  # Get ALL services (including INACTIVE) for full diagnostic
+  echo "  [ECS Service] Querying AWS for ${PREFIX}-service in cluster ${PREFIX}-cluster..."
+  ALL_STATUSES=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+    --region "$REGION" --query 'services[].status' --output text 2>&1) || ALL_STATUSES="ERROR: $ALL_STATUSES"
+  echo "  [ECS Service] AWS statuses: ${ALL_STATUSES}"
+
+  # Check for any non-INACTIVE service that would block creation
+  BLOCKING_STATUS=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+    --region "$REGION" --query 'services[?status!=`INACTIVE`].status | [0]' --output text 2>/dev/null || echo "")
+  echo "  [ECS Service] Blocking (non-INACTIVE) status: '${BLOCKING_STATUS}'"
+
+  if [[ -n "$BLOCKING_STATUS" && "$BLOCKING_STATUS" != "None" && "$BLOCKING_STATUS" != "null" ]]; then
+    echo "  ! ECS service ${PREFIX}-service exists (status=${BLOCKING_STATUS}) but is not in Terraform state"
     echo "  → Force-deleting stale service so Terraform can recreate it..."
-    # --force stops running tasks immediately (paper env has 0 anyway)
     aws ecs delete-service --cluster "${PREFIX}-cluster" --service "${PREFIX}-service" \
-      --force --region "$REGION" --no-cli-pager 2>&1 || true
-    # Poll until the service is truly INACTIVE (up to 5 minutes)
-    echo "  → Waiting for service to reach INACTIVE state..."
+      --force --region "$REGION" --no-cli-pager 2>&1
+    echo "  [ECS Service] delete-service exit code: $?"
+
+    # Poll until truly INACTIVE (up to 5 minutes)
+    echo "  → Polling until service reaches INACTIVE state..."
     for i in $(seq 1 30); do
       STATUS=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-        --region "$REGION" --query 'services[0].status' --output text 2>/dev/null || echo "GONE")
-      if [[ "$STATUS" == "INACTIVE" || "$STATUS" == "GONE" || "$STATUS" == "None" ]]; then
-        echo "  ✓ Service is now ${STATUS} after ${i}0 seconds"
+        --region "$REGION" --query 'services[?status!=`INACTIVE`].status | [0]' --output text 2>/dev/null || echo "")
+      if [[ -z "$STATUS" || "$STATUS" == "None" || "$STATUS" == "null" ]]; then
+        echo "  ✓ Service is now INACTIVE after ${i}0 seconds"
         break
       fi
       echo "    ... status=${STATUS}, waiting (${i}0s / 300s)"
       sleep 10
     done
-    echo "  ✓ Stale ECS service removed — Terraform will recreate it"
+    # Final verification
+    FINAL=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
+      --region "$REGION" --query 'services[?status!=`INACTIVE`].status' --output text 2>/dev/null || echo "")
+    if [[ -n "$FINAL" && "$FINAL" != "None" && "$FINAL" != "null" ]]; then
+      echo "  ✗ WARNING: Service still not INACTIVE after 5 min (status: ${FINAL})"
+      echo "  ✗ Terraform apply will likely fail. Manual intervention may be needed."
+    else
+      echo "  ✓ Stale ECS service removed — Terraform will recreate it"
+    fi
   else
-    echo "  ○ ECS service ${PREFIX}-service not found — will be created"
+    echo "  ○ No blocking ECS service found — Terraform will create it"
   fi
 fi
 
