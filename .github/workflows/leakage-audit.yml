@@ -79,6 +79,76 @@ jobs:
         if: env.exit_code != '0'
         run: exit 1
 
+  # ── Terraform state drift check ────────────────────────────────────────────
+  terraform-drift:
+    name: Terraform Drift Check (paper)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform init + import
+        working-directory: infra/terraform/aws
+        env:
+          TF_VAR_alpaca_api_key:    ${{ secrets.ALPACA_API_KEY }}
+          TF_VAR_alpaca_api_secret: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          terraform init -input=false
+          terraform workspace select paper || terraform workspace new paper
+          bash import_existing.sh paper
+
+      - name: Terraform plan (drift detect)
+        id: drift
+        working-directory: infra/terraform/aws
+        env:
+          TF_VAR_alpaca_api_key:    ${{ secrets.ALPACA_API_KEY }}
+          TF_VAR_alpaca_api_secret: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -input=false \
+            -var-file=envs/paper.tfvars -no-color 2>&1 | tee /tmp/plan.txt
+          EXIT=${PIPESTATUS[0]}
+          # exit 0 = no changes, 1 = error, 2 = changes detected
+          if [ $EXIT -eq 2 ]; then
+            echo "drift=true" >> $GITHUB_OUTPUT
+            echo "::warning::Terraform state drift detected — paper environment has unapplied changes"
+          elif [ $EXIT -eq 1 ]; then
+            echo "drift=error" >> $GITHUB_OUTPUT
+            echo "::error::Terraform plan failed"
+          else
+            echo "drift=false" >> $GITHUB_OUTPUT
+          fi
+          # Don't fail the job on exit 2 (drift detected) — it's informational
+          exit 0
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Terraform Drift Check (paper)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.drift.outputs.drift }}" = "true" ]; then
+            echo "⚠️ **State drift detected** — paper environment has unapplied changes:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -E '^  [#~+-]|Plan:' /tmp/plan.txt | head -30 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.drift.outputs.drift }}" = "error" ]; then
+            echo "❌ **Terraform plan failed** — check logs" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No drift — paper environment matches Terraform config" >> $GITHUB_STEP_SUMMARY
+          fi
+
   # ── Smoke-test the Gmail draft Lambda after every push to main ──
   smoke-test-lambda:
     name: Invoke Daily Summary Lambda (smoke test)
