@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   daily-summary:
-    name: Generate & Email Daily Summary
+    name: Generate Daily Summary & Commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,14 +74,12 @@ jobs:
               print(f"Alpaca fetch skipped: {e}")
           PYEOF
 
-      # ── Run the daily summary ──
+      # ── Run the daily summary (no email — Gmail draft created by external cron) ──
       - name: Generate daily summary
         env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-        run: python scripts/daily_summary.py --email --verbose
+        run: python scripts/daily_summary.py --verbose
 
       # ── Commit updated state files ──
       - name: Commit state updates

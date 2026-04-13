@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Gmail Draft Lambda — fetches trading summary from GitHub,
+  creates Gmail drafts for review before forwarding.
+
+Parameters:
+  GitHubRepo:
+    Type: String
+    Default: jimKir/automated-trading
+  GitHubTokenParam:
+    Type: String
+    Default: /trading/github-token
+    Description: SSM parameter name for GitHub PAT (Contents:read)
+  GmailCredentialsParam:
+    Type: String
+    Default: /trading/gmail-oauth
+    Description: SSM parameter name for Gmail OAuth credentials JSON
+  Recipients:
+    Type: String
+    Default: "kiritsis.di@gmail.com,o.zoumpou@gmail.com"
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 128
+
+Resources:
+
+  # ── Lambda Function ──────────────────────────────────────────────
+  GmailDraftFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: trading-gmail-draft
+      Handler: handler.lambda_handler
+      CodeUri: .
+      Environment:
+        Variables:
+          GITHUB_REPO: !Ref GitHubRepo
+          GITHUB_TOKEN_PARAM: !Ref GitHubTokenParam
+          GMAIL_CREDENTIALS: !Ref GmailCredentialsParam
+          RECIPIENTS: !Ref Recipients
+      Policies:
+        - SSMParameterReadPolicy:
+            ParameterName: !Ref GmailCredentialsParam
+        - SSMParameterReadPolicy:
+            ParameterName: !Ref GitHubTokenParam
+
+  # ── Weekday daily summary: Mon-Fri 22:00 UTC (01:00 EEST) ─────
+  DailySummarySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: trading-daily-summary-draft
+      Description: "Create Gmail draft with daily trading summary (Mon-Fri after market close)"
+      ScheduleExpression: "cron(0 22 ? * MON-FRI *)"
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt GmailDraftFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"source": "daily_summary"}'
+
+  # ── Weekly scorecard alert: Sunday 19:00 UTC (22:00 EEST) ──────
+  WeeklyScorecardSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: trading-weekly-scorecard-draft
+      Description: "Create Gmail alert draft if go-live criteria are FAILING (Sunday after monitor runs)"
+      ScheduleExpression: "cron(0 19 ? * SUN *)"
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt GmailDraftFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"source": "weekly_scorecard"}'
+
+  # ── IAM role for EventBridge Scheduler ─────────────────────────
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: trading-gmail-draft-scheduler
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt GmailDraftFunction.Arn
+
+Outputs:
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt GmailDraftFunction.Arn
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref GmailDraftFunction
