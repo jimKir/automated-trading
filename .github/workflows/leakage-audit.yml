@@ -123,15 +123,13 @@ jobs:
           # exit 0 = no changes, 1 = error, 2 = changes detected
           if [ $EXIT -eq 2 ]; then
             echo "drift=true" >> $GITHUB_OUTPUT
-            echo "::warning::Terraform state drift detected — paper environment has unapplied changes"
           elif [ $EXIT -eq 1 ]; then
             echo "drift=error" >> $GITHUB_OUTPUT
-            echo "::error::Terraform plan failed"
           else
             echo "drift=false" >> $GITHUB_OUTPUT
           fi
-          # Don't fail the job on exit 2 (drift detected) — it's informational
-          exit 0
+          # Propagate the exit code — drift (2) and errors (1) both fail the job
+          exit $EXIT
 
       - name: Summary
         if: always()
@@ -139,10 +137,12 @@ jobs:
           echo "### Terraform Drift Check (paper)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.drift.outputs.drift }}" = "true" ]; then
-            echo "⚠️ **State drift detected** — paper environment has unapplied changes:" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **State drift detected** — paper environment has unapplied changes:" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             grep -E '^  [#~+-]|Plan:' /tmp/plan.txt | head -30 >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Run \`terraform apply -var-file=envs/paper.tfvars\` to reconcile, or fix the config." >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.drift.outputs.drift }}" = "error" ]; then
             echo "❌ **Terraform plan failed** — check logs" >> $GITHUB_STEP_SUMMARY
           else
@@ -152,7 +152,7 @@ jobs:
   # ── Smoke-test the Gmail draft Lambda after every push to main ──
   smoke-test-lambda:
     name: Invoke Daily Summary Lambda (smoke test)
-    needs: [lint, leakage-tests]
+    needs: [lint, leakage-tests, terraform-drift]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
