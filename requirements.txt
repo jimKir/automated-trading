@@ -55,4 +55,4 @@ vaderSentiment>=3.3.2
 
 # Feature store (S3 parquet)
 pyarrow>=15.0.0
-s3fs>=2024.3.1
+s3fs==2026.3.0
