@@ -37,3 +37,4 @@ RUN mkdir -p results/daily logs diagnostics /tmp/databento_cache /tmp/alpaca_sig
 EXPOSE 8080
 
 CMD ["python", "main.py", "paper"]
+# Rotated credentials deployed
