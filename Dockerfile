@@ -9,12 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
         tzdata \
-        openjdk-17-jre-headless \
+        openjdk-21-jre-headless \
         wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Java env for H2O
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 # Set timezone
 ENV TZ=Europe/Athens
