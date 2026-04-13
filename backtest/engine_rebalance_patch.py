@@ -38,7 +38,6 @@ standalone helper:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -53,8 +52,8 @@ logger = logging.getLogger(__name__)
 def build_rebalance_schedule(
     dates: list,
     rebalance_freq: str = "weekly",
-    signal_series: Optional[pd.Series] = None,
-    vix_series: Optional[pd.Series] = None,
+    signal_series: pd.Series | None = None,
+    vix_series: pd.Series | None = None,
     signal_change_threshold: float = 0.15,
     vix_spike_threshold: float = 0.20,
     biweekly_n_trading_days: int = 10,
@@ -62,7 +61,7 @@ def build_rebalance_schedule(
     # rebalance_freq="adaptive" uses choppy_score_series to switch:
     #   score < adaptive_weekly_threshold  → biweekly (GREEN regime)
     #   score >= adaptive_weekly_threshold → weekly   (YELLOW/ORANGE/RED)
-    choppy_score_series: Optional[pd.Series] = None,
+    choppy_score_series: pd.Series | None = None,
     adaptive_weekly_threshold: float = 0.17,  # YELLOW onset in ChoppyDetector
     adaptive_smoothing: int = 3,              # days of score EMA before switching
 ) -> set:

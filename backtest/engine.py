@@ -214,7 +214,7 @@ class BacktestEngine:
                 isd_obj = None
 
         # ── Pre-compute ChoppyRegime + PositionAnomalyScorer ────────────────
-        _choppy_score_series: Optional[pd.Series] = None
+        _choppy_score_series: pd.Series | None = None
         _pos_anomaly_scorer = None
         if self.config.get("position_anomaly", {}).get("enabled", True):
             try:

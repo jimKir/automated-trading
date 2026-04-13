@@ -5,14 +5,20 @@ would have priced. Runs same 7-year walk-forward as prior validations.
 
 Run: python backtest/kalshi_fred_proxy_backtest.py --save-results
 """
-import os, sys, json, warnings, argparse
-import pandas as pd
-import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+import argparse
+import json
+import os
+import sys
+import warnings
 from datetime import datetime
+
+import matplotlib
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+matplotlib.use("Agg")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore")
