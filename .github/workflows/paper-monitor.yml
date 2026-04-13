@@ -1,0 +1,118 @@
+name: Paper Trading Monitor
+
+on:
+  schedule:
+    # Every Sunday at 18:00 UTC (21:00 EEST) — after the trading week ends
+    - cron: "0 18 * * 0"
+  workflow_dispatch:  # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  update-scorecard:
+    name: Evaluate Go-Live Criteria & Update README
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet numpy pandas
+
+      # ── Fetch latest paper state from Alpaca if credentials exist ──
+      - name: Fetch paper state from Alpaca
+        if: env.ALPACA_API_KEY != ''
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          pip install --quiet alpaca-py
+          python - << 'PYEOF'
+          import json, os, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          state_path = Path("results/paper_state.json")
+
+          # Load existing state if present in repo
+          if state_path.exists():
+              state = json.load(open(state_path))
+          else:
+              state = {"equity_history": [], "initial_equity": 25000}
+
+          try:
+              from alpaca.trading.client import TradingClient
+              client = TradingClient(
+                  api_key=os.environ["ALPACA_API_KEY"],
+                  secret_key=os.environ["ALPACA_API_SECRET"],
+                  paper=True,
+              )
+              account = client.get_account()
+              equity = float(account.equity)
+              today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+              # Append today's equity (deduplicate if already present)
+              history = state.get("equity_history", [])
+              existing_dates = {e["date"] for e in history}
+              if today not in existing_dates:
+                  history.append({"date": today, "equity": equity})
+                  state["equity_history"] = history
+                  state_path.parent.mkdir(parents=True, exist_ok=True)
+                  with open(state_path, "w") as f:
+                      json.dump(state, f, indent=2)
+                  print(f"Alpaca snapshot: ${equity:,.2f} on {today}")
+              else:
+                  print(f"Already have data for {today}, skipping")
+          except Exception as e:
+              print(f"Alpaca fetch skipped: {e}")
+              if not state.get("equity_history"):
+                  print("No paper_state.json and no Alpaca — scorecard will show Pending")
+          PYEOF
+
+      # ── Run the monitor ──
+      - name: Run paper_monitor.py
+        run: python scripts/paper_monitor.py --update-readme --verbose
+
+      # ── Commit if there are changes ──
+      - name: Commit updated README and scorecard
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add README.md results/paper_monitor.json results/paper_state.json 2>/dev/null || true
+          
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(auto): update paper trading scorecard [skip ci]"
+            git push origin main
+            echo "Scorecard committed and pushed"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Paper Trading Scorecard" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f results/paper_monitor.json ]; then
+            python - << 'PYEOF' >> $GITHUB_STEP_SUMMARY
+          import json
+          sc = json.load(open("results/paper_monitor.json"))
+          print(f"**{sc['summary']}** | Go-live ready: {'Yes' if sc['go_live_ready'] else 'No'}")
+          print("")
+          print("| # | Metric | Threshold | Current | Status |")
+          print("|---|---|---|---|---|")
+          for c in sc["criteria"]:
+              print(f"| {c['index']} | {c['metric']} | {c['threshold']} | {c['current']} | {c['status']} |")
+          PYEOF
+          else
+            echo "No scorecard generated — paper trading not yet started." >> $GITHUB_STEP_SUMMARY
+          fi
