@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars — it contains secrets
+
+aws_region     = "eu-north-1"
+project_name   = "trading-bot"
+environment    = "paper"
+trading_mode   = "paper"
+s3_data_bucket = "trading-data-380277571671-eu-north-1-an"
+task_cpu       = "512"
+task_memory    = "1024"
+desired_count  = 0
+
+# Alpaca credentials (rotated — get new ones from app.alpaca.markets)
+alpaca_api_key    = "your_new_alpaca_key_here"
+alpaca_api_secret = "your_new_alpaca_secret_here"

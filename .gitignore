@@ -57,3 +57,9 @@ daily_update_status_*.md
 *" b"/
 momentum_signals_exploration\ b/
 volatility_prediction\ b/
+
+# Terraform secrets
+infra/terraform/aws/terraform.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
