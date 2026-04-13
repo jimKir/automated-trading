@@ -96,10 +96,13 @@ else
 fi
 
 # ── ECS Service ─────────────────────────────────────────────────────────────
+# Use the service ARN for import (not cluster/name format) to avoid
+# idempotency mismatches. Also include DRAINING services in lookup
+# since a prior failed deploy may have left one behind.
 SERVICE_ARN=$(aws ecs describe-services --cluster "${PREFIX}-cluster" --services "${PREFIX}-service" \
-  --region "$REGION" --query 'services[?status==`ACTIVE`].serviceArn | [0]' --output text 2>/dev/null || echo "None")
-if [[ "$SERVICE_ARN" != "None" && -n "$SERVICE_ARN" ]]; then
-  safe_import "aws_ecs_service.trading" "${PREFIX}-cluster/${PREFIX}-service"
+  --region "$REGION" --query 'services[?status!=`INACTIVE`].serviceArn | [0]' --output text 2>/dev/null || echo "None")
+if [[ "$SERVICE_ARN" != "None" && "$SERVICE_ARN" != "null" && -n "$SERVICE_ARN" ]]; then
+  safe_import "aws_ecs_service.trading" "$SERVICE_ARN"
 else
   echo "  ○ ECS service ${PREFIX}-service not found — will be created"
 fi
