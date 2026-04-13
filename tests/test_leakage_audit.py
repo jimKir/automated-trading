@@ -19,8 +19,6 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -31,8 +29,10 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 # ── Load the same configs the backtest uses ──────────────────────────────────
-params = json.load(open(ROOT / "data" / "regime_params_validated.json"))
-PIT = json.load(open(ROOT / "data" / "pit_universe.json"))
+with open(ROOT / "data" / "regime_params_validated.json") as _f:
+    params = json.load(_f)
+with open(ROOT / "data" / "pit_universe.json") as _f:
+    PIT = json.load(_f)
 
 OOS_START = "2025-04-14"
 OOS_END = "2026-04-11"
@@ -55,7 +55,7 @@ def price_data():
     import yfinance as yf
     test_syms = ["SPY", "AAPL", "MSFT", "NVDA", "JPM", "META"]
     macro_map = {"SPY": "SPY", "VIX": "^VIX"}
-    all_syms = test_syms + ["VIX"]
+    all_syms = [*test_syms, "VIX"]
     data = {}
     for sym in all_syms:
         ticker = macro_map.get(sym, sym)
@@ -249,7 +249,7 @@ class TestRegimeLookahead:
         """The spy_close.loc[:date].tail(200).mean() must not use future data."""
         test_date = pd.Timestamp("2025-07-15")
         spy_past = spy_close.loc[:test_date]
-        ma_200 = spy_past.tail(200).mean()
+        spy_past.tail(200).mean()
 
         # Verify all dates in the MA window are <= test_date
         ma_window = spy_past.tail(200)
@@ -469,13 +469,13 @@ class TestDataAlignment:
     def test_rebalance_signal_computed_before_return(self, price_data):
         """On a rebalance day, the signal is computed using close[:date],
         and the RETURN from that new portfolio starts the NEXT day.
-        
+
         In the script, on rebalance day:
         1. Daily PnL from OLD holdings is computed (prev_date → date)
         2. New scores are computed using data up to 'date'
         3. Holdings are updated
         4. Next day's PnL uses the NEW holdings
-        
+
         This means the rebalance signal uses end-of-day data, and the
         first return from the new portfolio is from close(date) → close(date+1).
         This is correct: no same-close entry + return.
@@ -487,15 +487,15 @@ class TestDataAlignment:
         # 1. Compute daily_pnl from holdings (using prev_date → date)
         # 2. Then rebalance (if rebal day)
         # 3. Then set prev_date = date
-        
+
         # Find the loop body
         assert "for date in dates:" in script
-        
+
         # Verify PnL is computed BEFORE rebalance
         pnl_pos = script.find("daily_pnl += w * (p1 / p0 - 1)")
         rebal_pos = script.find("if date in rebal_dates:")
         prev_date_pos = script.rfind("prev_date = date")
-        
+
         assert pnl_pos < rebal_pos < prev_date_pos, \
             "Code order wrong: PnL must come before rebalance, which must come before prev_date update"
 
@@ -509,7 +509,6 @@ class TestDataAlignment:
         # you can execute at close on the signal day, which is standard
         # for backtests. The cost model (0.126% round-trip) compensates
         # for the implementation shortfall.
-        pass
 
 
 # ══════════════════════════════════════════════════════════════════════════════

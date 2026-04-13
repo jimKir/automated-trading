@@ -42,31 +42,30 @@ ssm = boto3.client("ssm")
 
 # ── GitHub helpers ───────────────────────────────────────────────────────────
 
-_github_token_cache: str | None = None
+_cache: dict[str, str] = {}
 
 
 def _get_github_token() -> str:
     """Fetch GitHub PAT from SSM (cached for Lambda lifetime)."""
-    global _github_token_cache
-    if _github_token_cache is None:
+    if "github_token" not in _cache:
         try:
             resp = ssm.get_parameter(Name=GITHUB_TOKEN_PARAM, WithDecryption=True)
-            _github_token_cache = resp["Parameter"]["Value"]
+            _cache["github_token"] = resp["Parameter"]["Value"]
         except Exception:
-            _github_token_cache = ""
-    return _github_token_cache
+            _cache["github_token"] = ""
+    return _cache["github_token"]
 
 
 def github_fetch_json(path: str) -> dict | None:
     """Fetch a JSON file from the repo's main branch via GitHub raw content."""
     url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{path}"
-    req = urllib.request.Request(url)
+    req = urllib.request.Request(url)  # noqa: S310 — always https://
     token = _get_github_token()
     if token:
         req.add_header("Authorization", f"token {token}")
     req.add_header("Accept", "application/vnd.github.v3.raw")
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
             return json.loads(resp.read().decode())
     except Exception as e:
         print(f"Failed to fetch {path}: {e}")
@@ -89,13 +88,13 @@ def refresh_access_token(creds: dict) -> str:
         f"&refresh_token={creds['refresh_token']}"
         f"&grant_type=refresh_token"
     ).encode()
-    req = urllib.request.Request(
+    req = urllib.request.Request(  # noqa: S310 — always https://
         creds.get("token_uri", "https://oauth2.googleapis.com/token"),
         data=data,
         method="POST",
     )
     req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
         return json.loads(resp.read().decode())["access_token"]
 
 
@@ -115,7 +114,7 @@ def create_gmail_draft(access_token: str, to: list[str], subject: str, body: str
     req.add_header("Authorization", f"Bearer {access_token}")
     req.add_header("Content-Type", "application/json")
 
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
         result = json.loads(resp.read().decode())
     return result["id"]
 

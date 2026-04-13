@@ -27,7 +27,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -63,7 +63,8 @@ def load_equity_history() -> pd.DataFrame:
 
     # Source 1: paper_state.json (from daily_report.py)
     if PAPER_STATE.exists():
-        state = json.load(open(PAPER_STATE))
+        with open(PAPER_STATE) as f:
+            state = json.load(f)
         history = state.get("equity_history", [])
         if history:
             df = pd.DataFrame(history)
@@ -80,7 +81,7 @@ def load_equity_history() -> pd.DataFrame:
         broker = AlpacaBroker(config)
         if broker.connect():
             acct = broker.get_account()
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            today = datetime.now(UTC).strftime("%Y-%m-%d")
             return pd.DataFrame(
                 [{"equity": acct.equity}],
                 index=pd.to_datetime([today])
@@ -179,7 +180,7 @@ def compute_metrics(equity: pd.DataFrame) -> dict:
 
 
 def _empty_metrics(reason: str) -> dict:
-    return {k: None for k in THRESHOLDS} | {
+    return dict.fromkeys(THRESHOLDS) | {
         "n_trading_days": 0, "total_return_pct": None, "cagr_pct": None,
         "ann_vol_pct": None, "start_date": None, "end_date": None,
         "current_equity": None, "peak_equity": None, "error": reason,
@@ -273,21 +274,15 @@ def _format_threshold(spec: dict) -> str:
     op = spec["op"]
     val = spec["value"]
     if isinstance(val, float):
-        if val == int(val):
-            val_str = str(int(val))
-        else:
-            val_str = f"{val:.2f}"
+        val_str = str(int(val)) if val == int(val) else f"{val:.2f}"
     else:
         val_str = str(val)
 
-    if spec.get("label", "").endswith("Drawdown"):
+    if spec.get("label", "").endswith("Drawdown") or spec.get("label", "").endswith("Rate") or spec.get("label", "").endswith("Uptime"):
         return f"{op} {val_str}%"
-    elif spec.get("label", "").endswith("Rate") or spec.get("label", "").endswith("Uptime"):
-        return f"{op} {val_str}%"
-    elif spec.get("label", "").endswith("Recovery"):
+    if spec.get("label", "").endswith("Recovery"):
         return f"{op} {val_str} episode"
-    else:
-        return f"{op} {val_str}"
+    return f"{op} {val_str}"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -300,7 +295,7 @@ def save_scorecard(metrics: dict, criteria: list[dict]) -> None:
     n_total = len(criteria)
 
     scorecard = {
-        "run_date": datetime.now(timezone.utc).isoformat(),
+        "run_date": datetime.now(UTC).isoformat(),
         "summary": f"{n_passed}/{n_total} criteria passed",
         "go_live_ready": n_passed == n_total,
         "metrics": metrics,
@@ -358,7 +353,7 @@ def print_scorecard(criteria: list[dict], metrics: dict, verbose: bool = False) 
     n_total = len(criteria)
 
     print(f"\n{'='*70}")
-    print(f"  PAPER TRADING GO-LIVE SCORECARD")
+    print("  PAPER TRADING GO-LIVE SCORECARD")
     print(f"  {metrics.get('n_trading_days', 0)} trading days "
           f"({metrics.get('start_date', '?')} → {metrics.get('end_date', '?')})")
     print(f"{'='*70}")

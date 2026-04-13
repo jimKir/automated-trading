@@ -19,15 +19,15 @@ from __future__ import annotations
 import json
 import sys
 import warnings
-import os
-from pathlib import Path
-from typing import Dict, Tuple
 from datetime import datetime
+from pathlib import Path
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
+import yfinance as yf
+
+mpl.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
@@ -70,7 +70,8 @@ COLORS = {
 
 # ── Load locked IS params ─────────────────────────────────────────────────────
 params_path = Path(__file__).parent / "data" / "regime_params_validated.json"
-params = json.load(open(params_path))
+with open(params_path) as _f:
+    params = json.load(_f)
 
 BULL_W_TS   = params["bull_w_ts_mom"]   # 0.50
 BULL_W_MR   = params["bull_w_mr"]       # 0.15
@@ -87,13 +88,13 @@ VIX_THRESHOLD = 20.0
 SPY_MA_PERIOD = 200
 
 pit_path = Path(__file__).parent / "data" / "pit_universe.json"
-PIT = json.load(open(pit_path))
+with open(pit_path) as _f:
+    PIT = json.load(_f)
 
 print(f"Locked IS params: ts={BULL_W_TS} mr={BULL_W_MR} macd={BULL_W_MACD} rsi={BULL_W_RSI}")
 print(f"Annual cost drag: {ANNUAL_COST*100:.2f}%")
 
 # ── Download fresh data via yfinance ──────────────────────────────────────────
-import yfinance as yf
 
 # All symbols from PIT universe + macro
 ALL_PIT_SYMS = set()
@@ -110,7 +111,7 @@ ALL_SYMS = list(ALL_PIT_SYMS) + [s for s in MACRO_MAP if s not in ALL_PIT_SYMS]
 
 print(f"\nDownloading data for {len(ALL_SYMS)} symbols (2017-01-01 → 2026-04-13)...")
 
-price_data: Dict[str, pd.DataFrame] = {}
+price_data: dict[str, pd.DataFrame] = {}
 failed = []
 
 for sym in ALL_SYMS:
@@ -137,7 +138,7 @@ for sym in ALL_SYMS:
             if hasattr(df.index, "tz") and df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             price_data[sym] = df
-    except Exception as e:
+    except Exception:
         failed.append(sym)
 
 # Handle FB → META rename
@@ -146,7 +147,7 @@ if "FB" not in price_data and "META" in price_data:
 if "META" not in price_data and "FB" in price_data:
     price_data["META"] = price_data["FB"]
 
-print(f"  Loaded {len(price_data)} symbols | Failed: {failed if failed else 'none'}")
+print(f"  Loaded {len(price_data)} symbols | Failed: {failed or 'none'}")
 print(f"  SPY range: {price_data['SPY'].index.min().date()} → {price_data['SPY'].index.max().date()}")
 
 # ── Signal computation helpers ────────────────────────────────────────────────
@@ -222,7 +223,7 @@ def pit_universe_for_date(date) -> list:
 
 # ── Main backtest loop ────────────────────────────────────────────────────────
 
-def run_backtest(start: str, end: str) -> Tuple[pd.Series, pd.Series, pd.DataFrame]:
+def run_backtest(start: str, end: str) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
     spy_df    = price_data["SPY"]
     spy_close = spy_df["close"] if "close" in spy_df.columns else spy_df["Close"]
     spy_close.index = pd.to_datetime(spy_close.index).normalize()
@@ -246,7 +247,7 @@ def run_backtest(start: str, end: str) -> Tuple[pd.Series, pd.Series, pd.DataFra
         rebal_dates.add(grp["date"].iloc[-1])
 
     portfolio_value = 1.0
-    holdings: Dict[str, float] = {}
+    holdings: dict[str, float] = {}
     daily_returns = []
     trade_log = []
 
@@ -374,13 +375,13 @@ def max_drawdown_details(returns: pd.Series) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 print(f"\n{'='*70}")
-print(f"  WALK-FORWARD 12-MONTH OOS BACKTEST")
-print(f"  Production strategy — locked IS params (2018-2022)")
+print("  WALK-FORWARD 12-MONTH OOS BACKTEST")
+print("  Production strategy — locked IS params (2018-2022)")
 print(f"  OOS window: {OOS_START} → {OOS_END}")
 print(f"{'='*70}")
 
 # Full 12-month OOS
-print(f"\nRunning full 12-month OOS...")
+print("\nRunning full 12-month OOS...")
 strat_ret, spy_ret, trade_log = run_backtest(OOS_START, OOS_END)
 full_strat = metrics(strat_ret, "Full 12M OOS")
 full_spy   = metrics(spy_ret, "SPY Benchmark")
@@ -399,7 +400,7 @@ for fold_name, (s, e) in WF_FOLDS.items():
 
 # ── Print results ─────────────────────────────────────────────────────────────
 print(f"\n{'='*90}")
-print(f"  STRATEGY PERFORMANCE (Production-locked params, zero refitting)")
+print("  STRATEGY PERFORMANCE (Production-locked params, zero refitting)")
 print(f"{'='*90}")
 print(f"{'Period':<28} {'Sharpe':>7} {'Sortino':>8} {'CAGR%':>7} {'MaxDD%':>8} {'Calmar':>8} {'Vol%':>6} {'WinR%':>6} {'Days':>5}")
 print("-" * 90)
@@ -411,7 +412,7 @@ print(f"{full_strat['label']:<28} {full_strat['sharpe']:>7.3f} {full_strat['sort
       f"{full_strat['max_dd']:>8.2f} {full_strat['calmar']:>8.3f} {full_strat['vol']:>6.2f} {full_strat['win_rate']:>6.1f} {full_strat['n_days']:>5}")
 
 print(f"\n{'='*90}")
-print(f"  SPY BENCHMARK")
+print("  SPY BENCHMARK")
 print(f"{'='*90}")
 print(f"{'Period':<28} {'Sharpe':>7} {'Sortino':>8} {'CAGR%':>7} {'MaxDD%':>8} {'Calmar':>8} {'Vol%':>6} {'WinR%':>6} {'Days':>5}")
 print("-" * 90)
@@ -424,11 +425,10 @@ print(f"{full_spy['label']:<28} {full_spy['sharpe']:>7.3f} {full_spy['sortino']:
 
 # ── Alpha analysis ────────────────────────────────────────────────────────────
 print(f"\n{'='*70}")
-print(f"  ALPHA ANALYSIS (Strategy vs SPY)")
+print("  ALPHA ANALYSIS (Strategy vs SPY)")
 print(f"{'='*70}")
 aligned = pd.DataFrame({"strat": strat_ret, "spy": spy_ret}).dropna()
 if len(aligned) > 20:
-    from numpy.polynomial.polynomial import polyfit
     beta, alpha = np.polyfit(aligned["spy"], aligned["strat"], 1)
     corr = aligned["strat"].corr(aligned["spy"])
     track_err = (aligned["strat"] - aligned["spy"]).std() * np.sqrt(252)
@@ -441,7 +441,7 @@ if len(aligned) > 20:
 
 # ── Drawdown detail ───────────────────────────────────────────────────────────
 print(f"\n{'='*70}")
-print(f"  DRAWDOWN ANALYSIS")
+print("  DRAWDOWN ANALYSIS")
 print(f"{'='*70}")
 dd_strat = max_drawdown_details(strat_ret)
 dd_spy = max_drawdown_details(spy_ret)
@@ -466,7 +466,7 @@ n_folds_positive_cagr  = sum(1 for f in fold_results if f["cagr"] > 0)
 n_folds_beat_spy       = sum(1 for f, s in zip(fold_results, fold_spy_results)
                               if f["cagr"] > s["cagr"])
 print(f"\n{'='*70}")
-print(f"  WALK-FORWARD VERDICT")
+print("  WALK-FORWARD VERDICT")
 print(f"{'='*70}")
 print(f"  Folds with positive CAGR:        {n_folds_positive_cagr}/{len(WF_FOLDS)}")
 print(f"  Folds beating SPY (CAGR):        {n_folds_beat_spy}/{len(WF_FOLDS)}")

@@ -31,7 +31,7 @@ import json
 import os
 import smtplib
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -61,7 +61,8 @@ def load_equity_history() -> pd.DataFrame:
     if not PAPER_STATE.exists():
         return pd.DataFrame(columns=["equity"])
 
-    state = json.load(open(PAPER_STATE))
+    with open(PAPER_STATE) as f:
+        state = json.load(f)
     history = state.get("equity_history", [])
     if not history:
         return pd.DataFrame(columns=["equity"])
@@ -126,8 +127,8 @@ def compute_all_metrics(equity_df: pd.DataFrame, alpaca: dict | None = None) -> 
     """Compute comprehensive performance, capital, and risk metrics."""
 
     result = {
-        "report_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "report_time_utc": datetime.now(timezone.utc).strftime("%H:%M UTC"),
+        "report_date": datetime.now(UTC).strftime("%Y-%m-%d"),
+        "report_time_utc": datetime.now(UTC).strftime("%H:%M UTC"),
         "has_data": False,
     }
 
@@ -321,8 +322,7 @@ def _colour(val: float, good_positive: bool = True, threshold: float = 0) -> str
     """Return CSS colour based on value."""
     if good_positive:
         return "#3fb950" if val > threshold else ("#f85149" if val < -threshold else "#c9d1d9")
-    else:
-        return "#3fb950" if val < threshold else ("#f85149" if val > threshold else "#c9d1d9")
+    return "#3fb950" if val < threshold else ("#f85149" if val > threshold else "#c9d1d9")
 
 
 def _card(label: str, value: str, colour: str = "#c9d1d9", sub: str = "") -> str:
@@ -366,7 +366,7 @@ def generate_html(metrics: dict, scorecard: dict | None, oos_ref: dict | None) -
     dd_col = _colour(risk["current_drawdown_pct"], good_positive=False)
 
     cards_html = (
-        f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;">'
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;">'
         + _card("Portfolio Equity", f"${cap['current_equity']:,.2f}",
                 sub=f"Peak: ${cap['peak_equity']:,.2f}")
         + _card("Daily P&L", f"{cap['pnl_daily_pct']:+.2f}%", pnl_col,
@@ -592,7 +592,7 @@ def print_summary(metrics: dict, verbose: bool = False) -> None:
           f"(peak: ${cap['peak_equity']:,.2f})")
     print(f"  Daily:   {cap['pnl_daily_pct']:+.2f}%  (${cap['pnl_daily']:+,.2f})")
     print(f"  Total:   {cap['pnl_total_pct']:+.2f}%  (${cap['pnl_total']:+,.2f})")
-    print(f"-"*65)
+    print("-"*65)
     print(f"  Sharpe: {perf['sharpe_ratio']:.3f}  |  "
           f"Sortino: {perf['sortino_ratio']:.3f}  |  "
           f"Calmar: {perf['calmar_ratio']:.3f}")
@@ -606,7 +606,7 @@ def print_summary(metrics: dict, verbose: bool = False) -> None:
           f"BT Corr: {risk['backtest_correlation'] or 'N/A'}")
 
     if verbose:
-        print(f"-"*65)
+        print("-"*65)
         print(f"  CAGR: {perf['cagr_pct']:+.2f}%  |  "
               f"Vol: {perf['ann_volatility_pct']:.2f}%")
         print(f"  Best:  {perf['best_day_return_pct']:+.3f}% ({perf['best_day_date']})")
