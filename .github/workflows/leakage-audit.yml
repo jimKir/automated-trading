@@ -1,0 +1,45 @@
+name: Leakage Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: leakage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  leakage-tests:
+    name: Future Knowledge Leakage Tests (46 checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --quiet pytest numpy pandas yfinance pyarrow
+
+      - name: Run leakage audit
+        run: |
+          python -m pytest tests/test_leakage_audit.py -v --tb=short 2>&1 | tee leakage_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_ENV
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Leakage Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E "PASSED|FAILED|ERROR|passed|failed" leakage_output.txt | tail -20 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if tests failed
+        if: env.exit_code != '0'
+        run: exit 1
