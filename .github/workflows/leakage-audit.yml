@@ -11,6 +11,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install --quiet ruff
+
+      - name: Run ruff
+        run: |
+          ruff check \
+            scripts/paper_monitor.py \
+            scripts/daily_summary.py \
+            infra/lambda-gmail-draft/handler.py \
+            run_wf_12m_oos.py \
+            tests/test_leakage_audit.py \
+            2>&1 | tee ruff_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_ENV
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Ruff Lint Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -s ruff_output.txt ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -40 ruff_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "All checks passed \u2705" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail if lint errors
+        if: env.exit_code != '0'
+        run: exit 1
+
   leakage-tests:
     name: Future Knowledge Leakage Tests (46 checks)
     runs-on: ubuntu-latest
@@ -47,7 +88,7 @@ jobs:
   # ── Smoke-test the Gmail draft Lambda after every push to main ──
   smoke-test-lambda:
     name: Invoke Daily Summary Lambda (smoke test)
-    needs: leakage-tests
+    needs: [lint, leakage-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
