@@ -568,6 +568,24 @@ jobs:
             --region eu-north-1
           echo "Deployed production: $CLUSTER / $SERVICE @ ${{ github.sha }}"
 
+      - name: Wait for ECS service to stabilize
+        id: health-check
+        run: |
+          CLUSTER="trading-bot-production-cluster"
+          SERVICE="trading-bot-production-service"
+          echo "Waiting for ECS service $SERVICE on cluster $CLUSTER to stabilize..."
+          if aws ecs wait services-stable \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --region eu-north-1; then
+            echo "ECS service stabilized successfully."
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::ECS service failed to stabilize — tasks may be crash-looping."
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
       - name: Deployment summary
         run: |
           echo "### ✅ Production Deployed" >> $GITHUB_STEP_SUMMARY
@@ -650,6 +668,36 @@ jobs:
           bash import_existing.sh paper
           terraform apply -auto-approve -input=false -var-file=envs/paper.tfvars
 
+      - name: Force ECS deployment (paper)
+        working-directory: infra/terraform/aws
+        run: |
+          CLUSTER=$(terraform output -raw ecs_cluster_name)
+          SERVICE=$(terraform output -raw ecs_service_name)
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --force-new-deployment \
+            --region eu-north-1
+          echo "Deployed paper: $CLUSTER / $SERVICE @ paper-${{ github.sha }}"
+
+      - name: Wait for ECS service to stabilize
+        id: health-check
+        run: |
+          CLUSTER="trading-bot-paper-cluster"
+          SERVICE="trading-bot-paper-service"
+          echo "Waiting for ECS service $SERVICE on cluster $CLUSTER to stabilize..."
+          if aws ecs wait services-stable \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --region eu-north-1; then
+            echo "ECS service stabilized successfully."
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::ECS service failed to stabilize — tasks may be crash-looping."
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
       - name: Deployment summary
         run: |
           echo "### 🧪 Paper Environment Deployed" >> $GITHUB_STEP_SUMMARY
@@ -707,3 +755,259 @@ jobs:
 
           echo "### ${ACTION^} — $ENV" >> $GITHUB_STEP_SUMMARY
           echo "Set desired_count=$COUNT on $CLUSTER / $SERVICE" >> $GITHUB_STEP_SUMMARY
+
+  # ── 9. Rollback Production (if deploy health check fails) ──────────────────
+  rollback-production:
+    name: "Rollback: Production"
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: ${{ failure() }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Find previous stable image tag
+        id: prev-image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          CURRENT_SHA:  ${{ github.sha }}
+        run: |
+          echo "Looking for previous stable image tag (excluding $CURRENT_SHA and latest)..."
+
+          # List all image tags sorted by push time (most recent first)
+          PREV_TAG=$(aws ecr describe-images \
+            --repository-name trading-bot \
+            --region eu-north-1 \
+            --query 'sort_by(imageDetails, &imagePushedAt) | reverse(@) | [].imageTags[]' \
+            --output text | tr '\t' '\n' \
+            | grep -v "^${CURRENT_SHA}$" \
+            | grep -v "^latest$" \
+            | grep -v "^paper-" \
+            | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "::error::No previous image tag found — cannot rollback."
+            exit 1
+          fi
+
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+          echo "Found previous tag: $PREV_TAG"
+          echo "::warning::Rolling back to image trading-bot:${PREV_TAG}"
+
+      - name: Register new task definition with previous image
+        id: new-taskdef
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          PREV_TAG:     ${{ steps.prev-image.outputs.prev_tag }}
+        run: |
+          FAMILY="trading-bot-production-task"
+          PREV_IMAGE="${ECR_REGISTRY}/trading-bot:${PREV_TAG}"
+          echo "Registering new task definition revision for $FAMILY with image $PREV_IMAGE..."
+
+          # Get the current task definition
+          TASKDEF_JSON=$(aws ecs describe-task-definition \
+            --task-definition "$FAMILY" \
+            --region eu-north-1 \
+            --query 'taskDefinition')
+
+          # Update the container image to the previous tag and register a new revision
+          NEW_TASKDEF=$(echo "$TASKDEF_JSON" \
+            | jq --arg img "$PREV_IMAGE" \
+              '.containerDefinitions[0].image = $img' \
+            | jq '{
+                family: .family,
+                containerDefinitions: .containerDefinitions,
+                taskRoleArn: .taskRoleArn,
+                executionRoleArn: .executionRoleArn,
+                networkMode: .networkMode,
+                cpu: .cpu,
+                memory: .memory,
+                requiresCompatibilities: .requiresCompatibilities,
+                runtimePlatform: .runtimePlatform
+              }' \
+            | jq 'with_entries(select(.value != null))')
+
+          REVISION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASKDEF" \
+            --region eu-north-1 \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "Registered new revision: $REVISION_ARN"
+          echo "revision_arn=$REVISION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Update ECS service with previous image
+        env:
+          REVISION_ARN: ${{ steps.new-taskdef.outputs.revision_arn }}
+          PREV_TAG:     ${{ steps.prev-image.outputs.prev_tag }}
+        run: |
+          CLUSTER="trading-bot-production-cluster"
+          SERVICE="trading-bot-production-service"
+
+          echo "Rolling back $SERVICE to task definition $REVISION_ARN..."
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$REVISION_ARN" \
+            --force-new-deployment \
+            --region eu-north-1
+
+          echo "Waiting for rollback deployment to stabilize..."
+          aws ecs wait services-stable \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --region eu-north-1
+
+          echo "Rollback deployment stabilized."
+
+      - name: Rollback summary
+        if: always()
+        env:
+          PREV_TAG: ${{ steps.prev-image.outputs.prev_tag }}
+        run: |
+          echo "### Rollback: Production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rolled back to | \`trading-bot:${PREV_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cluster | trading-bot-production-cluster |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | trading-bot-production-service |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "::warning::Production rolled back from ${{ github.sha }} to ${PREV_TAG}"
+
+  # ── 10. Rollback Paper (if deploy health check fails) ──────────────────────
+  rollback-paper:
+    name: "Rollback: Paper"
+    runs-on: ubuntu-latest
+    needs: deploy-paper
+    if: ${{ failure() }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Find previous stable image tag
+        id: prev-image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          CURRENT_SHA:  ${{ github.sha }}
+        run: |
+          echo "Looking for previous stable paper image tag (excluding paper-$CURRENT_SHA and paper-latest)..."
+
+          # List all image tags sorted by push time (most recent first)
+          PREV_TAG=$(aws ecr describe-images \
+            --repository-name trading-bot \
+            --region eu-north-1 \
+            --query 'sort_by(imageDetails, &imagePushedAt) | reverse(@) | [].imageTags[]' \
+            --output text | tr '\t' '\n' \
+            | grep "^paper-" \
+            | grep -v "^paper-${CURRENT_SHA}$" \
+            | grep -v "^paper-latest$" \
+            | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "::error::No previous paper image tag found — cannot rollback."
+            exit 1
+          fi
+
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+          echo "Found previous tag: $PREV_TAG"
+          echo "::warning::Rolling back to image trading-bot:${PREV_TAG}"
+
+      - name: Register new task definition with previous image
+        id: new-taskdef
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          PREV_TAG:     ${{ steps.prev-image.outputs.prev_tag }}
+        run: |
+          FAMILY="trading-bot-paper-task"
+          PREV_IMAGE="${ECR_REGISTRY}/trading-bot:${PREV_TAG}"
+          echo "Registering new task definition revision for $FAMILY with image $PREV_IMAGE..."
+
+          # Get the current task definition
+          TASKDEF_JSON=$(aws ecs describe-task-definition \
+            --task-definition "$FAMILY" \
+            --region eu-north-1 \
+            --query 'taskDefinition')
+
+          # Update the container image to the previous tag and register a new revision
+          NEW_TASKDEF=$(echo "$TASKDEF_JSON" \
+            | jq --arg img "$PREV_IMAGE" \
+              '.containerDefinitions[0].image = $img' \
+            | jq '{
+                family: .family,
+                containerDefinitions: .containerDefinitions,
+                taskRoleArn: .taskRoleArn,
+                executionRoleArn: .executionRoleArn,
+                networkMode: .networkMode,
+                cpu: .cpu,
+                memory: .memory,
+                requiresCompatibilities: .requiresCompatibilities,
+                runtimePlatform: .runtimePlatform
+              }' \
+            | jq 'with_entries(select(.value != null))')
+
+          REVISION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASKDEF" \
+            --region eu-north-1 \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "Registered new revision: $REVISION_ARN"
+          echo "revision_arn=$REVISION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Update ECS service with previous image
+        env:
+          REVISION_ARN: ${{ steps.new-taskdef.outputs.revision_arn }}
+          PREV_TAG:     ${{ steps.prev-image.outputs.prev_tag }}
+        run: |
+          CLUSTER="trading-bot-paper-cluster"
+          SERVICE="trading-bot-paper-service"
+
+          echo "Rolling back $SERVICE to task definition $REVISION_ARN..."
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$REVISION_ARN" \
+            --force-new-deployment \
+            --region eu-north-1
+
+          echo "Waiting for rollback deployment to stabilize..."
+          aws ecs wait services-stable \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --region eu-north-1
+
+          echo "Rollback deployment stabilized."
+
+      - name: Rollback summary
+        if: always()
+        env:
+          PREV_TAG: ${{ steps.prev-image.outputs.prev_tag }}
+        run: |
+          echo "### Rollback: Paper" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rolled back to | \`trading-bot:${PREV_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cluster | trading-bot-paper-cluster |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | trading-bot-paper-service |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "::warning::Paper rolled back from paper-${{ github.sha }} to ${PREV_TAG}"
