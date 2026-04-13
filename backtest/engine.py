@@ -500,14 +500,10 @@ class BacktestEngine:
                 # Symbols with high predicted vol → smaller signal → smaller position
                 if _sym_vol_scales or _pos_scales:
                     scaled_signals = {
-<<<<<<< Updated upstream
                         sym: sig
                             * _sym_vol_scales.get(sym, 1.0)   # vol-engine scale
                             * _pos_scales.get(sym, 1.0)        # position anomaly scale
                         for sym, sig in signals.items()
-=======
-                        sym: sig * _sym_vol_scales.get(sym, 1.0) for sym, sig in signals.items()
->>>>>>> Stashed changes
                     }
                 else:
                     scaled_signals = signals
@@ -721,7 +717,6 @@ class BacktestEngine:
     # -----------------------------------------------------------------------
 
     def _rebalance_schedule(self, dates: list) -> set:
-<<<<<<< Updated upstream
         """
         Build the rebalance schedule for this run.
 
@@ -748,16 +743,6 @@ class BacktestEngine:
             choppy_score_series         = choppy,
             adaptive_weekly_threshold   = thr,
         )
-=======
-        s = pd.Series(dates, index=dates)
-        if self.rebalance_freq == "daily":
-            return set(dates)
-        if self.rebalance_freq == "weekly":
-            return set(s.resample("W-FRI").last().dropna())
-        if self.rebalance_freq == "monthly":
-            return set(s.resample("BME").last().dropna())
-        return set(dates)
->>>>>>> Stashed changes
 
     def _check_stops(
         self,

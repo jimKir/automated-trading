@@ -37,7 +37,9 @@ Config keys (under ews: section):
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+UTC = timezone.utc
 
 import numpy as np
 import pandas as pd
@@ -51,20 +53,12 @@ log = get_logger("EWS")
 # Layer A reduced 0.35→0.30, Layer B 0.30→0.25, Layer E 0.10→0.05.
 # Total still sums to 1.0.
 LAYER_WEIGHTS = {
-<<<<<<< Updated upstream
     "anomaly":         0.30,   # Layer A: Isolation Forest position anomaly
     "macro":           0.25,   # Layer B: FRED macro stress
     "event_shock":     0.15,   # Layer C: VIX velocity + breadth
     "commodity_fx":    0.10,   # Layer D: Oil, Gold, DXY, JPY
     "intraday_regime": 0.05,   # Layer E: ADX + SPY EMA (intraday)
     "choppy_regime":   0.15,   # Layer F: 2025-fingerprint choppy detector (new)
-=======
-    "anomaly": 0.35,
-    "macro": 0.30,
-    "event_shock": 0.15,
-    "commodity_fx": 0.10,
-    "intraday_regime": 0.10,
->>>>>>> Stashed changes
 }
 
 # EWS score → position scale factor
@@ -94,7 +88,6 @@ class EarlyWarningSystem:
 
     def __init__(self, config: dict):
         self.config = config
-<<<<<<< Updated upstream
         self._use_macro     = config.get("ews", {}).get("use_macro",     True)
         self._use_anomaly   = config.get("ews", {}).get("use_anomaly",   True)
         self._use_event     = config.get("ews", {}).get("use_event",     True)
@@ -110,21 +103,6 @@ class EarlyWarningSystem:
         self._commfx_scorer     = None
         self._intraday_scorer   = None
         self._choppy_detector   = None
-=======
-        self._use_macro = config.get("ews", {}).get("use_macro", True)
-        self._use_anomaly = config.get("ews", {}).get("use_anomaly", True)
-        self._use_event = config.get("ews", {}).get("use_event", True)
-        self._use_commfx = config.get("ews", {}).get("use_commfx", True)
-        self._use_intraday = config.get("ews", {}).get("use_intraday", True)
-        self._enabled = config.get("ews", {}).get("enabled", True)
-
-        # Lazy-loaded sub-modules
-        self._anomaly_detector = None
-        self._macro_scorer = None
-        self._event_detector = None
-        self._commfx_scorer = None
-        self._intraday_scorer = None
->>>>>>> Stashed changes
 
         # Cached series for backtest (keyed by start+end)
         self._score_cache: dict[str, pd.Series] = {}
@@ -281,20 +259,12 @@ class EarlyWarningSystem:
 
         # Weighted combination
         ews_scores = (
-<<<<<<< Updated upstream
             LAYER_WEIGHTS["anomaly"]         * combined.get("anomaly",         0) +
             LAYER_WEIGHTS["macro"]           * combined.get("macro",           0) +
             LAYER_WEIGHTS["event_shock"]     * combined.get("event_shock",     0) +
             LAYER_WEIGHTS["commodity_fx"]    * combined.get("commodity_fx",    0) +
             LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0) +
             LAYER_WEIGHTS["choppy_regime"]   * combined.get("choppy_regime",   0)
-=======
-            LAYER_WEIGHTS["anomaly"] * combined.get("anomaly", 0)
-            + LAYER_WEIGHTS["macro"] * combined.get("macro", 0)
-            + LAYER_WEIGHTS["event_shock"] * combined.get("event_shock", 0)
-            + LAYER_WEIGHTS["commodity_fx"] * combined.get("commodity_fx", 0)
-            + LAYER_WEIGHTS["intraday_regime"] * combined.get("intraday_regime", 0)
->>>>>>> Stashed changes
         )
 
         # Smooth with 3-day EMA to avoid single-day noise spikes

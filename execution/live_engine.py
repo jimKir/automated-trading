@@ -312,9 +312,13 @@ class LiveEngine:
             spy_prices = all_data["SPY"]["Close"]
 
         # Generate signals with regime context
-        signals = self.signal_gen.generate_latest(
-            all_data, choppy_score=choppy_score, spy_prices=spy_prices
-        )
+        try:
+            signals = self.signal_gen.generate_latest(
+                all_data, choppy_score=choppy_score, spy_prices=spy_prices
+            )
+        except Exception as sig_err:
+            log.error(f"Signal generation failed: {sig_err}", exc_info=True)
+            return
         log.info(f"Signals: { {k: f'{v:+.3f}' for k, v in signals.items() if abs(v) > 0.05} }")
 
         # Get current prices
@@ -434,8 +438,23 @@ class LiveEngine:
             max_portfolio_heat=max_heat * combined_scale,
         )
 
+        # ── Filter out symbols that Alpaca cannot trade ─────────────────
+        # yfinance-style futures (ES=F, NQ=F, GC=F, CL=F) and indices (^VIX)
+        # are used for signal generation / regime detection but cannot be
+        # sent as orders to Alpaca.
+        _NON_TRADEABLE_SUFFIXES = ("=F",)
+        _NON_TRADEABLE_PREFIXES = ("^",)
+        tradeable_weights = {
+            sym: w for sym, w in target_weights.items()
+            if not sym.endswith(_NON_TRADEABLE_SUFFIXES)
+            and not sym.startswith(_NON_TRADEABLE_PREFIXES)
+        }
+        _skipped = set(target_weights) - set(tradeable_weights)
+        if _skipped:
+            log.info(f"Skipping non-tradeable symbols: {sorted(_skipped)}")
+
         # Compute orders (delta from current to target)
-        for sym, target_w in target_weights.items():
+        for sym, target_w in tradeable_weights.items():
             if sym not in prices or prices[sym] <= 0:
                 continue
 

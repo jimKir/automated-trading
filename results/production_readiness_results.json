@@ -103,6 +103,12 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_ADA_USD",
+    "status": "PASS",
+    "detail": "3077 rows, 2017-11-09 to 2026-04-12"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_AGG",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
@@ -115,6 +121,18 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_ARKK",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_AVAX_USD",
+    "status": "PASS",
+    "detail": "2031 rows, 2020-07-13 to 2026-04-12"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_AVGO",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
@@ -124,6 +142,12 @@
     "test": "parquet_BAC",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_BNB_USD",
+    "status": "PASS",
+    "detail": "3077 rows, 2017-11-09 to 2026-04-12"
   },
   {
     "phase": "1d",
@@ -145,9 +169,33 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_COPX",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_CVX",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_DBC",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_DIA",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_DOT_USD",
+    "status": "PASS",
+    "detail": "2062 rows, 2020-08-20 to 2026-04-12"
   },
   {
     "phase": "1d",
@@ -187,9 +235,45 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_EWA",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EWC",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EWG",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_EWJ",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EWU",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EWY",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_EWZ",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
   },
   {
     "phase": "1d",
@@ -229,6 +313,12 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_IBB",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_IWM",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
@@ -259,6 +349,12 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_LINK_USD",
+    "status": "PASS",
+    "detail": "3077 rows, 2017-11-09 to 2026-04-12"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_LQD",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
@@ -268,6 +364,12 @@
     "test": "parquet_MA",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_MDY",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
   },
   {
     "phase": "1d",
@@ -295,6 +397,12 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_NG_F",
+    "status": "PASS",
+    "detail": "2334 rows, 2017-01-03 to 2026-04-12"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_NQ",
     "status": "PASS",
     "detail": "2329 rows, 2017-01-03 to 2026-04-03"
@@ -310,6 +418,12 @@
     "test": "parquet_OIL",
     "status": "PASS",
     "detail": "2327 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_PDBC",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
   },
   {
     "phase": "1d",
@@ -331,9 +445,27 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_SI_F",
+    "status": "PASS",
+    "detail": "2332 rows, 2017-01-03 to 2026-04-12"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_SLV",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_SOL",
     "status": "PASS",
     "detail": "2185 rows, 2020-04-10 to 2026-04-03"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_SOXX",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
   },
   {
     "phase": "1d",
@@ -367,6 +499,12 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_USO",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_V",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
@@ -391,6 +529,18 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_XBI",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLB",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_XLE",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
@@ -403,9 +553,27 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_XLI",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_XLK",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLP",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_XLU",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
   },
   {
     "phase": "1d",
@@ -415,9 +583,21 @@
   },
   {
     "phase": "1d",
+    "test": "parquet_XLY",
+    "status": "PASS",
+    "detail": "2330 rows, 2017-01-03 to 2026-04-10"
+  },
+  {
+    "phase": "1d",
     "test": "parquet_XOM",
     "status": "PASS",
     "detail": "2325 rows, 2017-01-03 to 2026-04-02"
+  },
+  {
+    "phase": "1d",
+    "test": "parquet_ZB_F",
+    "status": "PASS",
+    "detail": "2334 rows, 2017-01-03 to 2026-04-12"
   },
   {
     "phase": "1d",
@@ -494,26 +674,26 @@
   {
     "phase": "1d",
     "test": "extended_XLU_exists",
-    "status": "FAIL",
-    "detail": "XLU.parquet missing \u2014 non-critical"
+    "status": "PASS",
+    "detail": ""
   },
   {
     "phase": "1d",
     "test": "extended_XLP_exists",
-    "status": "FAIL",
-    "detail": "XLP.parquet missing \u2014 non-critical"
+    "status": "PASS",
+    "detail": ""
   },
   {
     "phase": "1d",
     "test": "extended_USO_exists",
-    "status": "FAIL",
-    "detail": "USO.parquet missing \u2014 non-critical"
+    "status": "PASS",
+    "detail": ""
   },
   {
     "phase": "2a",
     "test": "score_range_0_1",
     "status": "PASS",
-    "detail": "min=0.093 max=0.597"
+    "detail": "min=0.101 max=0.575"
   },
   {
     "phase": "2a",
@@ -567,25 +747,19 @@
     "phase": "2a",
     "test": "score_today",
     "status": "PASS",
-    "detail": "score=0.246"
+    "detail": "score=0.243"
   },
   {
     "phase": "2a",
     "test": "graceful_no_hyg",
     "status": "PASS",
-    "detail": "score=0.247"
-  },
-  {
-    "phase": "2b",
-    "test": "no_nan_signals",
-    "status": "PASS",
-    "detail": "0 NaN"
+    "detail": "score=0.243"
   },
   {
     "phase": "2b",
     "test": "signal_engine_overall",
-    "status": "PASS",
-    "detail": "53 signals"
+    "status": "FAIL",
+    "detail": "operands could not be broadcast together with shapes (3008,) (2185,) (2185,) "
   },
   {
     "phase": "2c",
@@ -609,13 +783,13 @@
     "phase": "2d",
     "test": "case1_12ET_evaluates",
     "status": "PASS",
-    "detail": "got False (VWAP/momentum evaluated)"
+    "detail": "got True (VWAP/momentum evaluated)"
   },
   {
     "phase": "2d",
     "test": "case2_10ET_wait",
-    "status": "PASS",
-    "detail": "got False"
+    "status": "FAIL",
+    "detail": "got True"
   },
   {
     "phase": "2d",
@@ -639,7 +813,7 @@
     "phase": "2d",
     "test": "case6_BTC_inside_rsi",
     "status": "PASS",
-    "detail": "got True (RSI evaluated)"
+    "detail": "got False (RSI evaluated)"
   },
   {
     "phase": "2d",
@@ -651,7 +825,7 @@
     "phase": "2e",
     "test": "green_scan",
     "status": "PASS",
-    "detail": "graceful degradation: {\"message\": \"unauthorized.\"}\n"
+    "detail": "graceful degradation: Failed to connect to Alpaca API"
   },
   {
     "phase": "2e",
@@ -722,8 +896,8 @@
   {
     "phase": "2f",
     "test": "universe_scanner",
-    "status": "PASS",
-    "detail": ""
+    "status": "FAIL",
+    "detail": "not loaded (may need Alpaca key)"
   },
   {
     "phase": "2f",

@@ -98,35 +98,41 @@ class AlpacaBroker(BrokerBase):
             return order
 
         try:
+            # Alpaca requires TimeInForce.DAY for fractional share orders.
+            # Use DAY for fractional quantities, GTC for whole shares.
+            qty_rounded = round(order.quantity, 6)
+            is_fractional = (qty_rounded % 1) != 0
+            tif = TimeInForce.DAY if is_fractional else TimeInForce.GTC
+
             if order_type == "market":
                 req = MarketOrderRequest(
                     symbol=order.symbol,
-                    qty=round(order.quantity, 6),
+                    qty=qty_rounded,
                     side=side,
-                    time_in_force=TimeInForce.GTC,
+                    time_in_force=tif,
                 )
             elif order_type == "limit":
                 req = LimitOrderRequest(
                     symbol=order.symbol,
-                    qty=round(order.quantity, 6),
+                    qty=qty_rounded,
                     side=side,
-                    time_in_force=TimeInForce.GTC,
+                    time_in_force=tif,
                     limit_price=order.limit_price,
                 )
             elif order_type == "stop":
                 req = StopOrderRequest(
                     symbol=order.symbol,
-                    qty=round(order.quantity, 6),
+                    qty=qty_rounded,
                     side=side,
-                    time_in_force=TimeInForce.GTC,
+                    time_in_force=tif,
                     stop_price=order.stop_price,
                 )
             else:
                 req = MarketOrderRequest(
                     symbol=order.symbol,
-                    qty=round(order.quantity, 6),
+                    qty=qty_rounded,
                     side=side,
-                    time_in_force=TimeInForce.GTC,
+                    time_in_force=tif,
                 )
 
             resp = self.trading_client.submit_order(req)

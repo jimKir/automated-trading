@@ -69,7 +69,8 @@ for symbol in ALL_SYMBOLS:
               f"{str(df.index.min().date()):<12} {str(latest.date()):<12} "
               f"{days_old:>11}d")
 
-print(f"\n{'\u2500' * 68}")
+line_sep = '\u2500' * 68
+print(f"\n{line_sep}")
 print(f"Total: {len(ALL_SYMBOLS)} | OK: {len(ALL_SYMBOLS) - len(missing) - len(stale)} "
       f"| Missing: {len(missing)} | Stale: {len(stale)}")
 
