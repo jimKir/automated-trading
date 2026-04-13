@@ -186,11 +186,16 @@ grep -i "ERROR\|CRITICAL\|HALT\|circuit" logs/trading.log | tail -20
 - [ ] Record in tracking spreadsheet: date, equity, daily return, regime colour, positions held
 - [ ] Check drawdown: current DD from peak equity
 - [ ] If DD > 8%, verify drawdown_scale is reducing positions (check logs for `drawdown_scale`)
-- [ ] Review daily report email (if `daily_report.py` is configured)
+- [ ] Review Gmail draft with daily summary (created by Lambda at 22:00 UTC) — forward to `o.zoumpou@gmail.com` if desired
+- [ ] If any go-live criterion is FAILING, an alert draft appears on Sunday evenings — see [§8](#8-email-alerts-via-lambda-gmail-draft-pipeline)
 
 ```bash
-# Generate daily report manually
+# Generate daily report manually (local — does not create Gmail draft)
 python daily_report.py
+
+# Trigger the Lambda manually to create a draft now
+aws lambda invoke --function-name trading-gmail-draft \
+  --payload '{"source": "manual"}' --region eu-north-1 /dev/stdout
 ```
 
 ### Weekly Review (end of each Friday)
@@ -380,3 +385,138 @@ After 12 months of paper trading, evaluate against these thresholds:
 
 If all thresholds are met, proceed to live capital deployment per `DEPLOY_AWS.md`.
 If any threshold fails, extend paper trading or review strategy assumptions.
+
+---
+
+## 8. Email Alerts via Lambda (Gmail Draft Pipeline)
+
+GitHub Actions generates the scorecard and daily summary JSON files but does
+not send email — no SMTP credentials are stored in GitHub.  Instead, an AWS
+Lambda function fetches the committed JSON from the repo and creates a Gmail
+draft that you review and forward from `kiritsis.di@gmail.com`.
+
+Source code: [`infra/lambda-gmail-draft/`](../infra/lambda-gmail-draft/)
+
+### Architecture
+
+```
+GitHub Actions (generates data only)
+  └─ Commits results/daily_summary.json + results/paper_monitor.json
+         │
+EventBridge Scheduler
+  └─ Triggers Lambda on schedule
+         │
+Lambda (trading-gmail-draft)
+  ├─ Fetches JSON from GitHub raw content
+  ├─ Formats plain-text email body
+  └─ Creates Gmail draft via OAuth2 API
+         │
+You review draft → hit Send → o.zoumpou@gmail.com also receives
+```
+
+### Schedules
+
+| Trigger | Cron (UTC) | EEST | What |
+|---|---|---|---|
+| Weekdays | `0 22 ? * MON-FRI *` | 01:00+1 | Daily performance summary draft |
+| Sunday | `0 19 ? * SUN *` | 22:00 | Alert draft if any go-live criterion is FAILING |
+
+### Prerequisites
+
+- AWS CLI and [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) installed
+- A Google Cloud project with the **Gmail API** enabled
+- An OAuth 2.0 Client ID (type: Desktop app) from Google Cloud Console
+
+### Step 1 — Obtain Gmail OAuth Refresh Token
+
+```bash
+cd infra/lambda-gmail-draft
+pip install google-auth-oauthlib
+
+# Download credentials.json from Google Cloud Console
+# (APIs & Services → Credentials → OAuth 2.0 Client IDs → Download)
+
+python get_refresh_token.py
+# → Opens browser — sign in with kiritsis.di@gmail.com
+# → Prints JSON with client_id, client_secret, refresh_token
+```
+
+### Step 2 — Store Secrets in SSM Parameter Store
+
+```bash
+# Gmail OAuth credentials (paste JSON from step 1)
+aws ssm put-parameter \
+  --name /trading/gmail-oauth \
+  --type SecureString \
+  --value '{
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "refresh_token": "YOUR_REFRESH_TOKEN",
+    "token_uri": "https://oauth2.googleapis.com/token"
+  }' \
+  --region eu-north-1
+
+# GitHub fine-grained PAT (repo Contents:read scope only)
+aws ssm put-parameter \
+  --name /trading/github-token \
+  --type SecureString \
+  --value "ghp_your_fine_grained_pat_here" \
+  --region eu-north-1
+```
+
+| SSM Parameter | Type | Contents |
+|---|---|---|
+| `/trading/gmail-oauth` | SecureString | Gmail OAuth2 JSON (client_id, client_secret, refresh_token, token_uri) |
+| `/trading/github-token` | SecureString | GitHub fine-grained PAT with `Contents:read` on `jimKir/automated-trading` |
+
+### Step 3 — Deploy the Lambda
+
+```bash
+cd infra/lambda-gmail-draft
+
+sam build
+sam deploy \
+  --stack-name trading-gmail-draft \
+  --resolve-s3 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region eu-north-1 \
+  --parameter-overrides \
+    GitHubRepo=jimKir/automated-trading \
+    Recipients=kiritsis.di@gmail.com,o.zoumpou@gmail.com
+```
+
+### Step 4 — Verify
+
+```bash
+# Manual invocation
+aws lambda invoke \
+  --function-name trading-gmail-draft \
+  --payload '{"source": "manual_test"}' \
+  --region eu-north-1 \
+  /dev/stdout
+```
+
+Check your Gmail drafts — a test draft should appear.  Delete it after
+confirming the pipeline works.
+
+### Cost
+
+| Resource | Cost |
+|---|---|
+| Lambda | ~$0.00/month (128 MB × 30 s × ~30 invocations — well within free tier) |
+| EventBridge Scheduler | Free |
+| SSM Parameter Store | Free (standard parameters) |
+
+### Updating Recipients
+
+Redeploy with a different `Recipients` parameter override, or update the
+Lambda environment variable `RECIPIENTS` in the AWS console.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `No data files found in repo` | Ensure GitHub Actions has committed `results/daily_summary.json` at least once |
+| `403 Forbidden` on GitHub fetch | Verify the GitHub PAT in `/trading/github-token` has `Contents:read` scope |
+| `invalid_grant` from Google OAuth | Refresh token expired — re-run `get_refresh_token.py` and update SSM |
+| Draft not appearing | Check Lambda CloudWatch logs: `aws logs tail /aws/lambda/trading-gmail-draft --follow` |
