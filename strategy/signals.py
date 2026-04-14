@@ -870,6 +870,25 @@ class SignalGenerator:
         bear_blend_arr = bear_blend.reindex(_idx).fillna(0).values
         choppy_blend_arr = choppy_blend.reindex(_idx).fillna(0).values
 
+        # Assert all blend/regime arrays match close length after reindex
+        _expected_len = len(close)
+        _arr_map = {
+            "bull_regime_arr": bull_regime_arr,
+            "t3_gate_arr": t3_gate_arr,
+            "bull_blend_arr": bull_blend_arr,
+            "bear_blend_arr": bear_blend_arr,
+            "choppy_blend_arr": choppy_blend_arr,
+        }
+        _mismatched = {
+            name: arr.shape for name, arr in _arr_map.items() if arr.shape[0] != _expected_len
+        }
+        if _mismatched:
+            parts = " ".join(f"{name}={shape}" for name, shape in _mismatched.items())
+            raise ValueError(
+                f"Shape mismatch in _compute_symbol_signal for {sym}: "
+                f"{parts} expected={_expected_len}"
+            )
+
         reactive = pd.Series(
             np.where(
                 bull_regime_arr,

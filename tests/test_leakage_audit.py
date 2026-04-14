@@ -764,5 +764,130 @@ class TestCompositeScorePeeking:
         )
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  TEST 12: SIGNAL BLEND SHAPE ALIGNMENT
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _make_synthetic_ohlcv(n_rows, start="2024-01-01"):
+    """Build a synthetic OHLCV DataFrame with *n_rows* trading days."""
+    dates = pd.bdate_range(start=start, periods=n_rows)
+    rng = np.random.default_rng(42)
+    close = 100 + np.cumsum(rng.normal(0, 0.5, n_rows))
+    return pd.DataFrame(
+        {
+            "Open": close - rng.uniform(0, 0.3, n_rows),
+            "High": close + rng.uniform(0, 1.0, n_rows),
+            "Low": close - rng.uniform(0, 1.0, n_rows),
+            "Close": close,
+            "Volume": rng.integers(1_000_000, 10_000_000, n_rows),
+        },
+        index=dates,
+    )
+
+
+def _minimal_signal_generator():
+    """Instantiate SignalGenerator with minimal config (all optional features off)."""
+    from strategy.signals import SignalGenerator
+
+    return SignalGenerator(
+        {
+            "strategy": {
+                "lookback_fast": 10,
+                "lookback_slow": 20,
+                "regime_window": 30,
+                "volume_confirmation": False,
+                "pv_segments_enabled": False,
+                "predictive": {"credit_regime_enabled": False},
+                "regime_switching": {"enabled": False},
+            },
+            "trend_classifier": {"enabled": False},
+        }
+    )
+
+
+class TestSignalBlendShapeAlignment:
+    """Verify the reindex-based alignment prevents shape-mismatch crashes
+    when input series have slightly different lengths, and that the post-
+    reindex assertion fires a descriptive error if alignment still fails."""
+
+    def test_signal_blend_shape_alignment_with_mismatched_inputs(self):
+        """Feed a symbol whose High/Low have 399 rows but Close has 400.
+
+        The reindex fix in _compute_symbol_signal should align everything
+        to close.index, so no broadcast ValueError should occur.
+        """
+        sg = _minimal_signal_generator()
+
+        # Build 400-row base, then trim High/Low to 399 to simulate the
+        # real-world N-1 mismatch from pmo_sig/stoch_sig.
+        full = _make_synthetic_ohlcv(400)
+        mismatched = full.copy()
+        mismatched["High"] = full["High"].iloc[1:]  # 399 non-NaN values
+        mismatched["Low"] = full["Low"].iloc[1:]
+
+        all_data = {"TEST": mismatched, "SPY": _make_synthetic_ohlcv(400)}
+
+        # Should NOT raise — reindex aligns the internal blend arrays.
+        try:
+            sg.generate(all_data)
+        except ValueError as exc:
+            if "broadcast" in str(exc).lower() or "shape" in str(exc).lower():
+                pytest.fail(f"Shape mismatch leaked through reindex fix: {exc}")
+            raise  # re-raise unrelated ValueErrors
+
+    def test_signal_blend_shape_assertion_message(self):
+        """Verify the shape-assertion logic in _compute_symbol_signal produces
+        a descriptive ValueError naming only the mismatched arrays.
+
+        We replicate the exact assertion block from signals.py with arrays
+        of known shapes to validate the error message format and selective
+        reporting (only mismatched arrays are named).
+        """
+        # Replicate the assertion block from _compute_symbol_signal
+        sym = "TEST"
+        expected_len = 400
+
+        # All correct except choppy_blend_arr (399 instead of 400)
+        bull_regime_arr = np.zeros(expected_len, dtype=bool)
+        t3_gate_arr = np.zeros(expected_len, dtype=bool)
+        bull_blend_arr = np.zeros(expected_len)
+        bear_blend_arr = np.zeros(expected_len)
+        choppy_blend_arr = np.zeros(expected_len - 1)  # WRONG length
+
+        _arr_map = {
+            "bull_regime_arr": bull_regime_arr,
+            "t3_gate_arr": t3_gate_arr,
+            "bull_blend_arr": bull_blend_arr,
+            "bear_blend_arr": bear_blend_arr,
+            "choppy_blend_arr": choppy_blend_arr,
+        }
+        _mismatched = {
+            name: arr.shape for name, arr in _arr_map.items() if arr.shape[0] != expected_len
+        }
+
+        # The assertion should detect only choppy_blend_arr
+        assert len(_mismatched) == 1
+        assert "choppy_blend_arr" in _mismatched
+        assert _mismatched["choppy_blend_arr"] == (399,)
+
+        # Build the error message the same way as signals.py
+        parts = " ".join(f"{name}={shape}" for name, shape in _mismatched.items())
+        msg = f"Shape mismatch in _compute_symbol_signal for {sym}: {parts} expected={expected_len}"
+        assert "choppy_blend_arr=(399,)" in msg
+        assert "bull_regime_arr" not in msg  # correct arrays not listed
+        assert "expected=400" in msg
+
+        # Verify the same logic with multiple mismatches
+        bear_blend_arr_bad = np.zeros(398)
+        _arr_map["bear_blend_arr"] = bear_blend_arr_bad
+        _mismatched = {
+            name: arr.shape for name, arr in _arr_map.items() if arr.shape[0] != expected_len
+        }
+        assert len(_mismatched) == 2
+        assert "bear_blend_arr" in _mismatched
+        assert "choppy_blend_arr" in _mismatched
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
