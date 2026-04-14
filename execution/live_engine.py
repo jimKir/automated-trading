@@ -513,6 +513,15 @@ class LiveEngine:
             if self.dry_run:
                 log.info(f"DRY_RUN → skipping order submission for {sym}")
                 continue
+
+            # ── Wash-trade prevention ────────────────────────────────────
+            # Cancel opposite-side open orders; skip if same-side duplicate.
+            if hasattr(self.broker, "cancel_conflicting_orders"):
+                has_duplicate = self.broker.cancel_conflicting_orders(sym, side)
+                if has_duplicate:
+                    log.info(f"SKIP → {sym} (same-side order already pending)")
+                    continue
+
             filled = self.broker.place_order(order)
             if filled.status == OrderStatus.REJECTED:
                 log.warning(f"REJECTED → {sym} (broker rejected order)")

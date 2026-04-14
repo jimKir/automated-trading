@@ -10,7 +10,9 @@ alpaca_trade_api package.
 
 from __future__ import annotations
 
+import math
 import os
+import time
 
 from execution.broker_base import AccountInfo, BrokerBase, Order, OrderSide, OrderStatus
 from utils.logger import get_logger
@@ -80,6 +82,66 @@ class AlpacaBroker(BrokerBase):
         except Exception:
             return {}
 
+    def get_open_orders(self, symbol: str | None = None) -> list[dict]:
+        """Return open/pending orders, optionally filtered by symbol.
+
+        Each dict has keys: order_id, symbol, side ("buy"/"sell"), qty, status.
+        """
+        try:
+            from alpaca.trading.enums import QueryOrderStatus
+            from alpaca.trading.requests import GetOrdersRequest
+
+            params = GetOrdersRequest(status=QueryOrderStatus.OPEN)
+            orders = self.trading_client.get_orders(params)
+            result = []
+            for o in orders:
+                if symbol and o.symbol != symbol:
+                    continue
+                result.append(
+                    {
+                        "order_id": str(o.id),
+                        "symbol": o.symbol,
+                        "side": str(o.side).lower(),
+                        "qty": float(o.qty) if o.qty else 0,
+                        "status": str(o.status),
+                    }
+                )
+            return result
+        except Exception as exc:
+            log.error(f"[Alpaca] Failed to fetch open orders: {exc}")
+            return []
+
+    def cancel_conflicting_orders(self, symbol: str, new_side: OrderSide) -> bool:
+        """Cancel open orders on the opposite side for *symbol* to avoid wash trades.
+
+        Returns True if same-side orders already exist (caller should skip).
+        """
+        open_orders = self.get_open_orders(symbol)
+        if not open_orders:
+            return False
+
+        new_side_str = new_side.value.lower()
+        has_same_side = False
+
+        for oo in open_orders:
+            if oo["side"] == new_side_str:
+                has_same_side = True
+                log.info(
+                    f"[Alpaca] Duplicate {new_side_str.upper()} already pending for "
+                    f"{symbol} (order {oo['order_id']}) — will skip new order"
+                )
+            else:
+                # Opposite side — cancel to prevent wash trade
+                log.warning(
+                    f"[Alpaca] Cancelling opposite-side {oo['side'].upper()} order "
+                    f"{oo['order_id']} for {symbol} to avoid wash trade"
+                )
+                self.cancel_order(oo["order_id"])
+                # Brief pause so Alpaca processes the cancellation
+                time.sleep(0.3)
+
+        return has_same_side
+
     def place_order(self, order: Order) -> Order:
         from alpaca.trading.enums import OrderSide as AlpacaSide, TimeInForce
         from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest, StopOrderRequest
@@ -96,6 +158,26 @@ class AlpacaBroker(BrokerBase):
             order.status = OrderStatus.REJECTED
             log.warning(f"[Alpaca] {order.symbol} qty too small — rejected")
             return order
+
+        # ── Fractional short-sell guard ──────────────────────────────────
+        # Alpaca does not allow fractional quantities on short sells.
+        # If this is a SELL and we have no position (i.e. a short sell),
+        # round qty down to a whole number.
+        if order.side == OrderSide.SELL:
+            pos = self.get_position(order.symbol)
+            if pos is None or pos.get("quantity", 0) <= 0:
+                # No existing long position → this is a short sell
+                rounded_qty = math.floor(order.quantity)
+                if rounded_qty != int(order.quantity):
+                    log.warning(
+                        f"[Alpaca] Short sell fractional guard: {order.symbol} "
+                        f"qty {order.quantity:.4f} → {rounded_qty} (floor)"
+                    )
+                if rounded_qty <= 0:
+                    order.status = OrderStatus.REJECTED
+                    log.warning(f"[Alpaca] {order.symbol} short sell qty rounds to 0 — skipping")
+                    return order
+                order.quantity = float(rounded_qty)
 
         try:
             # Alpaca requires TimeInForce.DAY for fractional share orders.
