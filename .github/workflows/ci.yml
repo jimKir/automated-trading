@@ -76,7 +76,10 @@ jobs:
         run: |
           pip-compile --generate-hashes --strip-extras --allow-unsafe \
             --output-file=/tmp/requirements.lock requirements.in
-          diff requirements.lock /tmp/requirements.lock || {
+          # Ignore header comment (output path differs) when comparing
+          tail -n +7 requirements.lock > /tmp/lock_body.txt
+          tail -n +7 /tmp/requirements.lock > /tmp/ci_body.txt
+          diff /tmp/lock_body.txt /tmp/ci_body.txt || {
             echo "::error::requirements.lock is out of date. Run: pip-compile --generate-hashes --strip-extras --allow-unsafe --output-file=requirements.lock requirements.in"
             exit 1
           }
