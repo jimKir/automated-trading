@@ -684,7 +684,7 @@ class SignalGenerator:
         # --- Factor 13: PMO crossover (contrarian, IC -0.032 p=0.005) --------
         pmo_sig = pd.Series(0.0, index=close.index)
         try:
-            pmo_sig = self._pmo_crossover(close).fillna(0)
+            pmo_sig = self._pmo_crossover(close).reindex(close.index).fillna(0)
         except Exception as exc:
             log.debug(f"PMO computation failed for {sym}: {exc}")
 
@@ -694,7 +694,9 @@ class SignalGenerator:
             if "High" in df.columns and "Low" in df.columns:
                 h_col = df["High"][df.index <= as_of_date] if as_of_date else df["High"]
                 l_col = df["Low"][df.index <= as_of_date] if as_of_date else df["Low"]
-                stoch_sig = self._stochastic_contrarian(h_col, l_col, close).fillna(0)
+                stoch_sig = (
+                    self._stochastic_contrarian(h_col, l_col, close).reindex(close.index).fillna(0)
+                )
         except Exception as exc:
             log.debug(f"Stochastic contrarian failed for {sym}: {exc}")
 
@@ -858,8 +860,22 @@ class SignalGenerator:
 
         t3_gate = (choppy_score_sym >= 0.17) & (spy_pct_below < 0.15)
 
+        # Align all blend/regime arrays to close.index to prevent shape mismatch
+        # in np.where (pmo_sig/stoch_sig can produce N-1 length series, causing
+        # bear_blend and choppy_blend to have fewer elements than bull_blend).
+        _idx = close.index
+        bull_regime_arr = bull_regime.reindex(_idx).fillna(False).values
+        t3_gate_arr = t3_gate.reindex(_idx).fillna(False).values
+        bull_blend_arr = bull_blend.reindex(_idx).fillna(0).values
+        bear_blend_arr = bear_blend.reindex(_idx).fillna(0).values
+        choppy_blend_arr = choppy_blend.reindex(_idx).fillna(0).values
+
         reactive = pd.Series(
-            np.where(bull_regime, bull_blend, np.where(t3_gate, choppy_blend, bear_blend)),
+            np.where(
+                bull_regime_arr,
+                bull_blend_arr,
+                np.where(t3_gate_arr, choppy_blend_arr, bear_blend_arr),
+            ),
             index=close.index,
         )
 
