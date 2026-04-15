@@ -2,6 +2,43 @@
 
 All notable changes to the automated-trading system are documented here.
 
+## [2026-04-15] — Startup instance guard + version stamping
+
+### Feature 1: Startup Instance Guard
+
+On process start, before any trading logic, the engine now cancels ALL open/pending
+Alpaca orders to clear stale orders from crashed instances. This is broker-level
+cleanup — works regardless of how the process starts or restarts.
+
+- New method: `AlpacaBroker.cancel_all_open_orders()` — calls `trading_client.cancel_orders()`
+  to cancel everything in one API call, returns count of cancelled orders
+- New method: `LiveEngine._cleanup_stale_orders()` — called in `__init__` before any
+  trading cycle, logs a warning if stale orders were found
+
+### Feature 2: Version Stamping
+
+Build metadata is now embedded in the running container and logged on startup.
+
+- New file: `version.py` — resolves version from: (a) `BUILD_VERSION` env var,
+  (b) git SHA via subprocess, (c) `"dev-unknown"` fallback
+- `main.py` logs the version at startup
+- `LiveEngine.__init__` prints a startup banner showing: version, build timestamp,
+  mode (paper/live), rebalance cadence, and last rebalance time from Alpaca seed
+- `Dockerfile` accepts `BUILD_SHA`, `BUILD_TIMESTAMP`, `BUILD_VERSION` as ARGs, sets as ENV vars
+- `.github/workflows/ci.yml` passes these build args during `docker build` steps
+  in CI, production deploy, and paper deploy jobs
+
+### Tests (11 new in test_instance_guard.py)
+
+- `TestCancelAllOpenOrders` — 4 tests: cancels and returns count, zero on empty,
+  zero on None, zero on exception
+- `TestCleanupStaleOrdersOnInit` — 3 tests: called during init, tolerates broker
+  without method, exception does not crash init
+- `TestVersionResolution` — 4 tests: env var priority, git SHA fallback,
+  dev-unknown fallback, empty git output falls through
+
+---
+
 ## [2026-04-15] — Fix 486 day trades: rebalance cadence + duplicate order guard
 
 ### Investigation: 486 day trades in ~2 days triggered PDT flag

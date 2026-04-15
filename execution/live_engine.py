@@ -29,6 +29,7 @@ from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, Ord
 from risk.manager import RiskManager
 from strategy.signals import SignalGenerator
 from utils.logger import get_logger
+from version import __version__ as _bot_version
 
 log = get_logger("LiveEngine")
 
@@ -122,6 +123,27 @@ class LiveEngine:
                     )
             except Exception as e:
                 log.warning(f"Could not seed _last_rebalance from broker: {e}")
+
+        # ── Instance guard: cancel stale orders from crashed instances ────
+        self._cleanup_stale_orders()
+
+        # ── Startup banner ────────────────────────────────────────────────
+        import os
+
+        build_ts = os.environ.get("BUILD_TIMESTAMP", "N/A")
+        last_rb = (
+            self._last_rebalance.strftime("%Y-%m-%d %H:%M:%S UTC")
+            if self._last_rebalance
+            else "never (first run)"
+        )
+        log.info("=" * 60)
+        log.info("[STARTUP] Trading Bot")
+        log.info(f"  Version:          {_bot_version}")
+        log.info(f"  Built:            {build_ts}")
+        log.info(f"  Mode:             {self.mode.upper()}")
+        log.info(f"  Rebalance cadence: {self._rebalance_freq}")
+        log.info(f"  Last rebalance:   {last_rb}")
+        log.info("=" * 60)
 
         # Intraday Shock Detector
         self._isd = None
@@ -571,6 +593,19 @@ class LiveEngine:
 
         self._last_rebalance = now
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")
+
+    def _cleanup_stale_orders(self) -> None:
+        """Cancel all open/pending orders on startup (stale from crashed instances)."""
+        if hasattr(self.broker, "cancel_all_open_orders"):
+            try:
+                count = self.broker.cancel_all_open_orders()
+                if count:
+                    log.warning(
+                        f"[INSTANCE GUARD] Cleaned up {count} stale order(s) "
+                        f"from previous instance"
+                    )
+            except Exception as exc:
+                log.warning(f"[INSTANCE GUARD] Stale order cleanup failed: {exc}")
 
     def _should_rebalance(self, now: datetime) -> bool:
         """

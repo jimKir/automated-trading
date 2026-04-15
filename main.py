@@ -27,6 +27,7 @@ import contextlib
 
 from utils.config_loader import load_config
 from utils.logger import get_logger
+from version import __version__ as _bot_version
 
 log = get_logger("Main")
 
@@ -376,6 +377,8 @@ def _print_summary(metrics: dict) -> None:
 
 
 def main() -> None:
+    log.info(f"Trading bot version: {_bot_version}")
+
     parser = argparse.ArgumentParser(description="Trading System")
     parser.add_argument(
         "mode",

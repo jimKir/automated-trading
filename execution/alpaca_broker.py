@@ -111,6 +111,23 @@ class AlpacaBroker(BrokerBase):
             log.error(f"[Alpaca] Failed to fetch open orders: {exc}")
             return []
 
+    def cancel_all_open_orders(self) -> int:
+        """Cancel ALL open/pending orders. Returns count of cancelled orders.
+
+        Used on startup to clear stale orders from crashed instances.
+        """
+        try:
+            statuses = self.trading_client.cancel_orders()
+            cancelled = len(statuses) if statuses else 0
+            if cancelled:
+                log.warning(f"[Alpaca] Cancelled {cancelled} stale open order(s) on startup")
+            else:
+                log.info("[Alpaca] No open orders to cancel on startup")
+            return cancelled
+        except Exception as exc:
+            log.error(f"[Alpaca] Failed to cancel all open orders: {exc}")
+            return 0
+
     def cancel_conflicting_orders(self, symbol: str, new_side: OrderSide) -> bool:
         """Cancel open orders on the opposite side for *symbol* to avoid wash trades.
 

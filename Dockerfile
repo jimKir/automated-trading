@@ -16,6 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Java env for H2O
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
+# Build metadata (passed by CI)
+ARG BUILD_SHA=unknown
+ARG BUILD_TIMESTAMP=unknown
+ARG BUILD_VERSION=dev-unknown
+ENV BUILD_SHA=${BUILD_SHA}
+ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
+ENV BUILD_VERSION=${BUILD_VERSION}
+
 # Set timezone
 ENV TZ=Europe/Athens
 ENV PYTHONUNBUFFERED=1
