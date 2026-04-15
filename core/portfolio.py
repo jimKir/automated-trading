@@ -54,9 +54,7 @@ class Portfolio:
         self._config = config
         # Hedge reserve — enforced in backtest buy path so OOS results
         # match live CapitalManager constraints.
-        self._hedge_reserve_pct: float = config.get("capital", {}).get(
-            "hedge_reserve_pct", 0.20
-        )
+        self._hedge_reserve_pct: float = config.get("capital", {}).get("hedge_reserve_pct", 0.20)
         self._min_cash_pct: float = config.get("capital", {}).get("min_cash_pct", 0.05)
         # Futures roll tracking
         self._last_roll_date: dict[str, pd.Timestamp] = {}
@@ -234,9 +232,7 @@ class Portfolio:
             usable_cash = max(self.cash - reserve, 0.0)
 
             if total_debit > usable_cash:
-                max_affordable = (
-                    usable_cash / (1 + tx_cost / notional) if notional > 0 else 0
-                )
+                max_affordable = usable_cash / (1 + tx_cost / notional) if notional > 0 else 0
                 quantity = max_affordable / price
                 if quantity < 1e-8:
                     log.debug(f"[{symbol}] Insufficient cash after hedge reserve — order skipped")
