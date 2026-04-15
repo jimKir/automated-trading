@@ -109,6 +109,20 @@ class LiveEngine:
         self._rebalance_freq = config.get("strategy", {}).get("rebalance_frequency", "weekly")
         self._last_rebalance: datetime | None = None
 
+        # Seed _last_rebalance from the broker's last filled order so the
+        # adaptive cadence survives ECS container restarts.
+        if hasattr(self.broker, "get_last_filled_order_time"):
+            try:
+                last_fill = self.broker.get_last_filled_order_time()
+                if last_fill is not None:
+                    self._last_rebalance = last_fill
+                    log.info(
+                        f"Seeded _last_rebalance from Alpaca last fill: "
+                        f"{last_fill.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+                    )
+            except Exception as e:
+                log.warning(f"Could not seed _last_rebalance from broker: {e}")
+
         # Intraday Shock Detector
         self._isd = None
         if config.get("intraday_shock", {}).get("enabled", False):
@@ -513,6 +527,22 @@ class LiveEngine:
             if self.dry_run:
                 log.info(f"DRY_RUN → skipping order submission for {sym}")
                 continue
+
+            # ── Duplicate order guard (ECS crash-loop protection) ────────
+            # Before placing any order, check for existing open/pending
+            # orders for the same symbol+side. Prevents duplicate
+            # submissions when overlapping ECS tasks run simultaneously.
+            if hasattr(self.broker, "get_open_orders"):
+                existing = self.broker.get_open_orders(sym)
+                side_str = side.value.lower()
+                same_side = [o for o in existing if o.get("side") == side_str]
+                if same_side:
+                    log.warning(
+                        f"DEDUP SKIP → {sym} {side_str.upper()}: "
+                        f"{len(same_side)} open order(s) already exist "
+                        f"(order IDs: {[o['order_id'] for o in same_side]})"
+                    )
+                    continue
 
             # ── Wash-trade prevention ────────────────────────────────────
             # Cancel opposite-side open orders; skip if same-side duplicate.

@@ -287,6 +287,33 @@ class AlpacaBroker(BrokerBase):
             pass
         return dict.fromkeys(symbols, 0.0)
 
+    def get_last_filled_order_time(self) -> "datetime | None":
+        """Return the timestamp of the most recent filled order, or None.
+
+        Used by LiveEngine to seed _last_rebalance so the adaptive cadence
+        survives ECS container restarts without external storage.
+        """
+        try:
+            from datetime import datetime
+
+            from alpaca.trading.enums import QueryOrderStatus
+            from alpaca.trading.requests import GetOrdersRequest
+
+            params = GetOrdersRequest(
+                status=QueryOrderStatus.CLOSED,
+                limit=1,
+            )
+            orders = self.trading_client.get_orders(params)
+            if orders:
+                filled_at = orders[0].filled_at
+                if filled_at is not None:
+                    if isinstance(filled_at, str):
+                        return datetime.fromisoformat(filled_at)
+                    return filled_at
+        except Exception as exc:
+            log.warning(f"[Alpaca] Could not fetch last filled order time: {exc}")
+        return None
+
     def is_market_open(self) -> bool:
         try:
             clock = self.trading_client.get_clock()
