@@ -85,3 +85,16 @@ monitoring:
   health_check_port: 8080
   slack_webhook_url: ${SLACK_WEBHOOK_URL:-}
   alert_email: ${ALERT_EMAIL:-}
+  enabled: true
+  alert_emails:
+    - kiritsis.di@gmail.com
+    - o.zoumpou@gmail.com
+  thresholds:
+    order_frequency_zscore: 3.0
+    daily_turnover_ratio: 1.0
+    max_roundtrips_per_symbol_1h: 2
+    max_signal_flips_24h: 3
+    max_hourly_drawdown_pct: 2.0
+    portfolio_hhi: 0.25
+    duplicate_order_window_sec: 300
+  alert_cooldown_minutes: 60

@@ -28,6 +28,8 @@ from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from risk.manager import RiskManager
 from strategy.signals import SignalGenerator
+from monitoring.alerting import AlertManager
+from monitoring.anomaly_detector import AnomalyDetector
 from utils.logger import get_logger
 from version import __version__ as _bot_version
 
@@ -144,6 +146,17 @@ class LiveEngine:
         log.info(f"  Rebalance cadence: {self._rebalance_freq}")
         log.info(f"  Last rebalance:   {last_rb}")
         log.info("=" * 60)
+
+        # Runtime anomaly detector + email alerting
+        self._anomaly_detector = None
+        self._alert_manager = None
+        if config.get("monitoring", {}).get("enabled", True):
+            try:
+                self._anomaly_detector = AnomalyDetector(config)
+                self._alert_manager = AlertManager(config)
+                log.info("Runtime anomaly detector enabled (7 checks)")
+            except Exception as e:
+                log.warning(f"Anomaly detector failed to load: {e}")
 
         # Intraday Shock Detector
         self._isd = None
@@ -275,6 +288,10 @@ class LiveEngine:
         # Check circuit breakers
         account = self.broker.get_account()
 
+        # Record equity for anomaly detector (every cycle, even if skipped)
+        if self._anomaly_detector is not None:
+            self._anomaly_detector.record_equity(account.equity)
+
         # ── Intraday shock check (every loop iteration) ───────────────────────
         isd_scale = 1.0
         if self._isd is not None:
@@ -371,6 +388,11 @@ class LiveEngine:
             log.error(f"Signal generation failed: {sig_err}", exc_info=True)
             return
         log.info(f"Signals: { {k: f'{v:+.3f}' for k, v in signals.items() if abs(v) > 0.05} }")
+
+        # Record signals for anomaly detector (flip-rate tracking)
+        if self._anomaly_detector is not None:
+            for sym, sig in signals.items():
+                self._anomaly_detector.record_signal(sym, sig)
 
         # Get current prices
         prices = {}
@@ -582,6 +604,15 @@ class LiveEngine:
                 f"FILLED → {sym} avg_px=${filled.avg_fill_price:.4f} status={filled.status.value}"
             )
 
+            # Record order for anomaly detector
+            if self._anomaly_detector is not None:
+                self._anomaly_detector.record_order(
+                    symbol=sym,
+                    side=side.value,
+                    qty=qty_abs,
+                    price=filled.avg_fill_price or prices.get(sym, 0),
+                )
+
         # Set stop losses for open positions
         updated_positions = self.broker.get_positions()
         for sym, pos in updated_positions.items():
@@ -590,6 +621,42 @@ class LiveEngine:
                 stop_price = prices.get(sym, 0) - sl_dist
                 if stop_price > 0:
                     log.info(f"Stop-loss {sym}: ${stop_price:.4f}")
+
+        # ── Runtime anomaly checks ─────────────────────────────────────
+        if self._anomaly_detector is not None:
+            try:
+                # Build portfolio weights from current positions for HHI check
+                portfolio_weights = {}
+                if equity > 0:
+                    for sym, pos in updated_positions.items():
+                        pos_qty = float(pos.get("quantity", 0))
+                        pos_price = prices.get(sym, 0)
+                        if pos_qty > 0 and pos_price > 0:
+                            portfolio_weights[sym] = (pos_qty * pos_price) / equity
+
+                results = self._anomaly_detector.run_checks(
+                    portfolio_weights=portfolio_weights,
+                    portfolio_value=equity,
+                )
+                failed = self._anomaly_detector.get_failed_checks(results)
+                if failed:
+                    log.warning(f"[ANOMALY] Failed checks: {failed}")
+                    report = self._anomaly_detector.generate_report(
+                        results,
+                        account_snapshot={
+                            "equity": account.equity,
+                            "cash": account.cash,
+                            "open_positions": len(updated_positions),
+                        },
+                    )
+                    if self._alert_manager is not None:
+                        self._alert_manager.process_report(report)
+                elif self._alert_manager is not None:
+                    # Check for recoveries even when all checks pass
+                    report = self._anomaly_detector.generate_report(results)
+                    self._alert_manager.process_report(report)
+            except Exception as _anom_err:
+                log.debug(f"Anomaly check failed: {_anom_err}")
 
         self._last_rebalance = now
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")

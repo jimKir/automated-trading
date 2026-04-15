@@ -64,7 +64,7 @@ market-data = "market_data.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "regime*", "strategy*", "execution*", "risk*", "data*", "backtest*", "utils*", "config*", "flows*", "models*"]
+include = ["core*", "regime*", "strategy*", "execution*", "risk*", "data*", "backtest*", "utils*", "config*", "flows*", "models*", "monitoring*"]
 exclude = ["venv*", ".venv*", "tests*", "*.egg-info*", "results*", "diagnostics*"]
 
 # ============================================================

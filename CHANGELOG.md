@@ -2,6 +2,53 @@
 
 All notable changes to the automated-trading system are documented here.
 
+## [2026-04-15] — Runtime anomaly detector with 7 statistical checks + email alerting
+
+### New: `monitoring/anomaly_detector.py`
+
+Runtime anomaly detector that monitors trading behaviour with 7 statistical health
+checks, running each cycle (~60s). Designed to catch crash-loop bugs, excessive
+churn, and risk-limit breaches before they cause real damage.
+
+**7 anomaly checks:**
+1. **Order Frequency Z-score** (z > 3.0) — detects burst ordering from crash-loops
+2. **Daily Portfolio Turnover** (> 1.0) — catches churn for a swing/position trader
+3. **Round-Trip Detection** (> 2 per symbol/hour) — catches buy-sell flipping
+4. **Signal Flip Rate** (> 3 flips per symbol/24h) — catches unstable signals
+5. **Drawdown Velocity** (> 2% per hour) — catches cascading losses
+6. **Position Concentration HHI** (> 0.25) — catches allocation bugs
+7. **Duplicate Order Detection** (same sym+side+qty within 5 min) — catches ECS overlap
+
+All thresholds are configurable via the `monitoring` section in config.yaml.
+
+### New: `monitoring/alerting.py`
+
+Email alerting via stdlib `smtplib` + `email.mime` (no external deps):
+- HTML formatted alert emails with failed checks, account snapshot, version, recent orders
+- SMTP config via env vars: `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`, `ALERT_SMTP_USER`,
+  `ALERT_SMTP_PASS`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO`
+- Alert throttling: max 1 email per anomaly type per hour (configurable cooldown)
+- Recovery emails when checks pass after failing
+- Graceful no-op when SMTP is not configured
+
+### Modified: `execution/live_engine.py`
+
+- Init `AnomalyDetector` and `AlertManager` in `__init__` (skip gracefully if disabled)
+- Record equity, signals, and orders during `_trading_cycle` for anomaly tracking
+- Run all 7 checks after each trading cycle
+- On anomaly: generate structured health report and send alert email
+- On recovery: send RESOLVED email
+
+### Tests (30+ in `tests/test_anomaly_detector.py`)
+
+- Each of the 7 checks tested individually (pass + fail cases)
+- Alert throttling: second alert within cooldown is suppressed
+- Recovery email: sent when checks pass after failing
+- Graceful behaviour: no crash when SMTP not configured
+- Config loading: default thresholds, custom overrides, env var precedence
+
+---
+
 ## [2026-04-15] — Startup instance guard + version stamping
 
 ### Feature 1: Startup Instance Guard
