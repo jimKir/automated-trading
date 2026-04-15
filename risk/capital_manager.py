@@ -20,8 +20,8 @@ class CapitalManager:
 
     def __init__(
         self,
-        hedge_reserve_pct: float = 0.20,
-        min_cash_pct: float = 0.05,
+        hedge_reserve_pct: float = 0.05,
+        min_cash_pct: float = 0.03,
         max_single_order_pct: float = 0.15,
     ):
         self.hedge_reserve_pct = hedge_reserve_pct

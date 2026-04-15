@@ -2,6 +2,19 @@
 
 All notable changes to the automated-trading system are documented here.
 
+## [2026-04-16] — Tune capital management to 92% deployed
+
+OOS backtest comparison showed 92% deployed (5% hedge reserve + 3% min cash floor)
+is the optimal tradeoff: only -0.026 Sharpe vs baseline while shaving 0.63pp off
+max drawdown. Updated `config/config.yaml` and `risk/capital_manager.py` defaults.
+
+| Metric | 100% | 92% | 75% | SPY |
+|--------|------|-----|-----|-----|
+| Sharpe | 3.005 | 2.979 | 2.936 | 2.193 |
+| CAGR | 58.1% | 53.0% | 42.5% | 29.1% |
+| Max DD | -7.0% | -6.4% | -5.0% | -8.9% |
+| Calmar | 8.31 | 8.33 | 8.50 | 3.28 |
+
 ## [2026-04-15] — Capital management layer: buying power validation, hedge reserve, deployed ratio monitoring
 
 ### New: `risk/capital_manager.py`

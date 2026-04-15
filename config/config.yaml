@@ -76,8 +76,8 @@ features:
 
 capital:
   initial_equity: 25000
-  hedge_reserve_pct: 0.20
-  min_cash_pct: 0.05
+  hedge_reserve_pct: 0.05
+  min_cash_pct: 0.03
   max_portfolio_heat: 0.40
 
 quality:
