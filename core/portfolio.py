@@ -52,6 +52,12 @@ class Portfolio:
         self._equity_curve_dates: list = []
         self.cost_model = CostModel(config)
         self._config = config
+        # Hedge reserve — enforced in backtest buy path so OOS results
+        # match live CapitalManager constraints.
+        self._hedge_reserve_pct: float = config.get("capital", {}).get(
+            "hedge_reserve_pct", 0.20
+        )
+        self._min_cash_pct: float = config.get("capital", {}).get("min_cash_pct", 0.05)
         # Futures roll tracking
         self._last_roll_date: dict[str, pd.Timestamp] = {}
         # Optional optimizer
@@ -221,17 +227,24 @@ class Portfolio:
             notional + tx_cost if is_buy else -(notional - tx_cost)
         )  # negative = cash inflow minus costs
 
-        # Check cash sufficiency for buys
-        if is_buy and total_debit > self.cash:
-            max_affordable = self.cash / (1 + tx_cost / notional) if notional > 0 else 0
-            quantity = max_affordable / price
-            if quantity < 1e-8:
-                log.debug(f"[{symbol}] Insufficient cash — order skipped")
-                return None
-            notional = abs(quantity * price)
-            cost_breakdown = self.cost_model.transaction_cost(symbol, notional, is_buy)
-            tx_cost = cost_breakdown.total_transaction
-            total_debit = notional + tx_cost
+        # Check cash sufficiency for buys (enforce hedge reserve + min cash floor)
+        if is_buy:
+            eq = self.equity
+            reserve = eq * self._hedge_reserve_pct + eq * self._min_cash_pct
+            usable_cash = max(self.cash - reserve, 0.0)
+
+            if total_debit > usable_cash:
+                max_affordable = (
+                    usable_cash / (1 + tx_cost / notional) if notional > 0 else 0
+                )
+                quantity = max_affordable / price
+                if quantity < 1e-8:
+                    log.debug(f"[{symbol}] Insufficient cash after hedge reserve — order skipped")
+                    return None
+                notional = abs(quantity * price)
+                cost_breakdown = self.cost_model.transaction_cost(symbol, notional, is_buy)
+                tx_cost = cost_breakdown.total_transaction
+                total_debit = notional + tx_cost
 
         self.cash -= total_debit
 

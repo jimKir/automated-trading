@@ -27,6 +27,7 @@ from core.portfolio import Portfolio
 from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from risk.manager import RiskManager
+from risk.capital_manager import CapitalManager
 from strategy.signals import SignalGenerator
 from monitoring.alerting import AlertManager
 from monitoring.anomaly_detector import AnomalyDetector
@@ -98,6 +99,11 @@ class LiveEngine:
         self.feed = DataFeed(config)
         self.signal_gen = SignalGenerator(config)
         self.risk_mgr = RiskManager(config)
+        self._capital_mgr = CapitalManager(
+            hedge_reserve_pct=config.get("capital", {}).get("hedge_reserve_pct", 0.20),
+            min_cash_pct=config.get("capital", {}).get("min_cash_pct", 0.05),
+            max_single_order_pct=config.get("risk", {}).get("max_position_pct", 0.15),
+        )
 
         # Vol-engine for per-symbol position sizing (priority: vol_engine > H2O > EWMA)
         self._vol_engine = None
@@ -291,6 +297,9 @@ class LiveEngine:
         # Record equity for anomaly detector (every cycle, even if skipped)
         if self._anomaly_detector is not None:
             self._anomaly_detector.record_equity(account.equity)
+
+        # Snapshot capital at cycle start
+        self._capital_mgr.begin_cycle(account)
 
         # ── Intraday shock check (every loop iteration) ───────────────────────
         isd_scale = 1.0
@@ -560,6 +569,19 @@ class LiveEngine:
                 log.warning(f"CLAMP {sym}: qty {qty_abs:.1f} → {max_shares} (max_order_shares)")
                 qty_abs = max_shares
 
+            # ── Capital management validation ───────────────────────────
+            approved, adj_qty, cap_reason = self._capital_mgr.validate_order(
+                sym, side.value, qty_abs, prices[sym]
+            )
+            if not approved:
+                log.warning(f"CAPITAL SKIP → {sym}: {cap_reason}")
+                continue
+            if adj_qty != qty_abs:
+                log.info(
+                    f"CAPITAL ADJUST → {sym}: qty {qty_abs:.4f} → {adj_qty:.4f} ({cap_reason})"
+                )
+                qty_abs = adj_qty
+
             order = Order(
                 symbol=sym,
                 side=side,
@@ -637,7 +659,9 @@ class LiveEngine:
                 results = self._anomaly_detector.run_checks(
                     portfolio_weights=portfolio_weights,
                     portfolio_value=equity,
+                    capital_health=self._capital_mgr.check_capital_health(),
                 )
+
                 failed = self._anomaly_detector.get_failed_checks(results)
                 if failed:
                     log.warning(f"[ANOMALY] Failed checks: {failed}")
@@ -657,6 +681,14 @@ class LiveEngine:
                     self._alert_manager.process_report(report)
             except Exception as _anom_err:
                 log.debug(f"Anomaly check failed: {_anom_err}")
+
+        # Log capital status at end of cycle
+        cap_status = self._capital_mgr.get_capital_status()
+        log.info(
+            f"[CAPITAL] deployed={cap_status['deployed_pct']:.1%} "
+            f"committed=${cap_status['cycle_committed']:,.2f} "
+            f"remaining=${cap_status['remaining_this_cycle']:,.2f}"
+        )
 
         self._last_rebalance = now
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")

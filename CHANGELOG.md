@@ -2,6 +2,78 @@
 
 All notable changes to the automated-trading system are documented here.
 
+## [2026-04-15] — Capital management layer: buying power validation, hedge reserve, deployed ratio monitoring
+
+### New: `risk/capital_manager.py`
+
+CapitalManager class that validates buying power before each order, enforces a
+cash reserve for hedging, and monitors deployed-vs-available ratio.
+
+**Core features:**
+- **Hedge reserve enforcement**: 20% of equity reserved for protective puts (configurable)
+- **Minimum cash floor**: 5% absolute minimum cash (configurable)
+- **Per-order validation**: BUY orders checked against available capital; SELLs always approved
+- **Max single order cap**: No single order exceeds `max_single_order_pct` of equity (default 15%)
+- **Cycle committed tracking**: Cumulative $ committed per cycle prevents over-commitment
+- **Partial fill support**: When full order unaffordable, adjusts quantity down to what's available
+
+**Methods:**
+- `begin_cycle(account)` — snapshots capital at cycle start, computes available_for_trading
+- `validate_order(sym, side, qty, price)` → `(approved, adjusted_qty, reason)`
+- `get_capital_status()` — full capital breakdown (deployed %, cash %, remaining)
+- `check_capital_health()` — 3 anomaly checks for integration with AnomalyDetector
+
+### Modified: `execution/live_engine.py`
+
+- Init `CapitalManager` in `__init__` from config (`capital.hedge_reserve_pct`, `capital.min_cash_pct`, `risk.max_position_pct`)
+- Call `begin_cycle()` at start of every `_trading_cycle()` (after account fetch)
+- Call `validate_order()` before each BUY order — skip or adjust quantity
+- Feed `check_capital_health()` results into `AnomalyDetector.run_checks()` via new `capital_health` parameter
+- Log capital status (deployed %, committed, remaining) at end of each cycle
+
+### Modified: `core/portfolio.py`
+
+- Extended `execute_order()` cash sufficiency check to enforce hedge reserve + min cash floor
+- BUY orders in backtest now limited to `cash - (equity * hedge_reserve_pct) - (equity * min_cash_pct)`
+- Ensures OOS backtest results match live CapitalManager constraints
+- Config: `capital.hedge_reserve_pct` (default 0.20), `capital.min_cash_pct` (default 0.05)
+
+### Modified: `monitoring/anomaly_detector.py`
+
+- `run_checks()` now accepts optional `capital_health` parameter (list of dicts from CapitalManager)
+- 3 new checks injected alongside existing 7:
+  - `cash_below_hedge_reserve` — FAIL when cash < equity × hedge_reserve_pct
+  - `cash_below_min_floor` — FAIL when cash < equity × min_cash_pct
+  - `deployed_ratio_extreme` — FAIL when >95% of capital deployed (no dry powder)
+- Failed capital checks trigger email alerts via existing AlertManager pipeline
+
+### Config: `config/config.yaml`
+
+New `capital` section:
+```yaml
+capital:
+  initial_equity: 25000
+  hedge_reserve_pct: 0.20
+  min_cash_pct: 0.05
+  max_portfolio_heat: 0.40
+```
+
+### Tests (32 in `tests/test_capital_manager.py`)
+
+- `TestBeginCycle` — snapshots, reset, dict support, never-negative available (4 tests)
+- `TestValidateOrderSell` — always approved, no committed impact, case insensitive (3 tests)
+- `TestValidateOrderApprove` — normal buy, committed updates (2 tests)
+- `TestValidateOrderReject` — exhausted capital, zero available (2 tests)
+- `TestValidateOrderAdjust` — partial affordability, max_single_order respect (2 tests)
+- `TestMaxSingleOrder` — clamping (1 test)
+- `TestCycleCommitted` — accumulation, eventual rejection, sell passthrough (3 tests)
+- `TestGetCapitalStatus` — all keys, deployed %, cash %, remaining updates (4 tests)
+- `TestCheckCapitalHealth` — all pass, hedge reserve fail, min floor fail, deployed extreme, boundary, structure (6 tests)
+- `TestIntegrationCycle` — multi-order over-commitment prevention, mixed buy/sell (2 tests)
+- `TestEdgeCases` — zero equity, zero price, very small order (3 tests)
+
+---
+
 ## [2026-04-15] — Runtime anomaly detector with 7 statistical checks + email alerting
 
 ### New: `monitoring/anomaly_detector.py`

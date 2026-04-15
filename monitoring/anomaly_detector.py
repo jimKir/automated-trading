@@ -117,8 +117,15 @@ class AnomalyDetector:
         self,
         portfolio_weights: dict[str, float] | None = None,
         portfolio_value: float | None = None,
+        capital_health: list[dict] | None = None,
     ) -> dict[str, dict[str, Any]]:
-        """Run all 7 anomaly checks.
+        """Run all anomaly checks (7 behavioural + up to 3 capital health).
+
+        Parameters
+        ----------
+        capital_health : list[dict], optional
+            Output of ``CapitalManager.check_capital_health()``.
+            Each entry: ``{"check": str, "value": float, "threshold": float, "status": str}``
 
         Returns dict of check_name -> {value, threshold, status} for ALL checks.
         """
@@ -133,6 +140,16 @@ class AnomalyDetector:
         results["max_hourly_drawdown_pct"] = self._check_drawdown_velocity()
         results["portfolio_hhi"] = self._check_concentration(portfolio_weights)
         results["duplicate_orders_5min"] = self._check_duplicate_orders()
+
+        # Capital health checks (injected by LiveEngine from CapitalManager)
+        if capital_health:
+            for ch in capital_health:
+                results[ch["check"]] = {
+                    "value": ch["value"],
+                    "threshold": ch["threshold"],
+                    "status": ch["status"],
+                }
+
         return results
 
     def get_failed_checks(self, results: dict[str, dict[str, Any]]) -> list[str]:

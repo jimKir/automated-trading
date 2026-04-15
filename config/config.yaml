@@ -74,6 +74,12 @@ features:
       type: atr
   version: "1.0.0"
 
+capital:
+  initial_equity: 25000
+  hedge_reserve_pct: 0.20
+  min_cash_pct: 0.05
+  max_portfolio_heat: 0.40
+
 quality:
   completeness_threshold: 0.995
   outlier_std_threshold: 10
