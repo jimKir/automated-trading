@@ -363,10 +363,12 @@ class TestRebalanceCadence:
             "brokers": {"alpaca": {"api_key": "", "api_secret": ""}},
         }
 
-        with patch("execution.live_engine.get_broker") as mock_gb, \
-             patch("execution.live_engine.DataFeed"), \
-             patch("execution.live_engine.SignalGenerator"), \
-             patch("execution.live_engine.RiskManager"):
+        with (
+            patch("execution.live_engine.get_broker") as mock_gb,
+            patch("execution.live_engine.DataFeed"),
+            patch("execution.live_engine.SignalGenerator"),
+            patch("execution.live_engine.RiskManager"),
+        ):
             mock_broker = MagicMock()
             mock_broker.get_last_filled_order_time = MagicMock(return_value=last_rebalance)
             mock_gb.return_value = mock_broker
@@ -427,36 +429,38 @@ class TestGetLastFilledOrderTime:
     """Verify get_last_filled_order_time returns correct timestamps."""
 
     def test_returns_filled_at_from_most_recent_order(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         broker = _make_broker()
         mock_order = MagicMock()
-        mock_order.filled_at = datetime(2026, 4, 14, 20, 30, 0, tzinfo=timezone.utc)
+        mock_order.filled_at = datetime(2026, 4, 14, 20, 30, 0, tzinfo=UTC)
 
-        with patch.dict("sys.modules", {
-            "alpaca.trading.enums": MagicMock(
-                QueryOrderStatus=MagicMock(CLOSED="closed")
-            ),
-            "alpaca.trading.requests": MagicMock(),
-            "alpaca": MagicMock(),
-            "alpaca.trading": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "alpaca.trading.enums": MagicMock(QueryOrderStatus=MagicMock(CLOSED="closed")),
+                "alpaca.trading.requests": MagicMock(),
+                "alpaca": MagicMock(),
+                "alpaca.trading": MagicMock(),
+            },
+        ):
             broker.trading_client.get_orders = MagicMock(return_value=[mock_order])
             result = broker.get_last_filled_order_time()
 
-        assert result == datetime(2026, 4, 14, 20, 30, 0, tzinfo=timezone.utc)
+        assert result == datetime(2026, 4, 14, 20, 30, 0, tzinfo=UTC)
 
     def test_returns_none_when_no_orders(self):
         broker = _make_broker()
 
-        with patch.dict("sys.modules", {
-            "alpaca.trading.enums": MagicMock(
-                QueryOrderStatus=MagicMock(CLOSED="closed")
-            ),
-            "alpaca.trading.requests": MagicMock(),
-            "alpaca": MagicMock(),
-            "alpaca.trading": MagicMock(),
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "alpaca.trading.enums": MagicMock(QueryOrderStatus=MagicMock(CLOSED="closed")),
+                "alpaca.trading.requests": MagicMock(),
+                "alpaca": MagicMock(),
+                "alpaca.trading": MagicMock(),
+            },
+        ):
             broker.trading_client.get_orders = MagicMock(return_value=[])
             result = broker.get_last_filled_order_time()
 
@@ -464,9 +468,7 @@ class TestGetLastFilledOrderTime:
 
     def test_returns_none_on_exception(self):
         broker = _make_broker()
-        broker.trading_client.get_orders = MagicMock(
-            side_effect=Exception("API error")
-        )
+        broker.trading_client.get_orders = MagicMock(side_effect=Exception("API error"))
 
         result = broker.get_last_filled_order_time()
         assert result is None

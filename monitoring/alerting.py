@@ -165,9 +165,9 @@ class AlertManager:
         return f"""
         <html><body style="font-family:monospace;font-size:14px;color:#222;">
         <h2 style="color:#d32f2f;">Trading Anomaly Detected</h2>
-        <p><b>Time:</b> {report.get('timestamp', '')}</p>
+        <p><b>Time:</b> {report.get("timestamp", "")}</p>
         <p><b>Version:</b> {version}</p>
-        <p><b>Failed checks:</b> {', '.join(new_failures)}</p>
+        <p><b>Failed checks:</b> {", ".join(new_failures)}</p>
 
         <h3>Health Check Results</h3>
         <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
@@ -204,11 +204,11 @@ class AlertManager:
         return f"""
         <html><body style="font-family:monospace;font-size:14px;color:#222;">
         <h2 style="color:#388e3c;">Trading Anomaly Resolved</h2>
-        <p><b>Time:</b> {report.get('timestamp', '')}</p>
+        <p><b>Time:</b> {report.get("timestamp", "")}</p>
         <p><b>Version:</b> {version}</p>
-        <p><b>Recovered checks:</b> {', '.join(recovered)}</p>
+        <p><b>Recovered checks:</b> {", ".join(recovered)}</p>
         <p>The following checks have returned to normal:
-        <b>{', '.join(recovered)}</b></p>
+        <b>{", ".join(recovered)}</b></p>
         <hr><p style="color:#888;font-size:12px;">
         Automated alert from trading bot v{version}
         </p></body></html>

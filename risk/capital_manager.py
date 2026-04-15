@@ -63,9 +63,7 @@ class CapitalManager:
 
         self.hedge_reserve = self.equity * self.hedge_reserve_pct
         self.min_cash_floor = self.equity * self.min_cash_pct
-        self.available_for_trading = max(
-            self.cash - self.hedge_reserve - self.min_cash_floor, 0.0
-        )
+        self.available_for_trading = max(self.cash - self.hedge_reserve - self.min_cash_floor, 0.0)
         self.cycle_committed = 0.0
 
         log.info(
@@ -149,9 +147,7 @@ class CapitalManager:
             "min_cash_floor": self.min_cash_floor,
             "available_for_trading": self.available_for_trading,
             "cycle_committed": self.cycle_committed,
-            "remaining_this_cycle": max(
-                self.available_for_trading - self.cycle_committed, 0.0
-            ),
+            "remaining_this_cycle": max(self.available_for_trading - self.cycle_committed, 0.0),
             "deployed_pct": (deployed / self.equity) if self.equity > 0 else 0.0,
             "cash_pct": (self.cash / self.equity) if self.equity > 0 else 0.0,
         }
@@ -185,9 +181,7 @@ class CapitalManager:
         )
 
         # 3. Deployed ratio extreme (> 95%)
-        deployed_pct = (
-            (self.equity - self.cash) / self.equity if self.equity > 0 else 0.0
-        )
+        deployed_pct = (self.equity - self.cash) / self.equity if self.equity > 0 else 0.0
         results.append(
             {
                 "check": "deployed_ratio_extreme",

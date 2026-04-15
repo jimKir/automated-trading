@@ -16,14 +16,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from execution.broker_base import Order, OrderSide, OrderStatus, OrderType
 from execution.live_engine import LiveEngine
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -48,10 +45,12 @@ def _make_engine(rebalance_freq="adaptive", last_fill_time=None):
         "brokers": {"alpaca": {"api_key": "", "api_secret": ""}},
     }
 
-    with patch("execution.live_engine.get_broker") as mock_gb, \
-         patch("execution.live_engine.DataFeed"), \
-         patch("execution.live_engine.SignalGenerator"), \
-         patch("execution.live_engine.RiskManager"):
+    with (
+        patch("execution.live_engine.get_broker") as mock_gb,
+        patch("execution.live_engine.DataFeed"),
+        patch("execution.live_engine.SignalGenerator"),
+        patch("execution.live_engine.RiskManager"),
+    ):
         mock_broker = MagicMock()
         mock_broker.get_last_filled_order_time = MagicMock(return_value=last_fill_time)
         mock_broker.get_open_orders = MagicMock(return_value=[])
@@ -142,8 +141,11 @@ class TestConcurrentInstanceProtection:
         shared_broker.get_open_orders = MagicMock(side_effect=get_open_orders_fn)
 
         filled_order = Order(
-            symbol="GLD", side=OrderSide.BUY, quantity=10,
-            status=OrderStatus.FILLED, avg_fill_price=180.0,
+            symbol="GLD",
+            side=OrderSide.BUY,
+            quantity=10,
+            status=OrderStatus.FILLED,
+            avg_fill_price=180.0,
         )
         shared_broker.place_order = MagicMock(return_value=filled_order)
 
@@ -183,8 +185,11 @@ class TestConcurrentInstanceProtection:
         mock_broker.get_open_orders = MagicMock(side_effect=get_open_orders_fn)
 
         filled_order = Order(
-            symbol="GLD", side=OrderSide.BUY, quantity=10,
-            status=OrderStatus.FILLED, avg_fill_price=180.0,
+            symbol="GLD",
+            side=OrderSide.BUY,
+            quantity=10,
+            status=OrderStatus.FILLED,
+            avg_fill_price=180.0,
         )
         mock_broker.place_order = MagicMock(return_value=filled_order)
 
@@ -204,8 +209,13 @@ class TestConcurrentInstanceProtection:
 
             # After first placement, order shows as open/pending
             open_orders_state.append(
-                {"order_id": f"order-{attempt}", "symbol": "GLD", "side": "buy",
-                 "qty": 10, "status": "new"}
+                {
+                    "order_id": f"order-{attempt}",
+                    "symbol": "GLD",
+                    "side": "buy",
+                    "qty": 10,
+                    "status": "new",
+                }
             )
 
         assert place_count == 1
@@ -219,14 +229,24 @@ class TestConcurrentInstanceProtection:
         # GLD has an open order, XLE does not
         def get_open_orders_fn(symbol):
             if symbol == "GLD":
-                return [{"order_id": "gld-1", "symbol": "GLD", "side": "buy",
-                         "qty": 10, "status": "new"}]
+                return [
+                    {
+                        "order_id": "gld-1",
+                        "symbol": "GLD",
+                        "side": "buy",
+                        "qty": 10,
+                        "status": "new",
+                    }
+                ]
             return []
 
         mock_broker.get_open_orders = MagicMock(side_effect=get_open_orders_fn)
         filled_order = Order(
-            symbol="XLE", side=OrderSide.BUY, quantity=5,
-            status=OrderStatus.FILLED, avg_fill_price=90.0,
+            symbol="XLE",
+            side=OrderSide.BUY,
+            quantity=5,
+            status=OrderStatus.FILLED,
+            avg_fill_price=90.0,
         )
         mock_broker.place_order = MagicMock(return_value=filled_order)
 
@@ -256,8 +276,11 @@ class TestConcurrentInstanceProtection:
         # Second call: still no open orders (previous filled) → allowed
         mock_broker.get_open_orders = MagicMock(return_value=[])
         filled_order = Order(
-            symbol="GLD", side=OrderSide.BUY, quantity=10,
-            status=OrderStatus.FILLED, avg_fill_price=180.0,
+            symbol="GLD",
+            side=OrderSide.BUY,
+            quantity=10,
+            status=OrderStatus.FILLED,
+            avg_fill_price=180.0,
         )
         mock_broker.place_order = MagicMock(return_value=filled_order)
 
@@ -267,8 +290,9 @@ class TestConcurrentInstanceProtection:
             same_side = [o for o in existing if o.get("side") == "buy"]
             if same_side:
                 continue
-            order = Order(symbol="GLD", side=OrderSide.BUY, quantity=10,
-                          order_type=OrderType.MARKET)
+            order = Order(
+                symbol="GLD", side=OrderSide.BUY, quantity=10, order_type=OrderType.MARKET
+            )
             mock_broker.place_order(order)
             place_count += 1
 
@@ -325,6 +349,7 @@ class TestEndToEndTradingCycleGuards:
 
         # Mock data feed to return price data for one symbol
         import pandas as pd
+
         price_series = pd.Series(
             [180.0] * 252,
             index=pd.date_range(end=datetime.now(UTC), periods=252, freq="B"),
@@ -338,10 +363,17 @@ class TestEndToEndTradingCycleGuards:
         engine.signal_gen.compute_stop_loss = MagicMock(return_value=5.0)
 
         # Broker has an open BUY for GLD → dedup guard should trigger
-        engine.broker.get_open_orders = MagicMock(return_value=[
-            {"order_id": "existing-1", "symbol": "GLD", "side": "buy",
-             "qty": 10, "status": "new"}
-        ])
+        engine.broker.get_open_orders = MagicMock(
+            return_value=[
+                {
+                    "order_id": "existing-1",
+                    "symbol": "GLD",
+                    "side": "buy",
+                    "qty": 10,
+                    "status": "new",
+                }
+            ]
+        )
 
         with caplog.at_level(logging.WARNING, logger="LiveEngine"):
             engine._trading_cycle()
@@ -349,7 +381,6 @@ class TestEndToEndTradingCycleGuards:
         # Verify DEDUP SKIP was logged
         dedup_messages = [r for r in caplog.records if "DEDUP SKIP" in r.message]
         assert len(dedup_messages) >= 1, (
-            f"Expected DEDUP SKIP log message, got: "
-            f"{[r.message for r in caplog.records]}"
+            f"Expected DEDUP SKIP log message, got: {[r.message for r in caplog.records]}"
         )
         engine.broker.place_order.assert_not_called()

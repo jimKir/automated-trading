@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import os
 import time
+from datetime import datetime
 
 from execution.broker_base import AccountInfo, BrokerBase, Order, OrderSide, OrderStatus
 from utils.logger import get_logger
@@ -304,15 +305,13 @@ class AlpacaBroker(BrokerBase):
             pass
         return dict.fromkeys(symbols, 0.0)
 
-    def get_last_filled_order_time(self) -> "datetime | None":
+    def get_last_filled_order_time(self) -> datetime | None:
         """Return the timestamp of the most recent filled order, or None.
 
         Used by LiveEngine to seed _last_rebalance so the adaptive cadence
         survives ECS container restarts without external storage.
         """
         try:
-            from datetime import datetime
-
             from alpaca.trading.enums import QueryOrderStatus
             from alpaca.trading.requests import GetOrdersRequest
 

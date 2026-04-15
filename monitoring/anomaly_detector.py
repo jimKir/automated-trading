@@ -191,8 +191,7 @@ class AnomalyDetector:
         # Compute inter-order intervals in seconds
         sorted_ts = sorted(recent)
         intervals = [
-            (sorted_ts[i + 1] - sorted_ts[i]).total_seconds()
-            for i in range(len(sorted_ts) - 1)
+            (sorted_ts[i + 1] - sorted_ts[i]).total_seconds() for i in range(len(sorted_ts) - 1)
         ]
 
         if not intervals:
@@ -243,7 +242,7 @@ class AnomalyDetector:
             per_symbol[o["symbol"]].append(o["side"])
 
         max_rt = 0
-        for sym, sides in per_symbol.items():
+        for sides in per_symbol.values():
             # Count direction changes as round-trips
             flips = 0
             for i in range(1, len(sides)):
@@ -262,7 +261,7 @@ class AnomalyDetector:
         cutoff = now - timedelta(hours=_SIGNAL_WINDOW_HOURS)
 
         max_flips = 0
-        for sym, history in self._signal_history.items():
+        for history in self._signal_history.values():
             recent = [(ts, v) for ts, v in history if ts >= cutoff]
             if len(recent) < 2:
                 continue
@@ -315,7 +314,7 @@ class AnomalyDetector:
 
         # Normalise weights then compute HHI
         normed = [abs(w) / total for w in weights.values()]
-        hhi = sum(w ** 2 for w in normed)
+        hhi = sum(w**2 for w in normed)
 
         status = "FAIL" if hhi > threshold else "PASS"
         return {"value": round(hhi, 4), "threshold": threshold, "status": status}

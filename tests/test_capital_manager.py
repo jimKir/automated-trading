@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from risk.capital_manager import CapitalManager
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -146,7 +145,7 @@ class TestValidateOrderReject:
         cm = CapitalManager(hedge_reserve_pct=0.50, min_cash_pct=0.10)
         cm.begin_cycle(_make_account(equity=100_000, cash=10_000))
         # available = 0 (cash < reserves)
-        approved, qty, reason = cm.validate_order("AAPL", "BUY", 1, 50.0)
+        approved, _qty, _reason = cm.validate_order("AAPL", "BUY", 1, 50.0)
         assert approved is False
 
 
@@ -157,9 +156,7 @@ class TestValidateOrderReject:
 
 class TestValidateOrderAdjust:
     def test_buy_adjusted_when_partially_affordable(self):
-        cm = CapitalManager(
-            hedge_reserve_pct=0.20, min_cash_pct=0.05, max_single_order_pct=1.0
-        )
+        cm = CapitalManager(hedge_reserve_pct=0.20, min_cash_pct=0.05, max_single_order_pct=1.0)
         cm.begin_cycle(_make_account(equity=100_000, cash=40_000))
         # available = 15_000, max_single = 100k (effectively uncapped)
         # Try to buy 200 shares at $100 = $20_000 > 15_000
@@ -171,14 +168,12 @@ class TestValidateOrderAdjust:
 
     def test_adjusted_qty_respects_max_single_order(self):
         """When adjusting down, the max_single_order cap should still apply."""
-        cm = CapitalManager(
-            hedge_reserve_pct=0.10, min_cash_pct=0.05, max_single_order_pct=0.10
-        )
+        cm = CapitalManager(hedge_reserve_pct=0.10, min_cash_pct=0.05, max_single_order_pct=0.10)
         cm.begin_cycle(_make_account(equity=100_000, cash=100_000))
         # available = 100k - 10k - 5k = 85k
         # max_single = 10k
         # Try to buy 2000 @ $100 = 200k → clamped to 100 shares (10k)
-        approved, qty, reason = cm.validate_order("AAPL", "BUY", 2000, 100.0)
+        approved, qty, _reason = cm.validate_order("AAPL", "BUY", 2000, 100.0)
         assert approved is True
         assert qty == 100.0  # 10_000 / 100 = 100
 
@@ -190,12 +185,10 @@ class TestValidateOrderAdjust:
 
 class TestMaxSingleOrder:
     def test_clamp_to_max_single_order(self):
-        cm = CapitalManager(
-            hedge_reserve_pct=0.10, min_cash_pct=0.05, max_single_order_pct=0.10
-        )
+        cm = CapitalManager(hedge_reserve_pct=0.10, min_cash_pct=0.05, max_single_order_pct=0.10)
         cm.begin_cycle(_make_account(equity=100_000, cash=100_000))
         # max_single = 10k, try 200 @ $100 = 20k → clamped to 100 shares
-        approved, qty, reason = cm.validate_order("AAPL", "BUY", 200, 100.0)
+        approved, qty, _reason = cm.validate_order("AAPL", "BUY", 200, 100.0)
         assert approved is True
         assert qty == 100.0
         assert cm.cycle_committed == 10_000.0
@@ -211,17 +204,17 @@ class TestCycleCommitted:
         cm = CapitalManager(hedge_reserve_pct=0.10, min_cash_pct=0.05)
         cm.begin_cycle(_make_account(equity=100_000, cash=50_000))
         # available = 35k
-        cm.validate_order("AAPL", "BUY", 100, 100.0)   # 10k
-        cm.validate_order("MSFT", "BUY", 50, 200.0)     # 10k
-        cm.validate_order("GOOGL", "BUY", 50, 100.0)    # 5k
+        cm.validate_order("AAPL", "BUY", 100, 100.0)  # 10k
+        cm.validate_order("MSFT", "BUY", 50, 200.0)  # 10k
+        cm.validate_order("GOOGL", "BUY", 50, 100.0)  # 5k
         assert cm.cycle_committed == 25_000.0
 
     def test_eventual_rejection_after_exhaustion(self):
         cm = CapitalManager(hedge_reserve_pct=0.20, min_cash_pct=0.05)
         cm.begin_cycle(_make_account(equity=100_000, cash=40_000))
         # available = 15k
-        cm.validate_order("AAPL", "BUY", 100, 100.0)   # 10k committed
-        cm.validate_order("MSFT", "BUY", 50, 100.0)     # 5k committed
+        cm.validate_order("AAPL", "BUY", 100, 100.0)  # 10k committed
+        cm.validate_order("MSFT", "BUY", 50, 100.0)  # 5k committed
         # Now exhausted (15k committed)
         approved, _, reason = cm.validate_order("GOOGL", "BUY", 10, 100.0)
         assert approved is False
@@ -245,9 +238,16 @@ class TestGetCapitalStatus:
         cm.begin_cycle(_make_account(equity=100_000, cash=40_000))
         status = cm.get_capital_status()
         expected_keys = {
-            "equity", "cash", "buying_power", "hedge_reserve", "min_cash_floor",
-            "available_for_trading", "cycle_committed", "remaining_this_cycle",
-            "deployed_pct", "cash_pct",
+            "equity",
+            "cash",
+            "buying_power",
+            "hedge_reserve",
+            "min_cash_floor",
+            "available_for_trading",
+            "cycle_committed",
+            "remaining_this_cycle",
+            "deployed_pct",
+            "cash_pct",
         }
         assert set(status.keys()) == expected_keys
 
@@ -344,11 +344,11 @@ class TestIntegrationCycle:
 
         # available = 40k - 20k - 5k = 15k
         orders = [
-            ("AAPL", "BUY", 50, 100.0),    # 5k — approved
-            ("MSFT", "BUY", 30, 200.0),     # 6k — approved
-            ("GOOGL", "BUY", 20, 150.0),    # 3k — approved (4k remaining, 3k fits)
-            ("TSLA", "BUY", 100, 300.0),    # 30k — remaining is 1k, price 300 → adjusted to ~3.33
-            ("NVDA", "BUY", 10, 500.0),     # 5k — remaining nearly 0, can't afford 1 share
+            ("AAPL", "BUY", 50, 100.0),  # 5k — approved
+            ("MSFT", "BUY", 30, 200.0),  # 6k — approved
+            ("GOOGL", "BUY", 20, 150.0),  # 3k — approved (4k remaining, 3k fits)
+            ("TSLA", "BUY", 100, 300.0),  # 30k — remaining is 1k, price 300 → adjusted to ~3.33
+            ("NVDA", "BUY", 10, 500.0),  # 5k — remaining nearly 0, can't afford 1 share
         ]
 
         results = []
@@ -405,12 +405,12 @@ class TestEdgeCases:
         cm = CapitalManager()
         cm.begin_cycle(_make_account(equity=100_000, cash=50_000))
         # Zero price → order_cost = 0, should be approved
-        approved, qty, reason = cm.validate_order("AAPL", "BUY", 100, 0.0)
+        approved, _qty, _reason = cm.validate_order("AAPL", "BUY", 100, 0.0)
         assert approved is True
 
     def test_very_small_order(self):
         cm = CapitalManager()
         cm.begin_cycle(_make_account(equity=100_000, cash=50_000))
-        approved, qty, reason = cm.validate_order("AAPL", "BUY", 0.001, 100.0)
+        approved, qty, _reason = cm.validate_order("AAPL", "BUY", 0.001, 100.0)
         assert approved is True
         assert qty == 0.001

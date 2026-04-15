@@ -12,16 +12,13 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from monitoring.alerting import AlertManager
 from monitoring.anomaly_detector import AnomalyDetector
-
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
@@ -391,7 +388,9 @@ class TestAlertThrottling:
             "timestamp": datetime.now(UTC).isoformat(),
             "version": "test",
             "status": "ANOMALY_DETECTED",
-            "checks": {"order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}},
+            "checks": {
+                "order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}
+            },
             "failed_checks": ["order_frequency_zscore"],
             "account_snapshot": {},
             "recent_orders": [],
@@ -421,7 +420,9 @@ class TestAlertThrottling:
             "timestamp": datetime.now(UTC).isoformat(),
             "version": "test",
             "status": "ANOMALY_DETECTED",
-            "checks": {"order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}},
+            "checks": {
+                "order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}
+            },
             "failed_checks": ["order_frequency_zscore"],
             "account_snapshot": {},
             "recent_orders": [],
@@ -456,7 +457,9 @@ class TestAlertThrottling:
             "timestamp": datetime.now(UTC).isoformat(),
             "version": "test",
             "status": "ANOMALY_DETECTED",
-            "checks": {"order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}},
+            "checks": {
+                "order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}
+            },
             "failed_checks": ["order_frequency_zscore"],
             "account_snapshot": {},
             "recent_orders": [],
@@ -502,7 +505,9 @@ class TestRecoveryEmails:
             "timestamp": datetime.now(UTC).isoformat(),
             "version": "test",
             "status": "HEALTHY",
-            "checks": {"order_frequency_zscore": {"value": 1.0, "threshold": 3.0, "status": "PASS"}},
+            "checks": {
+                "order_frequency_zscore": {"value": 1.0, "threshold": 3.0, "status": "PASS"}
+            },
             "failed_checks": [],
             "account_snapshot": {},
             "recent_orders": [],
@@ -559,7 +564,9 @@ class TestGracefulNoSMTP:
 
         report = {
             "failed_checks": ["order_frequency_zscore"],
-            "checks": {"order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}},
+            "checks": {
+                "order_frequency_zscore": {"value": 4.0, "threshold": 3.0, "status": "FAIL"}
+            },
         }
         result = mgr.send_alert(report)
         assert result is False

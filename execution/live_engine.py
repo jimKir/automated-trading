@@ -26,11 +26,11 @@ import pandas as pd
 from core.portfolio import Portfolio
 from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
-from risk.manager import RiskManager
-from risk.capital_manager import CapitalManager
-from strategy.signals import SignalGenerator
 from monitoring.alerting import AlertManager
 from monitoring.anomaly_detector import AnomalyDetector
+from risk.capital_manager import CapitalManager
+from risk.manager import RiskManager
+from strategy.signals import SignalGenerator
 from utils.logger import get_logger
 from version import __version__ as _bot_version
 
@@ -700,8 +700,7 @@ class LiveEngine:
                 count = self.broker.cancel_all_open_orders()
                 if count:
                     log.warning(
-                        f"[INSTANCE GUARD] Cleaned up {count} stale order(s) "
-                        f"from previous instance"
+                        f"[INSTANCE GUARD] Cleaned up {count} stale order(s) from previous instance"
                     )
             except Exception as exc:
                 log.warning(f"[INSTANCE GUARD] Stale order cleanup failed: {exc}")
