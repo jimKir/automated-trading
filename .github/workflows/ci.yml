@@ -597,6 +597,7 @@ jobs:
           aws ecs update-service \
             --cluster $CLUSTER \
             --service $SERVICE \
+            --desired-count 1 \
             --force-new-deployment \
             --region eu-north-1
           echo "Deployed production: $CLUSTER / $SERVICE @ ${{ github.sha }}"
