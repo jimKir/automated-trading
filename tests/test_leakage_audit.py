@@ -571,7 +571,9 @@ class TestCostModel:
         loop_body = script[loop_start:]
         # Cost subtraction should be in the loop body, before portfolio_value update
         cost_pos = loop_body.find("daily_pnl -= ANNUAL_COST / PERIODS_YEAR")
-        port_update_pos = loop_body.find("portfolio_value *= (1 + daily_pnl)")
+        port_update_pos = loop_body.find("portfolio_value *= 1 + daily_pnl")
+        assert cost_pos != -1, "Cost subtraction not found in daily loop"
+        assert port_update_pos != -1, "Portfolio value update not found in daily loop"
         assert cost_pos < port_update_pos, "Cost must be subtracted before portfolio value update"
 
 
