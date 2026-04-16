@@ -158,10 +158,19 @@ jobs:
 
       - name: Run health check
         run: |
-          python healthcheck.py --section 1  2>&1 || true  # Python env
-          python healthcheck.py --section 2  2>&1 || true  # Dependencies
-          python healthcheck.py --section 4  2>&1 || true  # Config files
-          python healthcheck.py --section 6  2>&1 || true  # Module imports
+          python -c "
+import json
+from healthcheck import run_checks
+checks = run_checks()
+passed = sum(1 for c in checks if c['status'] == 'PASS')
+failed = sum(1 for c in checks if c['status'] == 'FAIL')
+for c in checks:
+    icon = '✅' if c['status'] == 'PASS' else '❌'
+    print(f\"{icon} {c['message']}\")
+print(f'\nTotal: {passed} passed, {failed} failed out of {len(checks)}')
+if failed > 0:
+    raise SystemExit(1)
+"
 
       - name: Import smoke test — all key modules
         run: |
