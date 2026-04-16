@@ -569,6 +569,18 @@ class LiveEngine:
                 log.warning(f"CLAMP {sym}: qty {qty_abs:.1f} → {max_shares} (max_order_shares)")
                 qty_abs = max_shares
 
+            # ── SELL qty cap: never sell more than current holdings ────
+            if side == OrderSide.SELL:
+                held_qty = float(curr_pos.get("quantity", 0))
+                if held_qty <= 0:
+                    log.warning(f"SKIP SELL {sym}: no position held")
+                    continue
+                if qty_abs > held_qty:
+                    log.info(
+                        f"CAP SELL {sym}: qty {qty_abs:.4f} → {held_qty:.4f} (current holdings)"
+                    )
+                    qty_abs = held_qty
+
             # ── Capital management validation ───────────────────────────
             approved, adj_qty, cap_reason = self._capital_mgr.validate_order(
                 sym, side.value, qty_abs, prices[sym]

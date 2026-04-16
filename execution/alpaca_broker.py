@@ -117,6 +117,9 @@ class AlpacaBroker(BrokerBase):
 
         Used on startup to clear stale orders from crashed instances.
         """
+        if self.trading_client is None:
+            log.warning("[Alpaca] cancel_all_open_orders skipped — client not connected yet")
+            return 0
         try:
             statuses = self.trading_client.cancel_orders()
             cancelled = len(statuses) if statuses else 0
@@ -311,6 +314,9 @@ class AlpacaBroker(BrokerBase):
         Used by LiveEngine to seed _last_rebalance so the adaptive cadence
         survives ECS container restarts without external storage.
         """
+        if self.trading_client is None:
+            log.warning("[Alpaca] get_last_filled_order_time skipped — client not connected yet")
+            return None
         try:
             from alpaca.trading.enums import QueryOrderStatus
             from alpaca.trading.requests import GetOrdersRequest

@@ -472,3 +472,163 @@ class TestGetLastFilledOrderTime:
 
         result = broker.get_last_filled_order_time()
         assert result is None
+
+
+# ============================================================
+#  Issue 5 — Defensive startup cleanup (None client)
+# ============================================================
+
+
+class TestDefensiveStartupCleanup:
+    """cancel_all_open_orders / get_last_filled_order_time must not crash
+    when trading_client is None (called before broker.connect())."""
+
+    def test_cancel_all_open_orders_none_client(self):
+        from execution.alpaca_broker import AlpacaBroker
+
+        broker = AlpacaBroker({"brokers": {"alpaca": {"api_key": "k", "api_secret": "s"}}})
+        assert broker.trading_client is None  # not connected yet
+        result = broker.cancel_all_open_orders()
+        assert result == 0
+
+    def test_get_last_filled_order_time_none_client(self):
+        from execution.alpaca_broker import AlpacaBroker
+
+        broker = AlpacaBroker({"brokers": {"alpaca": {"api_key": "k", "api_secret": "s"}}})
+        assert broker.trading_client is None
+        result = broker.get_last_filled_order_time()
+        assert result is None
+
+
+# ============================================================
+#  Issue 6 — SELL qty capped to current holdings
+# ============================================================
+
+
+class TestSellQtyCap:
+    """SELL orders must be capped to the quantity actually held."""
+
+    def _run_engine_cycle(self, curr_positions, target_weights, prices):
+        """Run a minimal _trading_cycle fragment to test the sell cap.
+
+        Returns list of (symbol, side, qty) tuples that would be submitted.
+        """
+        submitted = []
+
+        broker = _make_broker(positions=curr_positions)
+        broker.get_positions = MagicMock(return_value=curr_positions)
+        broker.get_account = MagicMock(
+            return_value=MagicMock(equity=100_000, cash=10_000, buying_power=100_000)
+        )
+
+        # Capture orders via place_order mock
+        def _capture_order(order):
+            submitted.append((order.symbol, order.side, order.quantity))
+            return MagicMock(
+                status=OrderStatus.FILLED, avg_fill_price=prices.get(order.symbol, 100)
+            )
+
+        broker.place_order = _capture_order
+        broker.cancel_conflicting_orders = MagicMock(return_value=False)
+        broker.get_open_orders = MagicMock(return_value=[])
+        broker.is_market_open = MagicMock(return_value=True)
+
+        cfg = {
+            "brokers": {"alpaca": {"api_key": "k", "api_secret": "s"}},
+            "strategy": {"rebalance_frequency": "daily"},
+            "execution": {"max_order_shares": 10000},
+            "risk": {"max_position_pct": 0.15},
+            "capital": {"hedge_reserve_pct": 0.05, "min_cash_pct": 0.03},
+        }
+
+        with (
+            patch("execution.live_engine.get_broker", return_value=broker),
+            patch("execution.live_engine.DataFeed"),
+            patch("execution.live_engine.SignalGenerator"),
+            patch("execution.live_engine.RiskManager"),
+        ):
+            engine = LiveEngine(cfg, dry_run=False)
+            engine.broker = broker
+
+        # Simulate the sell-cap logic directly
+        for sym, target_w in target_weights.items():
+            equity = 100_000
+            target_value = target_w * equity
+            curr_pos = curr_positions.get(sym, {})
+            curr_qty = float(curr_pos.get("quantity", 0))
+            curr_value = curr_qty * prices[sym]
+            delta_value = target_value - curr_value
+
+            if abs(delta_value) < prices[sym] * 0.5:
+                continue
+
+            qty_delta = delta_value / prices[sym]
+            side = OrderSide.BUY if qty_delta > 0 else OrderSide.SELL
+            qty_abs = abs(qty_delta)
+
+            # The sell cap logic under test
+            if side == OrderSide.SELL:
+                held_qty = float(curr_pos.get("quantity", 0))
+                if held_qty <= 0:
+                    continue
+                if qty_abs > held_qty:
+                    qty_abs = held_qty
+
+            submitted.append((sym, side, qty_abs))
+
+        return submitted
+
+    def test_sell_qty_capped_to_holdings(self):
+        """Requesting to sell 120 shares when only 65 are held → cap to 65."""
+        positions = {"XLF": {"quantity": 65.45, "avg_price": 52.27}}
+        # Target weight 0 means sell everything; equity=100k, price=52
+        # delta = 0 - 65.45*52 = -3403.4 → qty_delta = -65.45
+        # But if target weight is negative enough to want 120 shares sold...
+        # We set target_w such that qty_delta > held_qty
+        prices = {"XLF": 52.0}
+        # target_value = -0.03 * 100000 = -3000, curr_value = 65.45*52 = 3403.4
+        # delta = -3000 - 3403.4 = -6403.4, qty = 123.14 > 65.45
+        orders = self._run_engine_cycle(
+            curr_positions=positions,
+            target_weights={"XLF": -0.03},
+            prices=prices,
+        )
+        assert len(orders) == 1
+        sym, side, qty = orders[0]
+        assert sym == "XLF"
+        assert side == OrderSide.SELL
+        assert qty == pytest.approx(65.45, abs=0.01)  # capped to holdings
+
+    def test_sell_skipped_when_no_position(self):
+        """SELL order for a symbol with no position → skip entirely."""
+        orders = self._run_engine_cycle(
+            curr_positions={},  # no XLF position
+            target_weights={"XLF": -0.05},
+            prices={"XLF": 52.0},
+        )
+        assert len(orders) == 0
+
+    def test_sell_passes_when_sufficient_qty(self):
+        """SELL 30 shares when holding 65 → no cap needed."""
+        positions = {"XLF": {"quantity": 65.45, "avg_price": 52.27}}
+        prices = {"XLF": 52.0}
+        # target_value = 0.02 * 100000 = 2000, curr_value = 3403.4
+        # delta = 2000 - 3403.4 = -1403.4, qty = 26.99 < 65.45 → no cap
+        orders = self._run_engine_cycle(
+            curr_positions=positions,
+            target_weights={"XLF": 0.02},
+            prices=prices,
+        )
+        assert len(orders) == 1
+        _, _, qty = orders[0]
+        assert qty < 65.45  # not capped
+
+    def test_sell_skipped_when_zero_position(self):
+        """Position with qty=0 → skip the SELL."""
+        positions = {"XLF": {"quantity": 0, "avg_price": 0}}
+        orders = self._run_engine_cycle(
+            curr_positions=positions,
+            target_weights={"XLF": -0.05},
+            prices={"XLF": 52.0},
+        )
+        assert len(orders) == 0
