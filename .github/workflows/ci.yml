@@ -158,19 +158,19 @@ jobs:
 
       - name: Run health check
         run: |
-          python -c "
-import json
-from healthcheck import run_checks
-checks = run_checks()
-passed = sum(1 for c in checks if c['status'] == 'PASS')
-failed = sum(1 for c in checks if c['status'] == 'FAIL')
-for c in checks:
-    icon = '✅' if c['status'] == 'PASS' else '❌'
-    print(f\"{icon} {c['message']}\")
-print(f'\nTotal: {passed} passed, {failed} failed out of {len(checks)}')
-if failed > 0:
-    raise SystemExit(1)
-"
+          python - << 'HEALTHEOF'
+          import json
+          from healthcheck import run_checks
+          checks = run_checks()
+          passed = sum(1 for c in checks if c["status"] == "PASS")
+          failed = sum(1 for c in checks if c["status"] == "FAIL")
+          for c in checks:
+              icon = "PASS" if c["status"] == "PASS" else "FAIL"
+              print(f"{icon}: {c['message']}")
+          print(f"\nTotal: {passed} passed, {failed} failed out of {len(checks)}")
+          if failed > 0:
+              raise SystemExit(1)
+          HEALTHEOF
 
       - name: Import smoke test — all key modules
         run: |
