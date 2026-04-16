@@ -607,7 +607,7 @@ jobs:
           CLUSTER="trading-bot-production-cluster"
           SERVICE="trading-bot-production-service"
           echo "Waiting for ECS service $SERVICE on cluster $CLUSTER to stabilize..."
-          for i in $(seq 1 32); do
+          for i in $(seq 1 48); do
             RUNNING=$(aws ecs describe-services \
               --cluster "$CLUSTER" --services "$SERVICE" --region eu-north-1 \
               --query 'services[0].deployments[?status==`PRIMARY`].runningCount | [0]' --output text 2>/dev/null)
@@ -630,7 +630,7 @@ jobs:
             fi
             sleep 15
           done
-          echo "::error::ECS service failed to stabilize within 8 minutes."
+          echo "::error::ECS service failed to stabilize within 12 minutes."
           echo "healthy=false" >> "$GITHUB_OUTPUT"
           exit 1
 
@@ -923,7 +923,7 @@ jobs:
           # Poll manually with a longer timeout (up to 8 minutes).
           # `aws ecs wait services-stable` has a fixed 10-min timeout that
           # can race with Fargate cold-start + image pull.
-          for i in $(seq 1 32); do
+          for i in $(seq 1 48); do
             RUNNING=$(aws ecs describe-services \
               --cluster "$CLUSTER" --services "$SERVICE" --region eu-north-1 \
               --query 'services[0].deployments[?status==`PRIMARY`].runningCount | [0]' --output text 2>/dev/null)
@@ -946,7 +946,7 @@ jobs:
             fi
             sleep 15
           done
-          echo "::error::ECS service failed to stabilize within 8 minutes."
+          echo "::error::ECS service failed to stabilize within 12 minutes."
           echo "healthy=false" >> "$GITHUB_OUTPUT"
           exit 1
 
