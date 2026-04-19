@@ -324,12 +324,12 @@ Full escalation rules and daily checklists in the [paper trading runbook](docs/p
 
 | # | Metric | Threshold | Current | Status |
 |---|---|---|---|---|
-| 1 | Annualised Sharpe | > 0.50 | — | Tracking |
-| 2 | Max Drawdown | < 15% | — | Tracking |
-| 3 | Drawdown Recovery | At least 1 episode (DD > 5%) survived | — | Tracking |
-| 4 | Win Rate | > 50% daily | — | Tracking |
-| 5 | Correlation to Backtest | > 0.60 vs WF OOS returns | — | Tracking |
-| 6 | System Uptime | > 95% of trading days | — | Tracking |
+| 1 | Annualised Sharpe | > 0.50 | — | Pending |
+| 2 | Max Drawdown | < 15% | — | Pending |
+| 3 | Drawdown Recovery | >= 1 episode | — | Pending |
+| 4 | Win Rate | > 50% | — | Pending |
+| 5 | Correlation to Backtest | > 0.60 | — | Pending |
+| 6 | System Uptime | > 95% | — | Pending |
 
 ---
 
