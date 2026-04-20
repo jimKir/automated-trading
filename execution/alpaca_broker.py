@@ -363,13 +363,15 @@ class AlpacaBroker(BrokerBase):
                 if isinstance(filled_at, str):
                     filled_at = datetime.fromisoformat(filled_at)
                 if filled_at >= cutoff:
-                    fills.append({
-                        "order_id": str(o.id),
-                        "symbol": o.symbol,
-                        "side": str(o.side).lower(),
-                        "qty": float(o.qty) if o.qty else 0,
-                        "filled_at": filled_at.isoformat(),
-                    })
+                    fills.append(
+                        {
+                            "order_id": str(o.id),
+                            "symbol": o.symbol,
+                            "side": str(o.side).lower(),
+                            "qty": float(o.qty) if o.qty else 0,
+                            "filled_at": filled_at.isoformat(),
+                        }
+                    )
             return fills
         except Exception as exc:
             log.warning(f"[Alpaca] Failed to fetch recent fills: {exc}")

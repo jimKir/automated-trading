@@ -671,8 +671,13 @@ class TestStartupCooldownGuard:
     def test_cooldown_active_when_recent_fills_exist(self):
         """If fills in last 10 min, cooldown flag should be set."""
         fills = [
-            {"order_id": "1", "symbol": "SPY", "side": "buy", "qty": 10,
-             "filled_at": datetime.now(UTC).isoformat()},
+            {
+                "order_id": "1",
+                "symbol": "SPY",
+                "side": "buy",
+                "qty": 10,
+                "filled_at": datetime.now(UTC).isoformat(),
+            },
         ]
         engine = self._make_engine(recent_fills=fills)
         assert engine._startup_cooldown_active is True
@@ -685,8 +690,13 @@ class TestStartupCooldownGuard:
     def test_cooldown_skips_first_rebalance_then_allows(self):
         """First _should_rebalance returns False, second returns True."""
         fills = [
-            {"order_id": "1", "symbol": "QQQ", "side": "sell", "qty": 5,
-             "filled_at": datetime.now(UTC).isoformat()},
+            {
+                "order_id": "1",
+                "symbol": "QQQ",
+                "side": "sell",
+                "qty": 5,
+                "filled_at": datetime.now(UTC).isoformat(),
+            },
         ]
         engine = self._make_engine(recent_fills=fills)
         engine._last_rebalance = None  # would normally return True
