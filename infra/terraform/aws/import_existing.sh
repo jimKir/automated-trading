@@ -156,8 +156,11 @@ else
   fi
 fi
 
-# ── EventBridge Schedules (production only) ─────────────────────────────────
-if [[ "$ENV" == "production" ]]; then
+# ── EventBridge Schedules (any env with existing schedules) ─────────────────────────────────
+# Import if the EventBridge role already exists (any env with enable_schedules)
+ROLE_EXISTS=$(aws iam get-role --role-name "${PREFIX}-eventbridge" \
+  --query 'Role.Arn' --output text 2>/dev/null || echo "None")
+if [[ "$ROLE_EXISTS" != "None" && -n "$ROLE_EXISTS" ]]; then
   safe_import 'aws_iam_role.eventbridge[0]' "${PREFIX}-eventbridge"
   safe_import 'aws_iam_role_policy.eventbridge_ecs[0]' "${PREFIX}-eventbridge:ecs-scale"
 
@@ -169,6 +172,8 @@ if [[ "$ENV" == "production" ]]; then
   else
     echo "  ○ EventBridge schedules not found — will be created"
   fi
+else
+  echo "  ○ EventBridge role not found — Terraform will create if enable_schedules=true"
 fi
 
 echo ""
