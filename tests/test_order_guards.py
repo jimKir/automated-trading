@@ -371,6 +371,8 @@ class TestRebalanceCadence:
         ):
             mock_broker = MagicMock()
             mock_broker.get_last_filled_order_time = MagicMock(return_value=last_rebalance)
+            mock_broker.get_recent_fills = MagicMock(return_value=[])  # no cooldown
+            mock_broker.cancel_all_open_orders = MagicMock(return_value=0)
             mock_gb.return_value = mock_broker
             engine = LiveEngine(config)
 
@@ -632,3 +634,93 @@ class TestSellQtyCap:
             prices={"XLF": 52.0},
         )
         assert len(orders) == 0
+
+
+# ============================================================================
+# Test 6 — Startup cooldown dedup guard
+# ============================================================================
+
+
+class TestStartupCooldownGuard:
+    """Verify the recent-fills cooldown prevents duplicate trades on restart."""
+
+    def _make_engine(self, recent_fills=None):
+        """Create a minimal LiveEngine with mocked recent fills."""
+        config = {
+            "system": {"mode": "paper"},
+            "strategy": {
+                "rebalance_frequency": "daily",
+                "adaptive_weekly_threshold": 0.17,
+            },
+            "brokers": {"alpaca": {"api_key": "", "api_secret": ""}},
+        }
+        with (
+            patch("execution.live_engine.get_broker") as mock_gb,
+            patch("execution.live_engine.DataFeed"),
+            patch("execution.live_engine.SignalGenerator"),
+            patch("execution.live_engine.RiskManager"),
+        ):
+            mock_broker = MagicMock()
+            mock_broker.get_last_filled_order_time = MagicMock(return_value=None)
+            mock_broker.get_recent_fills = MagicMock(return_value=recent_fills or [])
+            mock_broker.cancel_all_open_orders = MagicMock(return_value=0)
+            mock_gb.return_value = mock_broker
+            engine = LiveEngine(config)
+        return engine
+
+    def test_cooldown_active_when_recent_fills_exist(self):
+        """If fills in last 10 min, cooldown flag should be set."""
+        fills = [
+            {"order_id": "1", "symbol": "SPY", "side": "buy", "qty": 10,
+             "filled_at": datetime.now(UTC).isoformat()},
+        ]
+        engine = self._make_engine(recent_fills=fills)
+        assert engine._startup_cooldown_active is True
+
+    def test_cooldown_inactive_when_no_recent_fills(self):
+        """If no recent fills, cooldown should not be set."""
+        engine = self._make_engine(recent_fills=[])
+        assert engine._startup_cooldown_active is False
+
+    def test_cooldown_skips_first_rebalance_then_allows(self):
+        """First _should_rebalance returns False, second returns True."""
+        fills = [
+            {"order_id": "1", "symbol": "QQQ", "side": "sell", "qty": 5,
+             "filled_at": datetime.now(UTC).isoformat()},
+        ]
+        engine = self._make_engine(recent_fills=fills)
+        engine._last_rebalance = None  # would normally return True
+
+        # First call: cooldown blocks it
+        assert engine._should_rebalance(datetime.now(UTC)) is False
+        assert engine._startup_cooldown_active is False  # consumed
+
+        # Second call: no cooldown, _last_rebalance is None → True
+        assert engine._should_rebalance(datetime.now(UTC)) is True
+
+    def test_no_cooldown_does_not_block_rebalance(self):
+        """Without recent fills, first _should_rebalance returns normally."""
+        engine = self._make_engine(recent_fills=[])
+        engine._last_rebalance = None
+        assert engine._should_rebalance(datetime.now(UTC)) is True
+
+    def test_cooldown_survives_broker_exception(self):
+        """If get_recent_fills raises, cooldown defaults to inactive."""
+        config = {
+            "system": {"mode": "paper"},
+            "strategy": {"rebalance_frequency": "daily", "adaptive_weekly_threshold": 0.17},
+            "brokers": {"alpaca": {"api_key": "", "api_secret": ""}},
+        }
+        with (
+            patch("execution.live_engine.get_broker") as mock_gb,
+            patch("execution.live_engine.DataFeed"),
+            patch("execution.live_engine.SignalGenerator"),
+            patch("execution.live_engine.RiskManager"),
+        ):
+            mock_broker = MagicMock()
+            mock_broker.get_last_filled_order_time = MagicMock(return_value=None)
+            mock_broker.get_recent_fills = MagicMock(side_effect=RuntimeError("API down"))
+            mock_broker.cancel_all_open_orders = MagicMock(return_value=0)
+            mock_gb.return_value = mock_broker
+            engine = LiveEngine(config)
+        assert engine._startup_cooldown_active is False

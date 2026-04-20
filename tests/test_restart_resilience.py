@@ -54,7 +54,9 @@ def _make_engine(rebalance_freq="adaptive", last_fill_time=None):
         mock_broker = MagicMock()
         mock_broker.get_last_filled_order_time = MagicMock(return_value=last_fill_time)
         mock_broker.get_open_orders = MagicMock(return_value=[])
+        mock_broker.get_recent_fills = MagicMock(return_value=[])  # no startup cooldown
         mock_broker.cancel_conflicting_orders = MagicMock(return_value=False)
+        mock_broker.cancel_all_open_orders = MagicMock(return_value=0)
         mock_gb.return_value = mock_broker
         engine = LiveEngine(config)
 

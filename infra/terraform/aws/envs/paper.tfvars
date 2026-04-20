@@ -1,6 +1,6 @@
 # ============================================================
 #  Paper environment — active paper trading with market-hours schedules
-#  EventBridge starts/stops the bot at US market open/close (Mon-Fri)
+#  EventBridge starts bot 1h before US market open, stops 5min after close (Mon-Fri)
 # ============================================================
 
 environment      = "paper"

@@ -135,6 +135,24 @@ class LiveEngine:
         # ── Instance guard: cancel stale orders from crashed instances ────
         self._cleanup_stale_orders()
 
+        # ── Recent-fills cooldown: skip first rebalance if prior instance
+        #    already traded recently (prevents duplicate round-trips during
+        #    overlapping ECS start/stop windows).
+        self._startup_cooldown_active = False
+        if hasattr(self.broker, "get_recent_fills"):
+            try:
+                recent = self.broker.get_recent_fills(lookback_minutes=10)
+                if recent:
+                    symbols = {f["symbol"] for f in recent}
+                    log.warning(
+                        f"[DEDUP GUARD] {len(recent)} fill(s) in last 10 min "
+                        f"({', '.join(sorted(symbols))}) — "
+                        f"skipping first rebalance cycle to avoid duplicates"
+                    )
+                    self._startup_cooldown_active = True
+            except Exception as e:
+                log.warning(f"[DEDUP GUARD] Recent-fills check failed: {e}")
+
         # ── Startup banner ────────────────────────────────────────────────
         import os
 
@@ -728,6 +746,13 @@ class LiveEngine:
           - YELLOW/ORANGE/RED (score >= threshold): weekly cadence — rebalance Fridays
         Threshold default: 0.17 (YELLOW onset, validated 2000-2022, all 8 folds pass).
         """
+        # Startup cooldown: skip the very first rebalance if a prior instance
+        # already traded recently (prevents duplicate orders on restart).
+        if self._startup_cooldown_active:
+            log.info("[DEDUP GUARD] Skipping rebalance — startup cooldown active")
+            self._startup_cooldown_active = False
+            return False
+
         if self._last_rebalance is None:
             return True
 

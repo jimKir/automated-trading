@@ -379,8 +379,8 @@ resource "aws_scheduler_schedule" "start_trading" {
 
   flexible_time_window { mode = "OFF" }
 
-  # Mon-Fri 14:25 UTC (09:25 ET — 5 min before open)
-  schedule_expression          = "cron(25 14 ? * MON-FRI *)"
+  # Mon-Fri 13:25 UTC (09:25 ET — 1 hour before open for warm-up)
+  schedule_expression          = "cron(25 13 ? * MON-FRI *)"
   schedule_expression_timezone = "UTC"
 
   target {

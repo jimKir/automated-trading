@@ -1,6 +1,6 @@
 # ============================================================
 #  Production environment — always active during market hours
-#  EventBridge auto-starts at 14:25 UTC, stops at 21:05 UTC
+#  EventBridge auto-starts at 13:25 UTC (1h pre-market), stops at 21:05 UTC
 # ============================================================
 
 environment      = "production"

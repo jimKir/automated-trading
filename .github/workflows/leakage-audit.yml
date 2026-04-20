@@ -149,10 +149,143 @@ jobs:
             echo "✅ No drift — paper environment matches Terraform config" >> $GITHUB_STEP_SUMMARY
           fi
 
+  # ── EventBridge schedule health check ──────────────────────────────────────
+  eventbridge-health:
+    name: EventBridge Schedule Health Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Verify EventBridge schedules exist and are ENABLED
+        run: |
+          set -euo pipefail
+          ERRORS=0
+
+          for ENV in paper production; do
+            for ACTION in start stop; do
+              SCHED_NAME="trading-bot-${ENV}-${ACTION}"
+              echo "Checking $SCHED_NAME ..."
+
+              STATE=$(aws scheduler get-schedule --name "$SCHED_NAME" \
+                --query 'State' --output text 2>/dev/null || echo "NOT_FOUND")
+
+              if [ "$STATE" = "NOT_FOUND" ]; then
+                echo "::error::Schedule $SCHED_NAME does not exist"
+                ERRORS=$((ERRORS+1))
+                continue
+              fi
+
+              if [ "$STATE" != "ENABLED" ]; then
+                echo "::error::Schedule $SCHED_NAME is $STATE (expected ENABLED)"
+                ERRORS=$((ERRORS+1))
+                continue
+              fi
+
+              # Verify cron expression is present
+              CRON=$(aws scheduler get-schedule --name "$SCHED_NAME" \
+                --query 'ScheduleExpression' --output text)
+              echo "  State=$STATE  Cron=$CRON"
+
+              # Verify the target sets DesiredCount correctly
+              DESIRED=$(aws scheduler get-schedule --name "$SCHED_NAME" \
+                --query 'Target.Input' --output text | python3 -c \
+                "import json,sys; print(json.loads(sys.stdin.read()).get('DesiredCount','MISSING'))")
+
+              if [ "$ACTION" = "start" ] && [ "$DESIRED" != "1" ]; then
+                echo "::error::$SCHED_NAME sets DesiredCount=$DESIRED (expected 1)"
+                ERRORS=$((ERRORS+1))
+              elif [ "$ACTION" = "stop" ] && [ "$DESIRED" != "0" ]; then
+                echo "::error::$SCHED_NAME sets DesiredCount=$DESIRED (expected 0)"
+                ERRORS=$((ERRORS+1))
+              else
+                echo "  DesiredCount=$DESIRED \u2705"
+              fi
+            done
+          done
+
+          if [ $ERRORS -gt 0 ]; then
+            echo "::error::$ERRORS schedule issue(s) detected — fix before this causes a silent outage"
+            exit 1
+          fi
+          echo "All 4 EventBridge schedules healthy"
+
+      - name: Verify ECS services are reachable by schedules
+        run: |
+          set -euo pipefail
+          ERRORS=0
+
+          for ENV in paper production; do
+            CLUSTER="trading-bot-${ENV}-cluster"
+            SERVICE="trading-bot-${ENV}-service"
+            echo "Checking $CLUSTER / $SERVICE ..."
+
+            STATUS=$(aws ecs describe-services --cluster "$CLUSTER" \
+              --services "$SERVICE" \
+              --query 'services[0].status' --output text 2>/dev/null || echo "NOT_FOUND")
+
+            if [ "$STATUS" = "NOT_FOUND" ] || [ "$STATUS" = "None" ]; then
+              echo "::error::ECS service $SERVICE not found in cluster $CLUSTER"
+              ERRORS=$((ERRORS+1))
+              continue
+            fi
+
+            if [ "$STATUS" != "ACTIVE" ]; then
+              echo "::error::ECS service $SERVICE status is $STATUS (expected ACTIVE)"
+              ERRORS=$((ERRORS+1))
+              continue
+            fi
+
+            # Verify IAM role for EventBridge can reach this service
+            ROLE_NAME="trading-bot-${ENV}-eventbridge"
+            ROLE_EXISTS=$(aws iam get-role --role-name "$ROLE_NAME" \
+              --query 'Role.Arn' --output text 2>/dev/null || echo "NOT_FOUND")
+
+            if [ "$ROLE_EXISTS" = "NOT_FOUND" ]; then
+              echo "::error::IAM role $ROLE_NAME not found — EventBridge cannot scale ECS"
+              ERRORS=$((ERRORS+1))
+            else
+              echo "  Service=$STATUS  Role=$ROLE_EXISTS \u2705"
+            fi
+          done
+
+          if [ $ERRORS -gt 0 ]; then
+            echo "::error::$ERRORS ECS issue(s) detected"
+            exit 1
+          fi
+          echo "All ECS services and IAM roles healthy"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### EventBridge Schedule Health Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Schedule | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          for ENV in paper production; do
+            for ACTION in start stop; do
+              SCHED_NAME="trading-bot-${ENV}-${ACTION}"
+              STATE=$(aws scheduler get-schedule --name "$SCHED_NAME" \
+                --query 'State' --output text 2>/dev/null || echo "NOT_FOUND")
+              if [ "$STATE" = "ENABLED" ]; then
+                echo "| $SCHED_NAME | \u2705 ENABLED |" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "| $SCHED_NAME | \u274c $STATE |" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          done
+
   # ── Smoke-test the Gmail draft Lambda after every push to main ──
   smoke-test-lambda:
     name: Invoke Daily Summary Lambda (smoke test)
-    needs: [lint, leakage-tests, terraform-drift]
+    needs: [lint, leakage-tests, terraform-drift, eventbridge-health]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

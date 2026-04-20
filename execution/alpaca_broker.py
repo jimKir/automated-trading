@@ -336,6 +336,45 @@ class AlpacaBroker(BrokerBase):
             log.warning(f"[Alpaca] Could not fetch last filled order time: {exc}")
         return None
 
+    def get_recent_fills(self, lookback_minutes: int = 10) -> list[dict]:
+        """Return orders filled in the last *lookback_minutes*.
+
+        Used to detect whether a previous instance already traded this cycle,
+        preventing duplicate round-trips during overlapping start/stop windows.
+        """
+        if self.trading_client is None:
+            return []
+        try:
+            from alpaca.trading.enums import QueryOrderStatus
+            from alpaca.trading.requests import GetOrdersRequest
+
+            cutoff = datetime.now(UTC) - timedelta(minutes=lookback_minutes)
+            params = GetOrdersRequest(
+                status=QueryOrderStatus.CLOSED,
+                limit=50,
+                after=cutoff,
+            )
+            orders = self.trading_client.get_orders(params)
+            fills = []
+            for o in orders:
+                filled_at = o.filled_at
+                if filled_at is None:
+                    continue
+                if isinstance(filled_at, str):
+                    filled_at = datetime.fromisoformat(filled_at)
+                if filled_at >= cutoff:
+                    fills.append({
+                        "order_id": str(o.id),
+                        "symbol": o.symbol,
+                        "side": str(o.side).lower(),
+                        "qty": float(o.qty) if o.qty else 0,
+                        "filled_at": filled_at.isoformat(),
+                    })
+            return fills
+        except Exception as exc:
+            log.warning(f"[Alpaca] Failed to fetch recent fills: {exc}")
+            return []
+
     def is_market_open(self) -> bool:
         try:
             clock = self.trading_client.get_clock()
