@@ -1,0 +1,342 @@
+name: Health Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to check"
+        type: choice
+        options:
+          - both
+          - paper
+          - production
+        default: both
+      verbose:
+        description: "Show raw JSON in details sections"
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 */2 * * 1-5'
+
+jobs:
+  health-check:
+    name: Trading Bot Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-north-1
+
+      - name: Run health checks
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment || 'both' }}
+          INPUT_VERBOSE: ${{ inputs.verbose || 'false' }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          set -uo pipefail
+
+          # ── Helpers ──────────────────────────────────────────────────────
+          OVERALL="HEALTHY"
+          declare -A RESULTS  # env:check -> "PASS|FAIL|WARN"
+          declare -A DETAILS  # env:check -> detail string
+          declare -A VERBOSE_DATA  # env:check -> raw JSON
+
+          pass() { RESULTS["$1"]="PASS"; DETAILS["$1"]="$2"; }
+          warn() { RESULTS["$1"]="WARN"; DETAILS["$1"]="$2"; [ "$OVERALL" = "HEALTHY" ] && OVERALL="WARN"; }
+          fail() { RESULTS["$1"]="FAIL"; DETAILS["$1"]="$2"; OVERALL="UNHEALTHY"; }
+          status_icon() {
+            case "${RESULTS[$1]}" in
+              PASS) echo "✅";; WARN) echo "⚠️";; FAIL) echo "❌";; *) echo "❓";;
+            esac
+          }
+
+          # ── Determine environments ───────────────────────────────────────
+          if [ "$INPUT_ENVIRONMENT" = "both" ]; then
+            ENVS="paper production"
+          else
+            ENVS="$INPUT_ENVIRONMENT"
+          fi
+
+          NOW_UTC=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          NOW_HOUR=$(date -u +%H)
+          NOW_MIN=$(date -u +%M)
+          NOW_DOW=$(date -u +%u)  # 1=Mon, 7=Sun
+          NOW_MINUTES=$((10#$NOW_HOUR * 60 + 10#$NOW_MIN))
+
+          # Market hours: 13:25–21:05 UTC, Mon-Fri
+          MARKET_OPEN_MIN=$((13 * 60 + 25))
+          MARKET_CLOSE_MIN=$((21 * 60 + 5))
+
+          if [ "$NOW_DOW" -ge 1 ] && [ "$NOW_DOW" -le 5 ] && \
+             [ "$NOW_MINUTES" -ge "$MARKET_OPEN_MIN" ] && \
+             [ "$NOW_MINUTES" -lt "$MARKET_CLOSE_MIN" ]; then
+            MARKET_STATUS="OPEN"
+            BOT_EXPECTED="running"
+          else
+            MARKET_STATUS="CLOSED"
+            BOT_EXPECTED="stopped"
+          fi
+
+          echo "::group::Market session"
+          echo "UTC: $NOW_UTC | Market: $MARKET_STATUS | Bot expected: $BOT_EXPECTED"
+          echo "::endgroup::"
+
+          # ── Per-environment checks ───────────────────────────────────────
+          for ENV in $ENVS; do
+            CLUSTER="trading-bot-${ENV}-cluster"
+            SERVICE="trading-bot-${ENV}-service"
+            KEY="${ENV}"
+
+            # ── 1. ECS Service Health ──────────────────────────────────────
+            echo "::group::ECS Service — $ENV"
+            ECS_JSON=$(aws ecs describe-services --cluster "$CLUSTER" \
+              --services "$SERVICE" --output json 2>/dev/null || echo '{"services":[]}')
+            VERBOSE_DATA["${KEY}:ecs"]="$ECS_JSON"
+
+            SVC_STATUS=$(echo "$ECS_JSON" | jq -r '.services[0].status // "NOT_FOUND"')
+            DESIRED=$(echo "$ECS_JSON" | jq -r '.services[0].desiredCount // 0')
+            RUNNING=$(echo "$ECS_JSON" | jq -r '.services[0].runningCount // 0')
+            TASK_DEF=$(echo "$ECS_JSON" | jq -r '.services[0].taskDefinition // "unknown"')
+            TASK_REV=$(echo "$TASK_DEF" | grep -oP ':\K[0-9]+$' || echo "unknown")
+
+            # Get image tag from task definition
+            IMAGE_TAG="unknown"
+            if [ "$TASK_DEF" != "unknown" ] && [ "$TASK_DEF" != "null" ]; then
+              TD_JSON=$(aws ecs describe-task-definition --task-definition "$TASK_DEF" --output json 2>/dev/null || echo '{}')
+              IMAGE=$(echo "$TD_JSON" | jq -r '.taskDefinition.containerDefinitions[0].image // "unknown"')
+              IMAGE_TAG=$(echo "$IMAGE" | grep -oP ':\K.+$' || echo "$IMAGE")
+            fi
+
+            if [ "$SVC_STATUS" = "NOT_FOUND" ] || [ "$SVC_STATUS" = "null" ]; then
+              fail "${KEY}:ecs" "Service not found in cluster"
+            elif [ "$SVC_STATUS" != "ACTIVE" ]; then
+              fail "${KEY}:ecs" "status=$SVC_STATUS (expected ACTIVE)"
+            elif [ "$DESIRED" -lt 1 ] && [ "$BOT_EXPECTED" = "running" ]; then
+              fail "${KEY}:ecs" "desiredCount=$DESIRED during market hours (expected >=1)"
+            elif [ "$RUNNING" != "$DESIRED" ]; then
+              fail "${KEY}:ecs" "${RUNNING}/${DESIRED} running, rev $TASK_REV, image \`$IMAGE_TAG\`"
+            else
+              pass "${KEY}:ecs" "${RUNNING}/${DESIRED} running, rev $TASK_REV, image \`$IMAGE_TAG\`"
+            fi
+            echo "Status=$SVC_STATUS Desired=$DESIRED Running=$RUNNING Rev=$TASK_REV Image=$IMAGE_TAG"
+            echo "::endgroup::"
+
+            # ── 2. EventBridge Schedules ───────────────────────────────────
+            for ACTION in start stop; do
+              SCHED_NAME="trading-bot-${ENV}-${ACTION}"
+              CHECK_KEY="${KEY}:eb-${ACTION}"
+              echo "::group::EventBridge — $SCHED_NAME"
+
+              SCHED_JSON=$(aws scheduler get-schedule --name "$SCHED_NAME" --output json 2>/dev/null || echo '{"State":"NOT_FOUND"}')
+              VERBOSE_DATA["$CHECK_KEY"]="$SCHED_JSON"
+
+              SCHED_STATE=$(echo "$SCHED_JSON" | jq -r '.State // "NOT_FOUND"')
+              SCHED_CRON=$(echo "$SCHED_JSON" | jq -r '.ScheduleExpression // "unknown"')
+              SCHED_DESIRED=$(echo "$SCHED_JSON" | jq -r '.Target.Input // "{}"' | python3 -c \
+                "import json,sys; print(json.loads(sys.stdin.read()).get('DesiredCount','MISSING'))" 2>/dev/null || echo "MISSING")
+
+              if [ "$ACTION" = "start" ]; then
+                EXPECTED_CRON="cron(25 13 ? * MON-FRI *)"
+                EXPECTED_DESIRED="1"
+              else
+                EXPECTED_CRON="cron(5 21 ? * MON-FRI *)"
+                EXPECTED_DESIRED="0"
+              fi
+
+              ISSUES=""
+              if [ "$SCHED_STATE" = "NOT_FOUND" ]; then
+                ISSUES="schedule not found"
+              elif [ "$SCHED_STATE" != "ENABLED" ]; then
+                ISSUES="State=$SCHED_STATE (expected ENABLED)"
+              fi
+
+              if [ -z "$ISSUES" ] && [ "$SCHED_CRON" != "$EXPECTED_CRON" ]; then
+                ISSUES="${ISSUES:+$ISSUES; }cron=\`$SCHED_CRON\` (expected \`$EXPECTED_CRON\`)"
+              fi
+
+              if [ -z "$ISSUES" ] && [ "$SCHED_DESIRED" != "$EXPECTED_DESIRED" ]; then
+                ISSUES="${ISSUES:+$ISSUES; }DesiredCount=$SCHED_DESIRED (expected $EXPECTED_DESIRED)"
+              fi
+
+              if [ -n "$ISSUES" ]; then
+                fail "$CHECK_KEY" "$ISSUES"
+              else
+                pass "$CHECK_KEY" "ENABLED, $SCHED_CRON, DesiredCount=$SCHED_DESIRED"
+              fi
+              echo "State=$SCHED_STATE Cron=$SCHED_CRON DesiredCount=$SCHED_DESIRED"
+              echo "::endgroup::"
+            done
+
+            # ── 3. CloudWatch Logs ─────────────────────────────────────────
+            LOG_GROUP="/ecs/trading-bot-${ENV}"
+            CHECK_KEY="${KEY}:logs"
+            echo "::group::CloudWatch Logs — $ENV"
+
+            # Most recent log event
+            LATEST_JSON=$(aws logs describe-log-streams --log-group-name "$LOG_GROUP" \
+              --order-by LastEventTime --descending --limit 1 --output json 2>/dev/null || echo '{"logStreams":[]}')
+            VERBOSE_DATA["$CHECK_KEY"]=""
+
+            LAST_EVENT_TS=$(echo "$LATEST_JSON" | jq -r '.logStreams[0].lastEventTimestamp // 0')
+
+            if [ "$LAST_EVENT_TS" = "0" ] || [ "$LAST_EVENT_TS" = "null" ]; then
+              LAST_LOG_AGO="never"
+              LAST_LOG_TIME="no logs found"
+            else
+              LAST_LOG_TIME=$(date -u -d "@$((LAST_EVENT_TS / 1000))" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+              NOW_EPOCH=$(date -u +%s)
+              LAST_EPOCH=$((LAST_EVENT_TS / 1000))
+              MINUTES_AGO=$(( (NOW_EPOCH - LAST_EPOCH) / 60 ))
+              LAST_LOG_AGO="${MINUTES_AGO} min ago"
+            fi
+
+            # Count errors in last hour
+            ONE_HOUR_AGO_MS=$(( ($(date -u +%s) - 3600) * 1000 ))
+            ERROR_EVENTS=$(aws logs filter-log-events --log-group-name "$LOG_GROUP" \
+              --start-time "$ONE_HOUR_AGO_MS" --filter-pattern "ERROR" \
+              --limit 50 --output json 2>/dev/null || echo '{"events":[]}')
+            ERROR_COUNT=$(echo "$ERROR_EVENTS" | jq '.events | length')
+            LAST_5_ERRORS=$(echo "$ERROR_EVENTS" | jq -r '[.events[-5:][].message] | join("\n")' 2>/dev/null || echo "")
+
+            VERBOSE_DATA["$CHECK_KEY"]="{\"latestStream\": $LATEST_JSON, \"errorEvents\": $ERROR_EVENTS}"
+
+            LOG_DETAIL="Last log $LAST_LOG_AGO ($LAST_LOG_TIME); ${ERROR_COUNT} errors in last hour"
+
+            if [ "$LAST_LOG_AGO" = "never" ]; then
+              if [ "$BOT_EXPECTED" = "running" ]; then
+                fail "$CHECK_KEY" "No log events found — bot expected to be running"
+              else
+                warn "$CHECK_KEY" "No log events found (market closed, may be normal)"
+              fi
+            elif [ "$MINUTES_AGO" -gt 15 ] && [ "$BOT_EXPECTED" = "running" ]; then
+              fail "$CHECK_KEY" "Last log ${MINUTES_AGO} min ago during market hours — possible bot hang"
+            elif [ "$ERROR_COUNT" -gt 0 ]; then
+              warn "$CHECK_KEY" "$LOG_DETAIL"
+            else
+              pass "$CHECK_KEY" "$LOG_DETAIL"
+            fi
+            echo "LastLog=$LAST_LOG_TIME  MinutesAgo=${MINUTES_AGO:-N/A}  Errors=$ERROR_COUNT"
+            echo "::endgroup::"
+
+            # ── 4. Alpaca API (paper only) ─────────────────────────────────
+            if [ "$ENV" = "paper" ]; then
+              CHECK_KEY="${KEY}:alpaca"
+              echo "::group::Alpaca API — paper"
+
+              ALPACA_RESPONSE=$(curl -s -w "\n%{http_code}" \
+                -H "APCA-API-KEY-ID: $ALPACA_API_KEY" \
+                -H "APCA-API-SECRET-KEY: $ALPACA_API_SECRET" \
+                "https://paper-api.alpaca.markets/v2/account" 2>/dev/null || echo -e "\n000")
+
+              HTTP_CODE=$(echo "$ALPACA_RESPONSE" | tail -1)
+              ALPACA_BODY=$(echo "$ALPACA_RESPONSE" | sed '$d')
+              VERBOSE_DATA["$CHECK_KEY"]="$ALPACA_BODY"
+
+              if [ "$HTTP_CODE" != "200" ]; then
+                fail "$CHECK_KEY" "HTTP $HTTP_CODE — API unreachable or auth failed"
+              else
+                ACCT_STATUS=$(echo "$ALPACA_BODY" | jq -r '.status // "unknown"')
+                EQUITY=$(echo "$ALPACA_BODY" | jq -r '.equity // "unknown"')
+                CASH=$(echo "$ALPACA_BODY" | jq -r '.cash // "unknown"')
+                PDT=$(echo "$ALPACA_BODY" | jq -r '.pattern_day_trader // false')
+                TRADING_BLOCKED=$(echo "$ALPACA_BODY" | jq -r '.trading_blocked // false')
+                ACCOUNT_BLOCKED=$(echo "$ALPACA_BODY" | jq -r '.account_blocked // false')
+
+                if [ "$TRADING_BLOCKED" = "true" ] || [ "$ACCOUNT_BLOCKED" = "true" ]; then
+                  fail "$CHECK_KEY" "status=$ACCT_STATUS, equity=\$$EQUITY, **trading_blocked=$TRADING_BLOCKED, account_blocked=$ACCOUNT_BLOCKED**"
+                else
+                  pass "$CHECK_KEY" "status=$ACCT_STATUS, equity=\$$EQUITY, cash=\$$CASH, PDT=$PDT"
+                fi
+              fi
+              echo "HTTP=$HTTP_CODE"
+              echo "::endgroup::"
+            fi
+          done
+
+          # ── Build Summary ────────────────────────────────────────────────
+          case "$OVERALL" in
+            HEALTHY)   OVERALL_ICON="✅ HEALTHY";;
+            WARN)      OVERALL_ICON="⚠️ WARN";;
+            UNHEALTHY) OVERALL_ICON="❌ UNHEALTHY";;
+          esac
+
+          {
+            echo "# 🩺 Trading Bot Health Check — $NOW_UTC"
+            echo ""
+            echo "## Overall status: $OVERALL_ICON"
+            echo ""
+
+            for ENV in $ENVS; do
+              KEY="${ENV}"
+              ENV_UPPER=$(echo "$ENV" | sed 's/.*/\u&/')
+              echo "## $ENV_UPPER Environment"
+              echo ""
+              echo "| Check | Status | Details |"
+              echo "|-------|--------|---------|"
+
+              for CHECK in ecs eb-start eb-stop logs alpaca; do
+                CK="${KEY}:${CHECK}"
+                if [ -z "${RESULTS[$CK]+x}" ]; then
+                  continue
+                fi
+                case "$CHECK" in
+                  ecs)      LABEL="ECS Service";;
+                  eb-start) LABEL="EventBridge start";;
+                  eb-stop)  LABEL="EventBridge stop";;
+                  logs)     LABEL="CloudWatch logs";;
+                  alpaca)   LABEL="Alpaca API";;
+                esac
+                echo "| $LABEL | $(status_icon "$CK") | ${DETAILS[$CK]} |"
+              done
+              echo ""
+            done
+
+            echo "## Market"
+            echo "- Current UTC: $(date -u +%H:%M)"
+            echo "- Market session: $MARKET_STATUS (expected bot $BOT_EXPECTED)"
+            echo ""
+
+            # Verbose output
+            if [ "$INPUT_VERBOSE" = "true" ]; then
+              echo "## Verbose Output"
+              echo ""
+              for CK in "${!VERBOSE_DATA[@]}"; do
+                if [ -n "${VERBOSE_DATA[$CK]}" ]; then
+                  echo "<details>"
+                  echo "<summary>$CK</summary>"
+                  echo ""
+                  echo '```json'
+                  echo "${VERBOSE_DATA[$CK]}" | jq '.' 2>/dev/null || echo "${VERBOSE_DATA[$CK]}"
+                  echo '```'
+                  echo "</details>"
+                  echo ""
+                fi
+              done
+            fi
+
+            # Errors list for verbose
+            if [ -n "$LAST_5_ERRORS" ] && [ "$ERROR_COUNT" -gt 0 ]; then
+              echo "<details>"
+              echo "<summary>Last errors from CloudWatch</summary>"
+              echo ""
+              echo '```'
+              echo "$LAST_5_ERRORS"
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo ""
+          echo "=== Overall: $OVERALL ==="
+
+          # ── Exit non-zero if any check failed ────────────────────────────
+          if [ "$OVERALL" = "UNHEALTHY" ]; then
+            echo "::error::Health check failed — one or more checks are UNHEALTHY"
+            exit 1
+          fi
