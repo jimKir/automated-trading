@@ -160,7 +160,8 @@ class LiveEngine:
         self._reentry_min_signal = reentry_cfg.get("min_signal_threshold", 0.05)
         self._reentry_max_deploy_pct = reentry_cfg.get("max_first_deploy_pct", 0.50)
         self._reentry_gate_active = False
-        self._detect_cash_only_reentry()
+        # Detection runs in start() after broker.connect() — broker isn't
+        # connected yet during __init__.
 
         # ── Startup banner ────────────────────────────────────────────────
         import os
@@ -277,6 +278,9 @@ class LiveEngine:
         if not self.broker.connect():
             log.error("Broker connection failed. Exiting.")
             return
+
+        # ── Detect cash-only re-entry state (needs broker connected) ──────
+        self._detect_cash_only_reentry()
 
         self._running = True
 

@@ -281,6 +281,9 @@ def _make_engine_for_reentry(
         mock_broker.get_positions = MagicMock(return_value=positions)
         mock_gb.return_value = mock_broker
         engine = LiveEngine(config)
+        # In production, _detect_cash_only_reentry runs in start() after
+        # broker.connect(). Simulate that here since we don't call start().
+        engine._detect_cash_only_reentry()
 
     return engine
 
