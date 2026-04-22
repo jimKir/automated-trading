@@ -121,12 +121,14 @@ class Portfolio:
             )
 
         # ── Original signal-proportional path (fallback) ──────────────────────
+        # Long-only by default: negative signals → weight 0 (no short selling).
+        long_only = self._config.get("optimizer", {}).get("long_only", True)
+
         active = {k: v for k, v in signals.items() if abs(v) > 0.05}
         if not active:
             return dict.fromkeys(signals, 0.0)
 
         longs = {k: v for k, v in active.items() if v > 0}
-        shorts = {k: v for k, v in active.items() if v < 0}
         weights: dict[str, float] = {}
 
         if longs:
@@ -136,12 +138,14 @@ class Portfolio:
                 w = (sig / total_long_signal) * long_budget
                 weights[sym] = min(w, max_position_pct)
 
-        if shorts:
-            total_short_signal = sum(abs(v) for v in shorts.values())
-            short_budget = min(max_portfolio_heat * 0.3, 0.15)
-            for sym, sig in shorts.items():
-                w = (abs(sig) / total_short_signal) * short_budget
-                weights[sym] = -min(w, max_position_pct * 0.5)
+        if not long_only:
+            shorts = {k: v for k, v in active.items() if v < 0}
+            if shorts:
+                total_short_signal = sum(abs(v) for v in shorts.values())
+                short_budget = min(max_portfolio_heat * 0.3, 0.15)
+                for sym, sig in shorts.items():
+                    w = (abs(sig) / total_short_signal) * short_budget
+                    weights[sym] = -min(w, max_position_pct * 0.5)
 
         for sym in signals:
             if sym not in weights:
