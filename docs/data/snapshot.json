@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-04-22T20:34:40Z",
+  "last_updated": "2026-04-22T21:07:10Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 100114.97,
+    "equity": 100154.87,
     "cash": -100606.82,
-    "long_market_value": 200721.79,
-    "day_change": 21.14,
-    "day_change_pct": 0.02,
-    "total_return_pct": 0.11
+    "long_market_value": 200761.69,
+    "day_change": 61.04,
+    "day_change_pct": 0.06,
+    "total_return_pct": 0.15
   },
   "benchmarks": {
     "spy_return_pct": 7.79,
     "qqq_return_pct": 10.33,
-    "vs_spy_pp": -7.68,
-    "vs_qqq_pp": -10.22
+    "vs_spy_pp": -7.64,
+    "vs_qqq_pp": -10.18
   },
   "metrics": {
     "total_return_pct": 0.09,
@@ -125,11 +125,11 @@
     {
       "symbol": "SPY",
       "qty": 113.659466,
-      "market_value": 80764.39,
+      "market_value": 80789.15,
       "avg_entry_price": 708.93,
-      "current_price": 710.58,
-      "unrealized_pl": 188.18,
-      "unrealized_pl_pct": 0.23
+      "current_price": 710.8,
+      "unrealized_pl": 212.94,
+      "unrealized_pl_pct": 0.26
     },
     {
       "symbol": "VNQ",
@@ -143,11 +143,11 @@
     {
       "symbol": "EEM",
       "qty": 212.647659,
-      "market_value": 13481.86,
+      "market_value": 13471.23,
       "avg_entry_price": 63.0,
-      "current_price": 63.4,
-      "unrealized_pl": 85.06,
-      "unrealized_pl_pct": 0.64
+      "current_price": 63.35,
+      "unrealized_pl": 74.43,
+      "unrealized_pl_pct": 0.56
     },
     {
       "symbol": "EMXC",
@@ -161,20 +161,20 @@
     {
       "symbol": "XLU",
       "qty": 91.547723,
-      "market_value": 4115.07,
+      "market_value": 4108.66,
       "avg_entry_price": 45.43,
-      "current_price": 44.95,
-      "unrealized_pl": -44.01,
-      "unrealized_pl_pct": -1.06
+      "current_price": 44.88,
+      "unrealized_pl": -50.42,
+      "unrealized_pl_pct": -1.21
     },
     {
       "symbol": "XLV",
       "qty": 91.547723,
-      "market_value": 13410.83,
+      "market_value": 13398.01,
       "avg_entry_price": 146.9,
-      "current_price": 146.49,
-      "unrealized_pl": -37.53,
-      "unrealized_pl_pct": -0.28
+      "current_price": 146.35,
+      "unrealized_pl": -50.35,
+      "unrealized_pl_pct": -0.37
     },
     {
       "symbol": "IWM",
@@ -197,47 +197,38 @@
     {
       "symbol": "TLT",
       "qty": 95.696287,
-      "market_value": 8297.81,
+      "market_value": 8297.83,
       "avg_entry_price": 87.01,
       "current_price": 86.71,
-      "unrealized_pl": -28.64,
+      "unrealized_pl": -28.62,
       "unrealized_pl_pct": -0.34
-    },
-    {
-      "symbol": "GLD",
-      "qty": 30.415182,
-      "market_value": 13235.17,
-      "avg_entry_price": 435.74,
-      "current_price": 435.15,
-      "unrealized_pl": -17.94,
-      "unrealized_pl_pct": -0.14
-    },
-    {
-      "symbol": "XLP",
-      "qty": 91.547723,
-      "market_value": 7499.59,
-      "avg_entry_price": 82.02,
-      "current_price": 81.92,
-      "unrealized_pl": -9.15,
-      "unrealized_pl_pct": -0.12
-    },
-    {
-      "symbol": "XLE",
-      "qty": 253.115011,
-      "market_value": 14323.78,
-      "avg_entry_price": 56.61,
-      "current_price": 56.59,
-      "unrealized_pl": -5.06,
-      "unrealized_pl_pct": -0.03
     },
     {
       "symbol": "EWJ",
       "qty": 91.547723,
-      "market_value": 8027.82,
+      "market_value": 8052.58,
       "avg_entry_price": 87.74,
-      "current_price": 87.69,
-      "unrealized_pl": -4.69,
-      "unrealized_pl_pct": -0.06
+      "current_price": 87.96,
+      "unrealized_pl": 20.07,
+      "unrealized_pl_pct": 0.25
+    },
+    {
+      "symbol": "GLD",
+      "qty": 30.415182,
+      "market_value": 13238.21,
+      "avg_entry_price": 435.74,
+      "current_price": 435.25,
+      "unrealized_pl": -14.9,
+      "unrealized_pl_pct": -0.11
+    },
+    {
+      "symbol": "XLP",
+      "qty": 91.547723,
+      "market_value": 7514.24,
+      "avg_entry_price": 82.02,
+      "current_price": 82.08,
+      "unrealized_pl": 5.49,
+      "unrealized_pl_pct": 0.07
     },
     {
       "symbol": "SHY",
@@ -247,6 +238,15 @@
       "current_price": 82.51,
       "unrealized_pl": -3.47,
       "unrealized_pl_pct": -0.04
+    },
+    {
+      "symbol": "XLE",
+      "qty": 253.115011,
+      "market_value": 14326.31,
+      "avg_entry_price": 56.61,
+      "current_price": 56.6,
+      "unrealized_pl": -2.53,
+      "unrealized_pl_pct": -0.02
     }
   ],
   "recent_orders": [
