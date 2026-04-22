@@ -153,6 +153,15 @@ class LiveEngine:
             except Exception as e:
                 log.warning(f"[DEDUP GUARD] Recent-fills check failed: {e}")
 
+        # ── Post-circuit-breaker re-entry guard ───────────────────────────
+        # After a circuit breaker liquidation, the bot restarts from cash-only.
+        # This guard gates the first re-entry rebalance to ensure safe conditions.
+        reentry_cfg = config.get("reentry_guard", {})
+        self._reentry_min_signal = reentry_cfg.get("min_signal_threshold", 0.05)
+        self._reentry_max_deploy_pct = reentry_cfg.get("max_first_deploy_pct", 0.50)
+        self._reentry_gate_active = False
+        self._detect_cash_only_reentry()
+
         # ── Startup banner ────────────────────────────────────────────────
         import os
 
@@ -533,12 +542,21 @@ class LiveEngine:
         except Exception as _me:
             log.debug(f"Live macro data update failed: {_me}")
 
+        # ── Re-entry guard: gate first rebalance after circuit breaker ────
+        effective_heat = max_heat * combined_scale
+        if self._reentry_gate_active:
+            reentry_ok, effective_heat, _reentry_reason = self._check_reentry_gates(
+                ews_colour, signals, max_heat * combined_scale
+            )
+            if not reentry_ok:
+                return
+
         temp_portfolio = Portfolio(self.config)
         temp_portfolio.cash = account.cash
         target_weights = temp_portfolio.compute_target_weights(
             signals,
             max_position_pct=max_pos * combined_scale,
-            max_portfolio_heat=max_heat * combined_scale,
+            max_portfolio_heat=effective_heat,
         )
 
         # ── Filter out symbols that Alpaca cannot trade ─────────────────
@@ -665,6 +683,11 @@ class LiveEngine:
                     price=filled.avg_fill_price or prices.get(sym, 0),
                 )
 
+        # ── Clear re-entry gate after successful first rebalance ─────────
+        if self._reentry_gate_active:
+            self._reentry_gate_active = False
+            log.info("[RE-ENTRY] First re-entry rebalance complete — clearing gate")
+
         # Set stop losses for open positions
         updated_positions = self.broker.get_positions()
         for sym, pos in updated_positions.items():
@@ -722,6 +745,87 @@ class LiveEngine:
 
         self._last_rebalance = now
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")
+
+    def _detect_cash_only_reentry(self) -> None:
+        """Detect cash-only state after a circuit breaker liquidation.
+
+        Conditions: positions == 0 AND cash ≈ equity (within 1%).
+        When detected, the first rebalance is gated by EWS regime, signal
+        quality, and a 50% deployment cap.
+        """
+        try:
+            account = self.broker.get_account()
+            positions = self.broker.get_positions()
+            has_positions = any(float(p.get("quantity", 0)) > 0 for p in positions.values())
+            if has_positions:
+                return
+
+            # Cash ≈ equity check (within 1%)
+            if account.equity <= 0:
+                return
+            cash_ratio = account.cash / account.equity
+            if cash_ratio < 0.99:
+                return
+
+            # Cash-only state detected
+            self._reentry_gate_active = True
+            log.warning(
+                f"[RE-ENTRY] Cash-only state detected — gating first rebalance "
+                f"(equity=${account.equity:,.2f} cash=${account.cash:,.2f} "
+                f"positions={len(positions)})"
+            )
+        except Exception as e:
+            log.warning(f"[RE-ENTRY] Detection check failed: {e}")
+
+    def _check_reentry_gates(
+        self, ews_colour: str, signals: dict[str, float], max_heat: float
+    ) -> tuple[bool, float, str]:
+        """Check whether re-entry conditions are met after cash-only detection.
+
+        Returns (allowed, effective_heat, reason).
+        - allowed=False means skip this rebalance entirely.
+        - effective_heat is capped at reentry_max_deploy_pct on first re-entry.
+        """
+        if not self._reentry_gate_active:
+            return True, max_heat, ""
+
+        # Gate 1: EWS regime must be GREEN or YELLOW
+        if ews_colour in ("ORANGE", "RED", "CRITICAL"):
+            reason = (
+                f"[RE-ENTRY] BLOCKED — EWS regime is {ews_colour} "
+                f"(require GREEN or YELLOW for re-entry)"
+            )
+            log.warning(reason)
+            return False, 0.0, reason
+
+        # Gate 2: At least one tradeable symbol with signal >= min_signal_threshold
+        _NON_TRADEABLE_SUFFIXES = ("=F",)
+        _NON_TRADEABLE_PREFIXES = ("^",)
+        tradeable_positive = [
+            (sym, sig)
+            for sym, sig in signals.items()
+            if sig >= self._reentry_min_signal
+            and not sym.endswith(_NON_TRADEABLE_SUFFIXES)
+            and not sym.startswith(_NON_TRADEABLE_PREFIXES)
+        ]
+        if not tradeable_positive:
+            reason = (
+                f"[RE-ENTRY] BLOCKED — no tradeable symbol with signal >= "
+                f"{self._reentry_min_signal:.2f} "
+                f"(best: {max(signals.values(), default=0):.3f})"
+            )
+            log.warning(reason)
+            return False, 0.0, reason
+
+        # All gates passed — cap deployment at reentry_max_deploy_pct
+        capped_heat = min(max_heat, self._reentry_max_deploy_pct)
+        log.info(
+            f"[RE-ENTRY] Gates passed — EWS={ews_colour}, "
+            f"{len(tradeable_positive)} positive signal(s), "
+            f"capping deployment at {self._reentry_max_deploy_pct:.0%} "
+            f"(heat {max_heat:.0%} → {capped_heat:.0%})"
+        )
+        return True, capped_heat, ""
 
     def _cleanup_stale_orders(self) -> None:
         """Cancel all open/pending orders on startup (stale from crashed instances)."""

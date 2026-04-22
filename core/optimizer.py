@@ -107,6 +107,9 @@ class PortfolioOptimizer:
         self.vol_window = opt_cfg.get("vol_window", 21)  # rolling vol lookback
         self.cov_window = opt_cfg.get("cov_window", 63)  # covariance lookback (min-var only)
         self.max_crypto_pct = opt_cfg.get("max_crypto_pct", 0.10)  # hard crypto cap (10%)
+        # Long-only mode: clip negative target weights to 0 (no shorting).
+        # Default True for paper/live (Alpaca paper doesn't support shorts).
+        self.long_only = opt_cfg.get("long_only", True)
         # ── Dynamic bear heat multiplier ─────────────────────────────────────
         # Legacy single-value multiplier is replaced by a continuous function.
         # bear_heat_min      : floor multiplier at maximum bear depth (default 0.60)
@@ -126,6 +129,7 @@ class PortfolioOptimizer:
 
         log.info(
             f"Optimizer: method={self.method} | "
+            f"long_only={self.long_only} | "
             f"crypto_cap={self.max_crypto_pct:.0%} | "
             f"regime_scaling={self.use_regime_scaling} | "
             f"bear_heat [{self.bear_heat_min:.0%}–{self.bear_heat_max:.0%}] "
@@ -182,6 +186,19 @@ class PortfolioOptimizer:
         signed_weights: dict[str, float] = {
             sym: bw * np.sign(active.get(sym, 0)) for sym, bw in sig_weights.items()
         }
+
+        # ── Step 3b: Long-only clipping ───────────────────────────────────
+        # When long_only=True (default), drop negative-weight symbols entirely.
+        # Negative signals → target weight 0 → no trade (not a short sell).
+        if self.long_only:
+            dropped = [s for s, w in signed_weights.items() if w < 0]
+            if dropped:
+                log.debug(f"LongOnly: dropping {len(dropped)} negative-signal symbols: {dropped}")
+            signed_weights = {s: w for s, w in signed_weights.items() if w >= 0}
+
+        if not signed_weights:
+            # All signals negative — return zero weights for everything
+            return dict.fromkeys(signals, 0.0)
 
         # ── Step 4: Scale to portfolio heat budget ─────────────────────────
         total_abs = sum(abs(w) for w in signed_weights.values())

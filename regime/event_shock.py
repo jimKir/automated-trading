@@ -50,7 +50,14 @@ class EventShockDetector:
             import yfinance as yf
 
             df = yf.download(symbol, start=start, end=end, auto_adjust=True, progress=False)
-            s = df["Close"].dropna()
+            # yfinance may return MultiIndex columns — flatten to level-0
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            close = df["Close"]
+            # Defensive: if Close is still a DataFrame (duplicate cols), take first
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            s = close.dropna()
             self._cache[key] = s
             return s
         except Exception as e:
@@ -186,7 +193,7 @@ class EventShockDetector:
                 + weights["cross_asset"] * ca
             )
 
-        return scores.fillna(method="ffill").fillna(0.0)
+        return scores.ffill().fillna(0.0)
 
     def score_today(self, all_prices: pd.DataFrame = None) -> float:
         """Score for live/paper trading."""
