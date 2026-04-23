@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-04-23T19:12:49Z",
+  "last_updated": "2026-04-23T19:47:10Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 100052.11,
+    "equity": 100052.75,
     "cash": 47901.58,
-    "long_market_value": 52150.53,
-    "day_change": -138.13,
+    "long_market_value": 52151.17,
+    "day_change": -137.49,
     "day_change_pct": -0.14,
     "total_return_pct": 0.05
   },
@@ -131,38 +131,38 @@
     {
       "symbol": "XLP",
       "qty": 78.185906,
-      "market_value": 6534.39,
+      "market_value": 6530.87,
       "avg_entry_price": 82.02,
-      "current_price": 83.58,
-      "unrealized_pl": 121.58,
-      "unrealized_pl_pct": 1.9
+      "current_price": 83.53,
+      "unrealized_pl": 118.06,
+      "unrealized_pl_pct": 1.84
     },
     {
       "symbol": "GLD",
       "qty": 20.049141,
-      "market_value": 8642.38,
+      "market_value": 8640.48,
       "avg_entry_price": 435.74,
-      "current_price": 431.06,
-      "unrealized_pl": -93.83,
-      "unrealized_pl_pct": -1.07
+      "current_price": 430.96,
+      "unrealized_pl": -95.73,
+      "unrealized_pl_pct": -1.1
     },
     {
       "symbol": "EMXC",
       "qty": 78.185906,
-      "market_value": 6889.35,
+      "market_value": 6887.79,
       "avg_entry_price": 89.02,
-      "current_price": 88.11,
-      "unrealized_pl": -70.75,
-      "unrealized_pl_pct": -1.02
+      "current_price": 88.09,
+      "unrealized_pl": -72.31,
+      "unrealized_pl_pct": -1.04
     },
     {
       "symbol": "XLV",
       "qty": 78.185906,
-      "market_value": 11428.43,
+      "market_value": 11433.52,
       "avg_entry_price": 146.9,
-      "current_price": 146.17,
-      "unrealized_pl": -57.08,
-      "unrealized_pl_pct": -0.5
+      "current_price": 146.24,
+      "unrealized_pl": -51.99,
+      "unrealized_pl_pct": -0.45
     },
     {
       "symbol": "XLE",
@@ -176,19 +176,19 @@
     {
       "symbol": "XLU",
       "qty": 78.185906,
-      "market_value": 3594.6,
+      "market_value": 3596.94,
       "avg_entry_price": 45.43,
-      "current_price": 45.98,
-      "unrealized_pl": 42.55,
-      "unrealized_pl_pct": 1.2
+      "current_price": 46.01,
+      "unrealized_pl": 44.9,
+      "unrealized_pl_pct": 1.26
     },
     {
       "symbol": "SHY",
       "qty": 80.215496,
-      "market_value": 6616.97,
+      "market_value": 6616.58,
       "avg_entry_price": 82.55,
-      "current_price": 82.49,
-      "unrealized_pl": -4.52,
+      "current_price": 82.48,
+      "unrealized_pl": -4.92,
       "unrealized_pl_pct": -0.07
     }
   ],
