@@ -1,18 +1,18 @@
 {
-  "last_updated": "2026-04-23T21:20:31Z",
+  "last_updated": "2026-04-23T21:48:22Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 100033.76,
+    "equity": 100033.83,
     "cash": 47901.58,
-    "long_market_value": 52132.18,
-    "day_change": -156.48,
+    "long_market_value": 52132.25,
+    "day_change": -156.41,
     "day_change_pct": -0.16,
     "total_return_pct": 0.03
   },
   "benchmarks": {
-    "spy_return_pct": NaN,
+    "spy_return_pct": 8.88,
     "qqq_return_pct": 12.18,
-    "vs_spy_pp": NaN,
+    "vs_spy_pp": -8.85,
     "vs_qqq_pp": -12.15
   },
   "metrics": {
@@ -27,103 +27,103 @@
     {
       "date": "2026-03-24",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.0,
       "qqq": 100.0
     },
     {
       "date": "2026-03-25",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.56,
       "qqq": 100.66
     },
     {
       "date": "2026-03-26",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 98.76,
       "qqq": 98.26
     },
     {
       "date": "2026-03-27",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 97.08,
       "qqq": 96.34
     },
     {
       "date": "2026-03-31",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 99.57,
       "qqq": 98.84
     },
     {
       "date": "2026-04-01",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.32,
       "qqq": 100.06
     },
     {
       "date": "2026-04-02",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.41,
       "qqq": 100.17
     },
     {
       "date": "2026-04-07",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.92,
       "qqq": 100.79
     },
     {
       "date": "2026-04-08",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 103.5,
       "qqq": 103.79
     },
     {
       "date": "2026-04-09",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 104.09,
       "qqq": 104.49
     },
     {
       "date": "2026-04-10",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 104.02,
       "qqq": 104.64
     },
     {
       "date": "2026-04-14",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 106.32,
       "qqq": 107.64
     },
     {
       "date": "2026-04-15",
       "bot": 100.38,
-      "spy": NaN,
+      "spy": 107.16,
       "qqq": 109.15
     },
     {
       "date": "2026-04-16",
       "bot": 100.13,
-      "spy": NaN,
+      "spy": 107.42,
       "qqq": 109.67
     },
     {
       "date": "2026-04-17",
       "bot": 100.25,
-      "spy": NaN,
+      "spy": 108.72,
       "qqq": 111.11
     },
     {
       "date": "2026-04-21",
       "bot": 100.09,
-      "spy": NaN,
+      "spy": 107.79,
       "qqq": 110.33
     },
     {
       "date": "2026-04-22",
       "bot": 100.09,
-      "spy": NaN,
+      "spy": 108.88,
       "qqq": 112.18
     }
   ],
@@ -131,28 +131,28 @@
     {
       "symbol": "XLP",
       "qty": 78.185906,
-      "market_value": 6511.32,
+      "market_value": 6513.67,
       "avg_entry_price": 82.02,
-      "current_price": 83.28,
-      "unrealized_pl": 98.51,
-      "unrealized_pl_pct": 1.54
+      "current_price": 83.31,
+      "unrealized_pl": 100.86,
+      "unrealized_pl_pct": 1.57
     },
     {
       "symbol": "GLD",
       "qty": 20.049141,
-      "market_value": 8641.38,
+      "market_value": 8641.18,
       "avg_entry_price": 435.74,
-      "current_price": 431.01,
-      "unrealized_pl": -94.83,
+      "current_price": 431.0,
+      "unrealized_pl": -95.03,
       "unrealized_pl_pct": -1.09
     },
     {
       "symbol": "XLV",
       "qty": 78.185906,
-      "market_value": 11413.58,
+      "market_value": 11412.8,
       "avg_entry_price": 146.9,
-      "current_price": 145.98,
-      "unrealized_pl": -71.93,
+      "current_price": 145.97,
+      "unrealized_pl": -72.71,
       "unrealized_pl_pct": -0.63
     },
     {
@@ -167,19 +167,19 @@
     {
       "symbol": "XLU",
       "qty": 78.185906,
-      "market_value": 3605.15,
+      "market_value": 3603.59,
       "avg_entry_price": 45.43,
-      "current_price": 46.11,
-      "unrealized_pl": 53.11,
-      "unrealized_pl_pct": 1.49
+      "current_price": 46.09,
+      "unrealized_pl": 51.55,
+      "unrealized_pl_pct": 1.45
     },
     {
       "symbol": "XLE",
       "qty": 148.27503,
-      "market_value": 8438.33,
+      "market_value": 8438.6,
       "avg_entry_price": 56.61,
       "current_price": 56.91,
-      "unrealized_pl": 44.48,
+      "unrealized_pl": 44.75,
       "unrealized_pl_pct": 0.53
     },
     {
