@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-04-24T20:31:37Z",
+  "last_updated": "2026-04-24T21:04:52Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 100213.16,
+    "equity": 100218.21,
     "cash": 48772.25,
-    "long_market_value": 51440.91,
-    "day_change": 137.37,
+    "long_market_value": 51445.96,
+    "day_change": 142.42,
     "day_change_pct": 0.14,
-    "total_return_pct": 0.21
+    "total_return_pct": 0.22
   },
   "benchmarks": {
     "spy_return_pct": 8.46,
     "qqq_return_pct": 11.55,
-    "vs_spy_pp": -8.25,
-    "vs_qqq_pp": -11.34
+    "vs_spy_pp": -8.24,
+    "vs_qqq_pp": -11.33
   },
   "metrics": {
     "total_return_pct": 0.19,
@@ -137,29 +137,29 @@
     {
       "symbol": "EEM",
       "qty": 145.164096,
-      "market_value": 9258.57,
+      "market_value": 9246.95,
       "avg_entry_price": 63.19,
-      "current_price": 63.78,
-      "unrealized_pl": 86.23,
-      "unrealized_pl_pct": 0.94
-    },
-    {
-      "symbol": "GLD",
-      "qty": 34.804697,
-      "market_value": 15047.11,
-      "avg_entry_price": 433.69,
-      "current_price": 432.33,
-      "unrealized_pl": -47.3,
-      "unrealized_pl_pct": -0.31
+      "current_price": 63.7,
+      "unrealized_pl": 74.62,
+      "unrealized_pl_pct": 0.81
     },
     {
       "symbol": "TLT",
       "qty": 129.426703,
-      "market_value": 11216.29,
+      "market_value": 11221.3,
       "avg_entry_price": 86.31,
-      "current_price": 86.66,
-      "unrealized_pl": 45.9,
-      "unrealized_pl_pct": 0.41
+      "current_price": 86.7,
+      "unrealized_pl": 50.9,
+      "unrealized_pl_pct": 0.46
+    },
+    {
+      "symbol": "GLD",
+      "qty": 34.804697,
+      "market_value": 15055.11,
+      "avg_entry_price": 433.69,
+      "current_price": 432.56,
+      "unrealized_pl": -39.31,
+      "unrealized_pl_pct": -0.26
     },
     {
       "symbol": "XLE",
@@ -173,11 +173,11 @@
     {
       "symbol": "IWM",
       "qty": 19.303858,
-      "market_value": 5337.71,
+      "market_value": 5341.38,
       "avg_entry_price": 277.13,
-      "current_price": 276.51,
-      "unrealized_pl": -11.92,
-      "unrealized_pl_pct": -0.22
+      "current_price": 276.7,
+      "unrealized_pl": -8.25,
+      "unrealized_pl_pct": -0.15
     }
   ],
   "recent_orders": [
