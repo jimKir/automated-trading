@@ -1,12 +1,12 @@
 {
-  "last_updated": "2026-04-29T14:32:29Z",
+  "last_updated": "2026-04-29T15:30:23Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 100481.67,
+    "equity": 100477.58,
     "cash": 52696.85,
-    "long_market_value": 47784.82,
-    "day_change": 58.37,
-    "day_change_pct": 0.06,
+    "long_market_value": 47780.73,
+    "day_change": 54.28,
+    "day_change_pct": 0.05,
     "total_return_pct": 0.48
   },
   "benchmarks": {
@@ -149,56 +149,56 @@
     {
       "symbol": "XLE",
       "qty": 203.558293,
-      "market_value": 11909.18,
+      "market_value": 11913.25,
       "avg_entry_price": 57.79,
-      "current_price": 58.51,
-      "unrealized_pl": 145.87,
-      "unrealized_pl_pct": 1.24
+      "current_price": 58.52,
+      "unrealized_pl": 149.95,
+      "unrealized_pl_pct": 1.27
     },
     {
       "symbol": "GLD",
       "qty": 20.030865,
-      "market_value": 8343.06,
+      "market_value": 8359.88,
       "avg_entry_price": 420.29,
-      "current_price": 416.51,
-      "unrealized_pl": -75.72,
-      "unrealized_pl_pct": -0.9
+      "current_price": 417.35,
+      "unrealized_pl": -58.89,
+      "unrealized_pl_pct": -0.7
     },
     {
       "symbol": "QQQ",
       "qty": 18.647303,
-      "market_value": 12311.7,
+      "market_value": 12317.2,
       "avg_entry_price": 657.68,
-      "current_price": 660.24,
-      "unrealized_pl": 47.74,
-      "unrealized_pl_pct": 0.39
+      "current_price": 660.53,
+      "unrealized_pl": 53.24,
+      "unrealized_pl_pct": 0.43
     },
     {
       "symbol": "IWM",
       "qty": 18.647303,
-      "market_value": 5093.7,
+      "market_value": 5081.2,
       "avg_entry_price": 275.2,
-      "current_price": 273.16,
-      "unrealized_pl": -37.96,
-      "unrealized_pl_pct": -0.74
+      "current_price": 272.49,
+      "unrealized_pl": -50.45,
+      "unrealized_pl_pct": -0.98
     },
     {
       "symbol": "EMXC",
       "qty": 93.846873,
-      "market_value": 8407.74,
+      "market_value": 8390.85,
       "avg_entry_price": 89.25,
-      "current_price": 89.59,
-      "unrealized_pl": 31.91,
-      "unrealized_pl_pct": 0.38
+      "current_price": 89.41,
+      "unrealized_pl": 15.02,
+      "unrealized_pl_pct": 0.18
     },
     {
       "symbol": "TLT",
       "qty": 20.030865,
-      "market_value": 1719.45,
+      "market_value": 1718.35,
       "avg_entry_price": 85.96,
-      "current_price": 85.84,
-      "unrealized_pl": -2.4,
-      "unrealized_pl_pct": -0.14
+      "current_price": 85.78,
+      "unrealized_pl": -3.51,
+      "unrealized_pl_pct": -0.2
     }
   ],
   "recent_orders": [
