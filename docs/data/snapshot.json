@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-05-06T21:11:18Z",
+  "last_updated": "2026-05-06T21:41:30Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101940.29,
+    "equity": 101936.61,
     "cash": 71548.49,
-    "long_market_value": 30391.8,
-    "day_change": 519.98,
+    "long_market_value": 30388.12,
+    "day_change": 516.3,
     "day_change_pct": 0.51,
     "total_return_pct": 1.94
   },
@@ -173,11 +173,11 @@
     {
       "symbol": "XLE",
       "qty": 103.015299,
-      "market_value": 5868.15,
+      "market_value": 5865.69,
       "avg_entry_price": 59.07,
-      "current_price": 56.96,
-      "unrealized_pl": -217.43,
-      "unrealized_pl_pct": -3.57
+      "current_price": 56.94,
+      "unrealized_pl": -219.89,
+      "unrealized_pl_pct": -3.61
     },
     {
       "symbol": "EEM",
@@ -200,11 +200,11 @@
     {
       "symbol": "GLD",
       "qty": 10.154349,
-      "market_value": 4374.29,
+      "market_value": 4373.07,
       "avg_entry_price": 420.48,
-      "current_price": 430.78,
-      "unrealized_pl": 104.63,
-      "unrealized_pl_pct": 2.45
+      "current_price": 430.66,
+      "unrealized_pl": 103.41,
+      "unrealized_pl_pct": 2.42
     },
     {
       "symbol": "XLV",
