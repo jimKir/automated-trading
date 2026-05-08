@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-05-08T16:36:13Z",
+  "last_updated": "2026-05-08T17:11:52Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101799.68,
+    "equity": 101794.51,
     "cash": 85218.83,
-    "long_market_value": 16580.85,
-    "day_change": 340.19,
-    "day_change_pct": 0.34,
-    "total_return_pct": 1.8
+    "long_market_value": 16575.68,
+    "day_change": 335.02,
+    "day_change_pct": 0.33,
+    "total_return_pct": 1.79
   },
   "benchmarks": {
     "spy_return_pct": 12.0,
     "qqq_return_pct": 19.0,
-    "vs_spy_pp": -10.2,
-    "vs_qqq_pp": -17.2
+    "vs_spy_pp": -10.21,
+    "vs_qqq_pp": -17.21
   },
   "metrics": {
     "total_return_pct": 2.02,
@@ -185,20 +185,20 @@
     {
       "symbol": "GLD",
       "qty": 35.494635,
-      "market_value": 15371.31,
+      "market_value": 15366.69,
       "avg_entry_price": 431.6,
-      "current_price": 433.06,
-      "unrealized_pl": 51.95,
-      "unrealized_pl_pct": 0.34
+      "current_price": 432.93,
+      "unrealized_pl": 47.34,
+      "unrealized_pl_pct": 0.31
     },
     {
       "symbol": "IWM",
       "qty": 4.263893,
-      "market_value": 1209.54,
+      "market_value": 1208.98,
       "avg_entry_price": 283.69,
-      "current_price": 283.67,
-      "unrealized_pl": -0.09,
-      "unrealized_pl_pct": -0.01
+      "current_price": 283.54,
+      "unrealized_pl": -0.64,
+      "unrealized_pl_pct": -0.05
     }
   ],
   "recent_orders": [
