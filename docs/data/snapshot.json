@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-05-08T19:12:03Z",
+  "last_updated": "2026-05-08T19:47:58Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101830.46,
+    "equity": 101831.11,
     "cash": 85218.83,
-    "long_market_value": 16611.63,
-    "day_change": 370.97,
+    "long_market_value": 16612.28,
+    "day_change": 371.62,
     "day_change_pct": 0.37,
     "total_return_pct": 1.83
   },
@@ -185,20 +185,20 @@
     {
       "symbol": "GLD",
       "qty": 35.494635,
-      "market_value": 15400.77,
+      "market_value": 15400.06,
       "avg_entry_price": 431.6,
-      "current_price": 433.89,
-      "unrealized_pl": 81.41,
+      "current_price": 433.87,
+      "unrealized_pl": 80.7,
       "unrealized_pl_pct": 0.53
     },
     {
       "symbol": "IWM",
       "qty": 4.263893,
-      "market_value": 1210.9,
+      "market_value": 1212.22,
       "avg_entry_price": 283.69,
-      "current_price": 283.99,
-      "unrealized_pl": 1.28,
-      "unrealized_pl_pct": 0.11
+      "current_price": 284.3,
+      "unrealized_pl": 2.6,
+      "unrealized_pl_pct": 0.21
     }
   ],
   "recent_orders": [
