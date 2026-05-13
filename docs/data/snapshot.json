@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-05-13T21:05:33Z",
+  "last_updated": "2026-05-13T21:47:04Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102133.02,
+    "equity": 102168.14,
     "cash": 46676.13,
-    "long_market_value": 55456.89,
-    "day_change": 247.48,
-    "day_change_pct": 0.24,
-    "total_return_pct": 2.13
+    "long_market_value": 55492.01,
+    "day_change": 282.6,
+    "day_change_pct": 0.28,
+    "total_return_pct": 2.17
   },
   "benchmarks": {
     "spy_return_pct": 13.01,
     "qqq_return_pct": 21.11,
-    "vs_spy_pp": -10.88,
-    "vs_qqq_pp": -18.97
+    "vs_spy_pp": -10.85,
+    "vs_qqq_pp": -18.94
   },
   "metrics": {
     "total_return_pct": 1.87,
@@ -197,19 +197,19 @@
     {
       "symbol": "EEM",
       "qty": 107.061957,
-      "market_value": 7206.34,
+      "market_value": 7214.91,
       "avg_entry_price": 66.25,
-      "current_price": 67.31,
-      "unrealized_pl": 113.68,
-      "unrealized_pl_pct": 1.6
+      "current_price": 67.39,
+      "unrealized_pl": 122.25,
+      "unrealized_pl_pct": 1.72
     },
     {
       "symbol": "SPY",
       "qty": 10.454334,
-      "market_value": 7767.99,
+      "market_value": 7768.09,
       "avg_entry_price": 737.37,
-      "current_price": 743.04,
-      "unrealized_pl": 59.28,
+      "current_price": 743.05,
+      "unrealized_pl": 59.38,
       "unrealized_pl_pct": 0.77
     },
     {
@@ -224,29 +224,29 @@
     {
       "symbol": "XLE",
       "qty": 264.751699,
-      "market_value": 15223.22,
+      "market_value": 15252.32,
       "avg_entry_price": 57.55,
-      "current_price": 57.5,
-      "unrealized_pl": -13.78,
-      "unrealized_pl_pct": -0.09
+      "current_price": 57.61,
+      "unrealized_pl": 15.32,
+      "unrealized_pl_pct": 0.1
     },
     {
       "symbol": "IWM",
       "qty": 28.359323,
-      "market_value": 8021.43,
+      "market_value": 8020.02,
       "avg_entry_price": 282.57,
-      "current_price": 282.85,
-      "unrealized_pl": 7.84,
-      "unrealized_pl_pct": 0.1
+      "current_price": 282.8,
+      "unrealized_pl": 6.42,
+      "unrealized_pl_pct": 0.08
     },
     {
       "symbol": "GLD",
       "qty": 29.892151,
-      "market_value": 12870.07,
+      "market_value": 12868.84,
       "avg_entry_price": 430.51,
-      "current_price": 430.55,
-      "unrealized_pl": 1.11,
-      "unrealized_pl_pct": 0.01
+      "current_price": 430.51,
+      "unrealized_pl": -0.11,
+      "unrealized_pl_pct": -0.0
     }
   ],
   "recent_orders": [
