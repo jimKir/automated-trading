@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-05-15T21:10:01Z",
+  "last_updated": "2026-05-15T21:37:47Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101426.71,
+    "equity": 101420.34,
     "cash": 44711.93,
-    "long_market_value": 56714.78,
-    "day_change": -810.54,
-    "day_change_pct": -0.79,
-    "total_return_pct": 1.43
+    "long_market_value": 56708.41,
+    "day_change": -816.91,
+    "day_change_pct": -0.8,
+    "total_return_pct": 1.42
   },
   "benchmarks": {
     "spy_return_pct": 14.54,
     "qqq_return_pct": 23.26,
     "vs_spy_pp": -13.12,
-    "vs_qqq_pp": -21.83
+    "vs_qqq_pp": -21.84
   },
   "metrics": {
     "total_return_pct": 2.14,
@@ -209,38 +209,38 @@
     {
       "symbol": "GLD",
       "qty": 29.593928,
-      "market_value": 12343.63,
+      "market_value": 12340.67,
       "avg_entry_price": 429.36,
-      "current_price": 417.1,
-      "unrealized_pl": -362.85,
-      "unrealized_pl_pct": -2.86
+      "current_price": 417.0,
+      "unrealized_pl": -365.81,
+      "unrealized_pl_pct": -2.88
     },
     {
       "symbol": "IWM",
       "qty": 35.943935,
-      "market_value": 9954.99,
+      "market_value": 9955.03,
       "avg_entry_price": 281.32,
       "current_price": 276.96,
-      "unrealized_pl": -156.88,
+      "unrealized_pl": -156.83,
       "unrealized_pl_pct": -1.55
     },
     {
       "symbol": "EEM",
       "qty": 130.73595,
-      "market_value": 8492.66,
+      "market_value": 8495.8,
       "avg_entry_price": 65.94,
-      "current_price": 64.96,
-      "unrealized_pl": -128.28,
-      "unrealized_pl_pct": -1.49
+      "current_price": 64.98,
+      "unrealized_pl": -125.15,
+      "unrealized_pl_pct": -1.45
     },
     {
       "symbol": "XLE",
       "qty": 49.460018,
-      "market_value": 2935.95,
+      "market_value": 2934.96,
       "avg_entry_price": 57.55,
-      "current_price": 59.36,
-      "unrealized_pl": 89.38,
-      "unrealized_pl_pct": 3.14
+      "current_price": 59.34,
+      "unrealized_pl": 88.39,
+      "unrealized_pl_pct": 3.1
     },
     {
       "symbol": "VNQ",
@@ -252,6 +252,15 @@
       "unrealized_pl_pct": -1.52
     },
     {
+      "symbol": "XLK",
+      "qty": 70.034749,
+      "market_value": 12317.01,
+      "avg_entry_price": 176.52,
+      "current_price": 175.87,
+      "unrealized_pl": -45.28,
+      "unrealized_pl_pct": -0.37
+    },
+    {
       "symbol": "VGK",
       "qty": 70.034749,
       "market_value": 6008.28,
@@ -259,15 +268,6 @@
       "current_price": 85.79,
       "unrealized_pl": -41.1,
       "unrealized_pl_pct": -0.68
-    },
-    {
-      "symbol": "XLK",
-      "qty": 70.034749,
-      "market_value": 12322.61,
-      "avg_entry_price": 176.52,
-      "current_price": 175.95,
-      "unrealized_pl": -39.68,
-      "unrealized_pl_pct": -0.32
     }
   ],
   "recent_orders": [
