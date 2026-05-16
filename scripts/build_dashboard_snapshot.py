@@ -9,10 +9,9 @@ import json
 import math
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
@@ -51,21 +50,26 @@ def fetch_orders() -> list:
 
 
 def fetch_portfolio_history() -> dict:
-    return alpaca_get("/v2/account/portfolio/history", {
-        "period": "all",
-        "timeframe": "1D",
-        "extended_hours": "false",
-    })
+    return alpaca_get(
+        "/v2/account/portfolio/history",
+        {
+            "period": "all",
+            "timeframe": "1D",
+            "extended_hours": "false",
+        },
+    )
 
 
 def build_equity_df(history: dict) -> pd.DataFrame:
     """Convert portfolio history to a DataFrame with date + equity."""
     timestamps = history.get("timestamp", [])
     equities = history.get("equity", [])
-    df = pd.DataFrame({
-        "date": pd.to_datetime(timestamps, unit="s").normalize(),
-        "equity": equities,
-    })
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(timestamps, unit="s").normalize(),
+            "equity": equities,
+        }
+    )
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     return df
 
@@ -112,7 +116,11 @@ def normalise(series: pd.Series) -> pd.Series:
 def compute_metrics(equity_series: pd.Series) -> dict:
     """Compute total return, max drawdown, Sharpe, volatility."""
     returns = equity_series.pct_change().dropna()
-    total_return = (equity_series.iloc[-1] / equity_series.iloc[0] - 1) * 100 if len(equity_series) > 1 else 0.0
+    total_return = (
+        (equity_series.iloc[-1] / equity_series.iloc[0] - 1) * 100
+        if len(equity_series) > 1
+        else 0.0
+    )
 
     # Max drawdown
     cummax = equity_series.cummax()
@@ -154,7 +162,7 @@ def build_snapshot() -> dict:
     equity_df = equity_df[equity_df["date"] >= inception].reset_index(drop=True)
 
     # 3. Fetch benchmarks
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     benchmarks = fetch_benchmarks(inception, today)
 
     # 4. Merge on date
@@ -192,8 +200,12 @@ def build_snapshot() -> dict:
     total_return_pct = ((equity_val / initial_equity) - 1) * 100 if initial_equity > 0 else 0.0
 
     # Benchmark returns
-    spy_return = ((merged["SPY"].iloc[-1] / merged["SPY"].iloc[0]) - 1) * 100 if len(merged) > 1 else 0.0
-    qqq_return = ((merged["QQQ"].iloc[-1] / merged["QQQ"].iloc[0]) - 1) * 100 if len(merged) > 1 else 0.0
+    spy_return = (
+        ((merged["SPY"].iloc[-1] / merged["SPY"].iloc[0]) - 1) * 100 if len(merged) > 1 else 0.0
+    )
+    qqq_return = (
+        ((merged["QQQ"].iloc[-1] / merged["QQQ"].iloc[0]) - 1) * 100 if len(merged) > 1 else 0.0
+    )
 
     account_summary = {
         "equity": round(equity_val, 2),
@@ -214,32 +226,38 @@ def build_snapshot() -> dict:
     # 8. Positions
     pos_list = []
     for p in positions:
-        pos_list.append({
-            "symbol": p["symbol"],
-            "qty": float(p["qty"]),
-            "market_value": round(float(p["market_value"]), 2),
-            "avg_entry_price": round(float(p["avg_entry_price"]), 2),
-            "current_price": round(float(p["current_price"]), 2),
-            "unrealized_pl": round(float(p["unrealized_pl"]), 2),
-            "unrealized_pl_pct": round(float(p["unrealized_plpc"]) * 100, 2),
-        })
+        pos_list.append(
+            {
+                "symbol": p["symbol"],
+                "qty": float(p["qty"]),
+                "market_value": round(float(p["market_value"]), 2),
+                "avg_entry_price": round(float(p["avg_entry_price"]), 2),
+                "current_price": round(float(p["current_price"]), 2),
+                "unrealized_pl": round(float(p["unrealized_pl"]), 2),
+                "unrealized_pl_pct": round(float(p["unrealized_plpc"]) * 100, 2),
+            }
+        )
     pos_list.sort(key=lambda x: abs(x["unrealized_pl"]), reverse=True)
 
     # 9. Recent orders
     order_list = []
     for o in orders[:20]:
-        order_list.append({
-            "submitted_at": o.get("submitted_at", ""),
-            "symbol": o.get("symbol", ""),
-            "side": o.get("side", ""),
-            "qty": float(o.get("qty") or o.get("notional") or 0),
-            "status": o.get("status", ""),
-            "filled_avg_price": float(o["filled_avg_price"]) if o.get("filled_avg_price") else None,
-        })
+        order_list.append(
+            {
+                "submitted_at": o.get("submitted_at", ""),
+                "symbol": o.get("symbol", ""),
+                "side": o.get("side", ""),
+                "qty": float(o.get("qty") or o.get("notional") or 0),
+                "status": o.get("status", ""),
+                "filled_avg_price": float(o["filled_avg_price"])
+                if o.get("filled_avg_price")
+                else None,
+            }
+        )
 
     # 10. Assemble
     snapshot = {
-        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "inception_date": inception,
         "account": account_summary,
         "benchmarks": benchmark_summary,

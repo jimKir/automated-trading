@@ -352,9 +352,14 @@ class TestEndToEndTradingCycleGuards:
         # Mock data feed to return price data for one symbol
         import pandas as pd
 
+        # Use a fixed weekday end date to avoid weekend date_range length mismatch
+        end_date = pd.Timestamp.now(tz=UTC)
+        if end_date.weekday() >= 5:  # Saturday=5, Sunday=6
+            end_date -= pd.tseries.offsets.BDay(1)  # snap to last Friday
+        idx = pd.date_range(end=end_date, periods=252, freq="B")
         price_series = pd.Series(
-            [180.0] * 252,
-            index=pd.date_range(end=datetime.now(UTC), periods=252, freq="B"),
+            [180.0] * len(idx),
+            index=idx,
             name="Close",
         )
         mock_df = pd.DataFrame({"Close": price_series})
