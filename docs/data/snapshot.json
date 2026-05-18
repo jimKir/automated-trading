@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-05-18T20:36:45Z",
+  "last_updated": "2026-05-18T21:11:19Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101753.35,
+    "equity": 101753.13,
     "cash": 89543.31,
-    "long_market_value": 12210.04,
-    "day_change": 269.89,
+    "long_market_value": 12209.82,
+    "day_change": 269.67,
     "day_change_pct": 0.27,
     "total_return_pct": 1.75
   },
@@ -215,20 +215,20 @@
     {
       "symbol": "QQQ",
       "qty": 9.486547,
-      "market_value": 6690.67,
+      "market_value": 6690.77,
       "avg_entry_price": 711.05,
-      "current_price": 705.28,
-      "unrealized_pl": -54.76,
+      "current_price": 705.29,
+      "unrealized_pl": -54.67,
       "unrealized_pl_pct": -0.81
     },
     {
       "symbol": "SPY",
       "qty": 7.47768,
-      "market_value": 5519.37,
+      "market_value": 5519.05,
       "avg_entry_price": 738.78,
-      "current_price": 738.11,
-      "unrealized_pl": -4.98,
-      "unrealized_pl_pct": -0.09
+      "current_price": 738.07,
+      "unrealized_pl": -5.29,
+      "unrealized_pl_pct": -0.1
     }
   ],
   "recent_orders": [
