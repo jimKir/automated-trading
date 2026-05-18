@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-05-18T16:42:47Z",
+  "last_updated": "2026-05-18T17:36:48Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101700.18,
+    "equity": 101720.35,
     "cash": 89543.31,
-    "long_market_value": 12156.87,
-    "day_change": 216.72,
-    "day_change_pct": 0.21,
-    "total_return_pct": 1.7
+    "long_market_value": 12177.04,
+    "day_change": 236.89,
+    "day_change_pct": 0.23,
+    "total_return_pct": 1.72
   },
   "benchmarks": {
     "spy_return_pct": 13.16,
     "qqq_return_pct": 21.4,
-    "vs_spy_pp": -11.46,
-    "vs_qqq_pp": -19.7
+    "vs_spy_pp": -11.44,
+    "vs_qqq_pp": -19.68
   },
   "metrics": {
     "total_return_pct": 2.24,
@@ -215,20 +215,20 @@
     {
       "symbol": "QQQ",
       "qty": 9.486547,
-      "market_value": 6657.28,
+      "market_value": 6668.38,
       "avg_entry_price": 711.05,
-      "current_price": 701.76,
-      "unrealized_pl": -88.15,
-      "unrealized_pl_pct": -1.31
+      "current_price": 702.93,
+      "unrealized_pl": -77.06,
+      "unrealized_pl_pct": -1.14
     },
     {
       "symbol": "SPY",
       "qty": 7.47768,
-      "market_value": 5499.68,
+      "market_value": 5508.66,
       "avg_entry_price": 738.78,
-      "current_price": 735.48,
-      "unrealized_pl": -24.66,
-      "unrealized_pl_pct": -0.45
+      "current_price": 736.68,
+      "unrealized_pl": -15.69,
+      "unrealized_pl_pct": -0.28
     }
   ],
   "recent_orders": [
