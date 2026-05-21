@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-05-21T20:23:45Z",
+  "last_updated": "2026-05-21T21:05:46Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102703.34,
+    "equity": 102645.4,
     "cash": 64134.52,
-    "long_market_value": 38568.82,
-    "day_change": 305.67,
-    "day_change_pct": 0.3,
-    "total_return_pct": 2.7
+    "long_market_value": 38510.88,
+    "day_change": 247.73,
+    "day_change_pct": 0.24,
+    "total_return_pct": 2.65
   },
   "benchmarks": {
     "spy_return_pct": 13.48,
     "qqq_return_pct": 22.12,
-    "vs_spy_pp": -10.78,
-    "vs_qqq_pp": -19.42
+    "vs_spy_pp": -10.84,
+    "vs_qqq_pp": -19.47
   },
   "metrics": {
     "total_return_pct": 1.94,
@@ -236,20 +236,11 @@
     {
       "symbol": "XLV",
       "qty": 66.804339,
-      "market_value": 9900.4,
+      "market_value": 9882.12,
       "avg_entry_price": 146.46,
-      "current_price": 148.2,
-      "unrealized_pl": 116.24,
-      "unrealized_pl_pct": 1.19
-    },
-    {
-      "symbol": "EWJ",
-      "qty": 66.804339,
-      "market_value": 6103.91,
-      "avg_entry_price": 90.02,
-      "current_price": 91.37,
-      "unrealized_pl": 90.25,
-      "unrealized_pl_pct": 1.5
+      "current_price": 147.93,
+      "unrealized_pl": 97.96,
+      "unrealized_pl_pct": 1.0
     },
     {
       "symbol": "EMXC",
@@ -261,13 +252,13 @@
       "unrealized_pl_pct": 1.36
     },
     {
-      "symbol": "GLD",
-      "qty": 7.475414,
-      "market_value": 3115.38,
-      "avg_entry_price": 411.43,
-      "current_price": 416.75,
-      "unrealized_pl": 39.74,
-      "unrealized_pl_pct": 1.29
+      "symbol": "EWJ",
+      "qty": 66.804339,
+      "market_value": 6065.83,
+      "avg_entry_price": 90.02,
+      "current_price": 90.8,
+      "unrealized_pl": 52.17,
+      "unrealized_pl_pct": 0.87
     },
     {
       "symbol": "VNQ",
@@ -279,13 +270,22 @@
       "unrealized_pl_pct": 0.62
     },
     {
+      "symbol": "GLD",
+      "qty": 7.475414,
+      "market_value": 3113.86,
+      "avg_entry_price": 411.43,
+      "current_price": 416.55,
+      "unrealized_pl": 38.22,
+      "unrealized_pl_pct": 1.24
+    },
+    {
       "symbol": "XLK",
       "qty": 7.125506,
-      "market_value": 1272.05,
+      "market_value": 1271.97,
       "avg_entry_price": 176.69,
-      "current_price": 178.52,
-      "unrealized_pl": 13.04,
-      "unrealized_pl_pct": 1.04
+      "current_price": 178.51,
+      "unrealized_pl": 12.97,
+      "unrealized_pl_pct": 1.03
     }
   ],
   "recent_orders": [
