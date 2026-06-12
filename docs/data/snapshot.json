@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-06-12T21:07:10Z",
+  "last_updated": "2026-06-12T21:54:27Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101951.99,
+    "equity": 101960.95,
     "cash": 36496.17,
-    "long_market_value": 65455.82,
-    "day_change": 259.83,
+    "long_market_value": 65464.78,
+    "day_change": 268.79,
     "day_change_pct": 0.26,
-    "total_return_pct": 1.95
+    "total_return_pct": 1.96
   },
   "benchmarks": {
     "spy_return_pct": NaN,
     "qqq_return_pct": 22.8,
     "vs_spy_pp": NaN,
-    "vs_qqq_pp": -20.85
+    "vs_qqq_pp": -20.84
   },
   "metrics": {
     "total_return_pct": 1.51,
@@ -299,47 +299,47 @@
     {
       "symbol": "EMXC",
       "qty": 90.005829,
-      "market_value": 9001.48,
+      "market_value": 9000.58,
       "avg_entry_price": 97.11,
-      "current_price": 100.01,
-      "unrealized_pl": 260.97,
-      "unrealized_pl_pct": 2.99
+      "current_price": 100.0,
+      "unrealized_pl": 260.07,
+      "unrealized_pl_pct": 2.97
     },
     {
       "symbol": "XLE",
       "qty": 118.034346,
-      "market_value": 6792.78,
+      "market_value": 6790.52,
       "avg_entry_price": 58.21,
-      "current_price": 57.55,
-      "unrealized_pl": -77.73,
-      "unrealized_pl_pct": -1.13
+      "current_price": 57.53,
+      "unrealized_pl": -79.99,
+      "unrealized_pl_pct": -1.16
     },
     {
       "symbol": "EEM",
       "qty": 118.138248,
-      "market_value": 8023.95,
+      "market_value": 8034.58,
       "avg_entry_price": 67.46,
-      "current_price": 67.92,
-      "unrealized_pl": 54.34,
-      "unrealized_pl_pct": 0.68
-    },
-    {
-      "symbol": "EWJ",
-      "qty": 107.615721,
-      "market_value": 9981.36,
-      "avg_entry_price": 92.34,
-      "current_price": 92.75,
-      "unrealized_pl": 44.0,
-      "unrealized_pl_pct": 0.44
+      "current_price": 68.01,
+      "unrealized_pl": 64.98,
+      "unrealized_pl_pct": 0.81
     },
     {
       "symbol": "IWM",
       "qty": 30.404201,
-      "market_value": 8919.68,
+      "market_value": 8923.33,
       "avg_entry_price": 292.11,
-      "current_price": 293.37,
-      "unrealized_pl": 38.23,
-      "unrealized_pl_pct": 0.43
+      "current_price": 293.49,
+      "unrealized_pl": 41.87,
+      "unrealized_pl_pct": 0.47
+    },
+    {
+      "symbol": "EWJ",
+      "qty": 107.615721,
+      "market_value": 9979.21,
+      "avg_entry_price": 92.34,
+      "current_price": 92.73,
+      "unrealized_pl": 41.85,
+      "unrealized_pl_pct": 0.42
     },
     {
       "symbol": "XLV",
