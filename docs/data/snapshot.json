@@ -1,26 +1,26 @@
 {
-  "last_updated": "2026-06-11T22:23:41Z",
+  "last_updated": "2026-06-12T14:04:26Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101625.9,
-    "cash": 63068.02,
-    "long_market_value": 38557.88,
-    "day_change": 116.57,
-    "day_change_pct": 0.11,
-    "total_return_pct": 1.63
+    "equity": 101921.13,
+    "cash": 36496.17,
+    "long_market_value": 65424.96,
+    "day_change": 228.97,
+    "day_change_pct": 0.23,
+    "total_return_pct": 1.92
   },
   "benchmarks": {
-    "spy_return_pct": 11.06,
-    "qqq_return_pct": 18.79,
-    "vs_spy_pp": -9.44,
-    "vs_qqq_pp": -17.16
+    "spy_return_pct": 12.95,
+    "qqq_return_pct": 22.8,
+    "vs_spy_pp": -11.03,
+    "vs_qqq_pp": -20.88
   },
   "metrics": {
-    "total_return_pct": 1.83,
-    "max_drawdown_pct": -1.77,
-    "sharpe": 1.97,
-    "volatility_pct": 5.46,
-    "trades_total": 31,
+    "total_return_pct": 1.51,
+    "max_drawdown_pct": -2.07,
+    "sharpe": 1.6,
+    "volatility_pct": 5.47,
+    "trades_total": 34,
     "win_rate_pct": null
   },
   "equity_curve": [
@@ -287,65 +287,200 @@
       "bot": 101.83,
       "spy": 111.06,
       "qqq": 118.79
+    },
+    {
+      "date": "2026-06-11",
+      "bot": 101.51,
+      "spy": 112.95,
+      "qqq": 122.8
     }
   ],
   "positions": [
     {
-      "symbol": "XLE",
-      "qty": 169.053145,
-      "market_value": 9661.39,
-      "avg_entry_price": 58.21,
-      "current_price": 57.15,
-      "unrealized_pl": -178.81,
-      "unrealized_pl_pct": -1.82
+      "symbol": "EMXC",
+      "qty": 90.005829,
+      "market_value": 8961.88,
+      "avg_entry_price": 97.11,
+      "current_price": 99.57,
+      "unrealized_pl": 221.37,
+      "unrealized_pl_pct": 2.53
     },
     {
-      "symbol": "EMXC",
-      "qty": 49.373469,
-      "market_value": 4838.6,
-      "avg_entry_price": 95.61,
-      "current_price": 98.0,
-      "unrealized_pl": 118.0,
-      "unrealized_pl_pct": 2.5
+      "symbol": "EEM",
+      "qty": 118.138248,
+      "market_value": 8013.32,
+      "avg_entry_price": 67.46,
+      "current_price": 67.83,
+      "unrealized_pl": 43.71,
+      "unrealized_pl_pct": 0.55
+    },
+    {
+      "symbol": "XLE",
+      "qty": 118.034346,
+      "market_value": 6830.06,
+      "avg_entry_price": 58.21,
+      "current_price": 57.87,
+      "unrealized_pl": -40.45,
+      "unrealized_pl_pct": -0.59
+    },
+    {
+      "symbol": "IWM",
+      "qty": 30.404201,
+      "market_value": 8916.79,
+      "avg_entry_price": 292.11,
+      "current_price": 293.27,
+      "unrealized_pl": 35.34,
+      "unrealized_pl_pct": 0.4
     },
     {
       "symbol": "XLV",
-      "qty": 64.323098,
-      "market_value": 9899.32,
-      "avg_entry_price": 153.64,
-      "current_price": 153.9,
-      "unrealized_pl": 16.74,
-      "unrealized_pl_pct": 0.17
+      "qty": 90.005829,
+      "market_value": 13865.4,
+      "avg_entry_price": 153.92,
+      "current_price": 154.05,
+      "unrealized_pl": 12.01,
+      "unrealized_pl_pct": 0.09
     },
     {
-      "symbol": "XLU",
-      "qty": 64.323098,
-      "market_value": 2836.65,
-      "avg_entry_price": 44.28,
-      "current_price": 44.1,
-      "unrealized_pl": -11.84,
-      "unrealized_pl_pct": -0.42
-    },
-    {
-      "symbol": "XLP",
-      "qty": 56.967967,
-      "market_value": 4857.66,
-      "avg_entry_price": 85.47,
-      "current_price": 85.27,
-      "unrealized_pl": -11.39,
-      "unrealized_pl_pct": -0.23
+      "symbol": "EWJ",
+      "qty": 107.615721,
+      "market_value": 9946.92,
+      "avg_entry_price": 92.34,
+      "current_price": 92.43,
+      "unrealized_pl": 9.56,
+      "unrealized_pl_pct": 0.1
     },
     {
       "symbol": "SHY",
-      "qty": 78.784396,
-      "market_value": 6464.26,
-      "avg_entry_price": 81.97,
+      "qty": 108.355908,
+      "market_value": 8890.59,
+      "avg_entry_price": 82.0,
       "current_price": 82.05,
-      "unrealized_pl": 6.3,
-      "unrealized_pl_pct": 0.1
+      "unrealized_pl": 5.7,
+      "unrealized_pl_pct": 0.06
     }
   ],
   "recent_orders": [
+    {
+      "submitted_at": "2026-06-12T13:29:07.721224Z",
+      "symbol": "XLP",
+      "side": "sell",
+      "qty": 56.967967,
+      "status": "filled",
+      "filled_avg_price": 85.495968
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:06.874433Z",
+      "symbol": "XLU",
+      "side": "sell",
+      "qty": 64.323098,
+      "status": "filled",
+      "filled_avg_price": 44.372268
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:06.025286Z",
+      "symbol": "SHY",
+      "side": "buy",
+      "qty": 29.571512,
+      "status": "filled",
+      "filled_avg_price": 82.07
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:05.281436Z",
+      "symbol": "XLV",
+      "side": "buy",
+      "qty": 25.682731,
+      "status": "filled",
+      "filled_avg_price": 154.61
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:04.530867Z",
+      "symbol": "EMXC",
+      "side": "buy",
+      "qty": 40.63236,
+      "status": "filled",
+      "filled_avg_price": 98.933782
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:03.780687Z",
+      "symbol": "EEM",
+      "side": "buy",
+      "qty": 118.138248,
+      "status": "filled",
+      "filled_avg_price": 67.46
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:03.444585Z",
+      "symbol": "XLE",
+      "side": "sell",
+      "qty": 51.018799,
+      "status": "filled",
+      "filled_avg_price": 57.03
+    },
+    {
+      "submitted_at": "2026-06-12T13:29:02.52076Z",
+      "symbol": "IWM",
+      "side": "buy",
+      "qty": 30.404201,
+      "status": "filled",
+      "filled_avg_price": 292.112743
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:54.062655Z",
+      "symbol": "SHY",
+      "side": "sell",
+      "qty": 78.784396,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:53.616401Z",
+      "symbol": "XLP",
+      "side": "sell",
+      "qty": 56.967967,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:53.172381Z",
+      "symbol": "XLE",
+      "side": "sell",
+      "qty": 61.437424,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:52.72304Z",
+      "symbol": "XLU",
+      "side": "buy",
+      "qty": 43.292623,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:52.374271Z",
+      "symbol": "XLV",
+      "side": "buy",
+      "qty": 43.292623,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:52.03301Z",
+      "symbol": "EWJ",
+      "side": "buy",
+      "qty": 107.615721,
+      "status": "filled",
+      "filled_avg_price": 92.341151
+    },
+    {
+      "submitted_at": "2026-06-12T13:28:51.694156Z",
+      "symbol": "EMXC",
+      "side": "buy",
+      "qty": 58.242252,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
     {
       "submitted_at": "2026-06-11T13:28:59.714467Z",
       "symbol": "XLF",
@@ -385,126 +520,6 @@
       "qty": 135.516446,
       "status": "canceled",
       "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:56.208596Z",
-      "symbol": "XLK",
-      "side": "sell",
-      "qty": 17.668138,
-      "status": "filled",
-      "filled_avg_price": 177.71
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:55.966566Z",
-      "symbol": "GLD",
-      "side": "sell",
-      "qty": 9.235265,
-      "status": "filled",
-      "filled_avg_price": 374.06637
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:55.292556Z",
-      "symbol": "QQQ",
-      "side": "sell",
-      "qty": 5.413507,
-      "status": "filled",
-      "filled_avg_price": 698.26
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:54.991336Z",
-      "symbol": "EMXC",
-      "side": "buy",
-      "qty": 49.373469,
-      "status": "filled",
-      "filled_avg_price": 95.61
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:54.797133Z",
-      "symbol": "IWM",
-      "side": "sell",
-      "qty": 12.004611,
-      "status": "filled",
-      "filled_avg_price": 284.463447
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:54.239546Z",
-      "symbol": "EWJ",
-      "side": "buy",
-      "qty": 11.161473,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:53.923206Z",
-      "symbol": "GLD",
-      "side": "sell",
-      "qty": 9.235265,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:53.898243Z",
-      "symbol": "XLK",
-      "side": "buy",
-      "qty": 5.082255,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:53.564179Z",
-      "symbol": "XLE",
-      "side": "buy",
-      "qty": 33.536699,
-      "status": "filled",
-      "filled_avg_price": 58.698058
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:53.4778Z",
-      "symbol": "SPY",
-      "side": "sell",
-      "qty": 3.613366,
-      "status": "filled",
-      "filled_avg_price": 727.69959
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:52.817779Z",
-      "symbol": "VGK",
-      "side": "sell",
-      "qty": 8.978622,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:52.61736Z",
-      "symbol": "XLP",
-      "side": "buy",
-      "qty": 56.967967,
-      "status": "filled",
-      "filled_avg_price": 85.47
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:52.367775Z",
-      "symbol": "EEM",
-      "side": "sell",
-      "qty": 2.567009,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:52.275377Z",
-      "symbol": "SHY",
-      "side": "buy",
-      "qty": 78.784396,
-      "status": "filled",
-      "filled_avg_price": 81.97
-    },
-    {
-      "submitted_at": "2026-06-11T13:28:51.937475Z",
-      "symbol": "XLV",
-      "side": "buy",
-      "qty": 64.323098,
-      "status": "filled",
-      "filled_avg_price": 153.639739
     }
   ]
 }
