@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-06-16T14:41:49Z",
+  "last_updated": "2026-06-16T16:15:29Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102166.68,
+    "equity": 102098.4,
     "cash": 81086.33,
-    "long_market_value": 21080.35,
-    "day_change": -93.03,
-    "day_change_pct": -0.09,
-    "total_return_pct": 2.17
+    "long_market_value": 21012.07,
+    "day_change": -161.31,
+    "day_change_pct": -0.16,
+    "total_return_pct": 2.1
   },
   "benchmarks": {
     "spy_return_pct": 13.56,
     "qqq_return_pct": 23.52,
-    "vs_spy_pp": -11.39,
-    "vs_qqq_pp": -21.35
+    "vs_spy_pp": -11.46,
+    "vs_qqq_pp": -21.42
   },
   "metrics": {
     "total_return_pct": 1.69,
@@ -305,29 +305,29 @@
     {
       "symbol": "IWM",
       "qty": 34.653646,
-      "market_value": 10202.38,
+      "market_value": 10182.8,
       "avg_entry_price": 296.53,
-      "current_price": 294.41,
-      "unrealized_pl": -73.41,
-      "unrealized_pl_pct": -0.71
+      "current_price": 293.85,
+      "unrealized_pl": -92.99,
+      "unrealized_pl_pct": -0.91
     },
     {
       "symbol": "QQQ",
       "qty": 13.114149,
-      "market_value": 9696.73,
+      "market_value": 9647.95,
       "avg_entry_price": 741.0,
-      "current_price": 739.41,
-      "unrealized_pl": -20.84,
-      "unrealized_pl_pct": -0.21
+      "current_price": 735.69,
+      "unrealized_pl": -69.62,
+      "unrealized_pl_pct": -0.72
     },
     {
       "symbol": "VGK",
       "qty": 13.061975,
-      "market_value": 1180.02,
+      "market_value": 1181.33,
       "avg_entry_price": 90.34,
-      "current_price": 90.34,
-      "unrealized_pl": 0.0,
-      "unrealized_pl_pct": 0.0
+      "current_price": 90.44,
+      "unrealized_pl": 1.31,
+      "unrealized_pl_pct": 0.11
     }
   ],
   "recent_orders": [
