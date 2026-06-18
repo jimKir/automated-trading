@@ -1,18 +1,18 @@
 {
-  "last_updated": "2026-06-18T20:54:55Z",
+  "last_updated": "2026-06-18T21:45:20Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102009.8,
+    "equity": 102016.44,
     "cash": 80274.46,
-    "long_market_value": 21735.34,
-    "day_change": 778.41,
-    "day_change_pct": 0.77,
-    "total_return_pct": 2.01
+    "long_market_value": 21741.98,
+    "day_change": 785.05,
+    "day_change_pct": 0.78,
+    "total_return_pct": 2.02
   },
   "benchmarks": {
     "spy_return_pct": 13.44,
     "qqq_return_pct": 23.72,
-    "vs_spy_pp": -11.43,
+    "vs_spy_pp": -11.42,
     "vs_qqq_pp": -21.71
   },
   "metrics": {
@@ -317,38 +317,38 @@
     {
       "symbol": "EEM",
       "qty": 99.932039,
-      "market_value": 7075.19,
+      "market_value": 7085.18,
       "avg_entry_price": 69.82,
-      "current_price": 70.8,
-      "unrealized_pl": 97.95,
-      "unrealized_pl_pct": 1.4
+      "current_price": 70.9,
+      "unrealized_pl": 107.94,
+      "unrealized_pl_pct": 1.55
     },
     {
       "symbol": "XLK",
       "qty": 28.410667,
-      "market_value": 5451.92,
+      "market_value": 5438.65,
       "avg_entry_price": 188.46,
-      "current_price": 191.9,
-      "unrealized_pl": 97.56,
-      "unrealized_pl_pct": 1.82
+      "current_price": 191.43,
+      "unrealized_pl": 84.3,
+      "unrealized_pl_pct": 1.57
     },
     {
       "symbol": "XLE",
       "qty": 64.961074,
-      "market_value": 3496.63,
+      "market_value": 3499.12,
       "avg_entry_price": 55.16,
-      "current_price": 53.83,
-      "unrealized_pl": -86.63,
-      "unrealized_pl_pct": -2.42
+      "current_price": 53.86,
+      "unrealized_pl": -84.14,
+      "unrealized_pl_pct": -2.35
     },
     {
       "symbol": "QQQ",
       "qty": 7.279185,
-      "market_value": 5387.32,
+      "market_value": 5394.75,
       "avg_entry_price": 736.62,
-      "current_price": 740.1,
-      "unrealized_pl": 25.35,
-      "unrealized_pl_pct": 0.47
+      "current_price": 741.12,
+      "unrealized_pl": 32.77,
+      "unrealized_pl_pct": 0.61
     },
     {
       "symbol": "VGK",
