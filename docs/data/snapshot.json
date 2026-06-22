@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-06-22T20:24:22Z",
+  "last_updated": "2026-06-22T21:25:37Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102131.96,
+    "equity": 102132.61,
     "cash": 98624.06,
-    "long_market_value": 3507.9,
-    "day_change": 136.14,
+    "long_market_value": 3508.55,
+    "day_change": 136.79,
     "day_change_pct": 0.13,
     "total_return_pct": 2.13
   },
@@ -323,11 +323,11 @@
     {
       "symbol": "XLE",
       "qty": 64.961074,
-      "market_value": 3507.9,
+      "market_value": 3508.55,
       "avg_entry_price": 55.16,
-      "current_price": 54.0,
-      "unrealized_pl": -75.35,
-      "unrealized_pl_pct": -2.1
+      "current_price": 54.01,
+      "unrealized_pl": -74.71,
+      "unrealized_pl_pct": -2.08
     }
   ],
   "recent_orders": [
