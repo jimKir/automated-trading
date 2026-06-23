@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-06-23T20:28:04Z",
+  "last_updated": "2026-06-23T21:09:35Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102279.52,
+    "equity": 102279.8,
     "cash": 44379.66,
-    "long_market_value": 57899.86,
-    "day_change": 143.7,
+    "long_market_value": 57900.14,
+    "day_change": 143.98,
     "day_change_pct": 0.14,
     "total_return_pct": 2.28
   },
@@ -323,11 +323,11 @@
     {
       "symbol": "IWM",
       "qty": 39.018339,
-      "market_value": 11529.14,
+      "market_value": 11543.19,
       "avg_entry_price": 293.1,
-      "current_price": 295.48,
-      "unrealized_pl": 92.96,
-      "unrealized_pl_pct": 0.81
+      "current_price": 295.84,
+      "unrealized_pl": 107.01,
+      "unrealized_pl_pct": 0.94
     },
     {
       "symbol": "VNQ",
@@ -350,11 +350,11 @@
     {
       "symbol": "XLU",
       "qty": 57.701948,
-      "market_value": 2597.58,
+      "market_value": 2605.62,
       "avg_entry_price": 44.64,
-      "current_price": 45.02,
-      "unrealized_pl": 21.78,
-      "unrealized_pl_pct": 0.84
+      "current_price": 45.16,
+      "unrealized_pl": 29.82,
+      "unrealized_pl_pct": 1.16
     },
     {
       "symbol": "EWJ",
@@ -366,13 +366,13 @@
       "unrealized_pl_pct": 0.28
     },
     {
-      "symbol": "XLV",
-      "qty": 57.701948,
-      "market_value": 8778.2,
-      "avg_entry_price": 151.95,
-      "current_price": 152.13,
-      "unrealized_pl": 10.39,
-      "unrealized_pl_pct": 0.12
+      "symbol": "XLK",
+      "qty": 39.305397,
+      "market_value": 7256.17,
+      "avg_entry_price": 184.96,
+      "current_price": 184.61,
+      "unrealized_pl": -13.76,
+      "unrealized_pl_pct": -0.19
     },
     {
       "symbol": "EEM",
@@ -384,13 +384,13 @@
       "unrealized_pl_pct": 0.07
     },
     {
-      "symbol": "XLK",
-      "qty": 39.305397,
-      "market_value": 7268.75,
-      "avg_entry_price": 184.96,
-      "current_price": 184.93,
-      "unrealized_pl": -1.18,
-      "unrealized_pl_pct": -0.02
+      "symbol": "XLV",
+      "qty": 57.701948,
+      "market_value": 8768.97,
+      "avg_entry_price": 151.95,
+      "current_price": 151.97,
+      "unrealized_pl": 1.15,
+      "unrealized_pl_pct": 0.01
     }
   ],
   "recent_orders": [
