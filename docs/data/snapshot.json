@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-06-25T17:54:00Z",
+  "last_updated": "2026-06-25T18:51:04Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102484.06,
+    "equity": 102554.75,
     "cash": 41520.15,
-    "long_market_value": 60963.91,
-    "day_change": 112.32,
-    "day_change_pct": 0.11,
-    "total_return_pct": 2.48
+    "long_market_value": 61034.6,
+    "day_change": 183.01,
+    "day_change_pct": 0.18,
+    "total_return_pct": 2.55
   },
   "benchmarks": {
-    "spy_return_pct": NaN,
+    "spy_return_pct": 12.55,
     "qqq_return_pct": 21.82,
-    "vs_spy_pp": NaN,
-    "vs_qqq_pp": -19.34
+    "vs_spy_pp": -9.99,
+    "vs_qqq_pp": -19.26
   },
   "metrics": {
     "total_return_pct": 2.23,
@@ -27,307 +27,307 @@
     {
       "date": "2026-03-24",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.0,
       "qqq": 100.0
     },
     {
       "date": "2026-03-25",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.56,
       "qqq": 100.66
     },
     {
       "date": "2026-03-26",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 98.76,
       "qqq": 98.26
     },
     {
       "date": "2026-03-27",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 97.08,
       "qqq": 96.34
     },
     {
       "date": "2026-03-31",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 99.57,
       "qqq": 98.84
     },
     {
       "date": "2026-04-01",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.32,
       "qqq": 100.06
     },
     {
       "date": "2026-04-02",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.41,
       "qqq": 100.17
     },
     {
       "date": "2026-04-07",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 100.92,
       "qqq": 100.79
     },
     {
       "date": "2026-04-08",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 103.5,
       "qqq": 103.79
     },
     {
       "date": "2026-04-09",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 104.09,
       "qqq": 104.49
     },
     {
       "date": "2026-04-10",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 104.02,
       "qqq": 104.64
     },
     {
       "date": "2026-04-14",
       "bot": 100.0,
-      "spy": NaN,
+      "spy": 106.32,
       "qqq": 107.64
     },
     {
       "date": "2026-04-15",
       "bot": 100.38,
-      "spy": NaN,
+      "spy": 107.16,
       "qqq": 109.15
     },
     {
       "date": "2026-04-16",
       "bot": 100.13,
-      "spy": NaN,
+      "spy": 107.42,
       "qqq": 109.67
     },
     {
       "date": "2026-04-17",
       "bot": 100.25,
-      "spy": NaN,
+      "spy": 108.72,
       "qqq": 111.11
     },
     {
       "date": "2026-04-21",
       "bot": 100.09,
-      "spy": NaN,
+      "spy": 107.79,
       "qqq": 110.33
     },
     {
       "date": "2026-04-22",
       "bot": 100.09,
-      "spy": NaN,
+      "spy": 108.88,
       "qqq": 112.18
     },
     {
       "date": "2026-04-23",
       "bot": 100.19,
-      "spy": NaN,
+      "spy": 108.46,
       "qqq": 111.55
     },
     {
       "date": "2026-04-24",
       "bot": 100.08,
-      "spy": NaN,
+      "spy": 109.3,
       "qqq": 113.68
     },
     {
       "date": "2026-04-28",
       "bot": 100.33,
-      "spy": NaN,
+      "spy": 108.96,
       "qqq": 112.6
     },
     {
       "date": "2026-04-29",
       "bot": 100.42,
-      "spy": NaN,
+      "spy": 108.94,
       "qqq": 113.29
     },
     {
       "date": "2026-04-30",
       "bot": 100.56,
-      "spy": NaN,
+      "spy": 110.02,
       "qqq": 114.34
     },
     {
       "date": "2026-05-01",
       "bot": 101.39,
-      "spy": NaN,
+      "spy": 110.33,
       "qqq": 115.44
     },
     {
       "date": "2026-05-05",
       "bot": 101.37,
-      "spy": NaN,
+      "spy": 110.81,
       "qqq": 116.72
     },
     {
       "date": "2026-05-06",
       "bot": 101.42,
-      "spy": NaN,
+      "spy": 112.35,
       "qqq": 119.14
     },
     {
       "date": "2026-05-07",
       "bot": 102.02,
-      "spy": NaN,
+      "spy": 112.0,
       "qqq": 119.0
     },
     {
       "date": "2026-05-08",
       "bot": 101.46,
-      "spy": NaN,
+      "spy": 112.93,
       "qqq": 121.79
     },
     {
       "date": "2026-05-12",
       "bot": 101.87,
-      "spy": NaN,
+      "spy": 113.01,
       "qqq": 121.11
     },
     {
       "date": "2026-05-13",
       "bot": 101.89,
-      "spy": NaN,
+      "spy": 113.65,
       "qqq": 122.39
     },
     {
       "date": "2026-05-14",
       "bot": 102.14,
-      "spy": NaN,
+      "spy": 114.54,
       "qqq": 123.26
     },
     {
       "date": "2026-05-15",
       "bot": 102.24,
-      "spy": NaN,
+      "spy": 113.16,
       "qqq": 121.4
     },
     {
       "date": "2026-05-19",
       "bot": 101.76,
-      "spy": NaN,
+      "spy": 112.33,
       "qqq": 120.13
     },
     {
       "date": "2026-05-20",
       "bot": 101.94,
-      "spy": NaN,
+      "spy": 113.48,
       "qqq": 122.12
     },
     {
       "date": "2026-05-21",
       "bot": 102.4,
-      "spy": NaN,
+      "spy": 113.71,
       "qqq": 122.35
     },
     {
       "date": "2026-05-22",
       "bot": 102.71,
-      "spy": NaN,
+      "spy": 114.16,
       "qqq": 122.87
     },
     {
       "date": "2026-05-27",
       "bot": 103.26,
-      "spy": NaN,
+      "spy": 114.89,
       "qqq": 124.91
     },
     {
       "date": "2026-05-28",
       "bot": 103.26,
-      "spy": NaN,
+      "spy": 115.53,
       "qqq": 125.96
     },
     {
       "date": "2026-05-29",
       "bot": 103.42,
-      "spy": NaN,
+      "spy": 115.81,
       "qqq": 126.43
     },
     {
       "date": "2026-06-02",
       "bot": 103.34,
-      "spy": NaN,
+      "spy": 116.29,
       "qqq": 127.77
     },
     {
       "date": "2026-06-03",
       "bot": 103.44,
-      "spy": NaN,
+      "spy": 115.47,
       "qqq": 127.44
     },
     {
       "date": "2026-06-04",
       "bot": 103.25,
-      "spy": NaN,
+      "spy": 115.91,
       "qqq": 126.82
     },
     {
       "date": "2026-06-05",
       "bot": 103.66,
-      "spy": NaN,
+      "spy": 112.92,
       "qqq": 120.73
     },
     {
       "date": "2026-06-09",
       "bot": 102.22,
-      "spy": NaN,
+      "spy": 112.84,
       "qqq": 121.21
     },
     {
       "date": "2026-06-10",
       "bot": 101.83,
-      "spy": NaN,
+      "spy": 111.06,
       "qqq": 118.79
     },
     {
       "date": "2026-06-11",
       "bot": 101.51,
-      "spy": NaN,
+      "spy": 112.95,
       "qqq": 122.8
     },
     {
       "date": "2026-06-12",
       "bot": 101.69,
-      "spy": NaN,
+      "spy": 113.56,
       "qqq": 123.52
     },
     {
       "date": "2026-06-16",
       "bot": 102.26,
-      "spy": NaN,
+      "spy": 114.87,
       "qqq": 124.98
     },
     {
       "date": "2026-06-17",
       "bot": 101.96,
-      "spy": NaN,
+      "spy": 113.44,
       "qqq": 123.72
     },
     {
       "date": "2026-06-18",
       "bot": 101.23,
-      "spy": NaN,
+      "spy": 114.62,
       "qqq": 126.82
     },
     {
       "date": "2026-06-23",
       "bot": 102.14,
-      "spy": NaN,
+      "spy": 112.6,
       "qqq": 122.34
     },
     {
       "date": "2026-06-24",
       "bot": 102.23,
-      "spy": NaN,
+      "spy": 112.55,
       "qqq": 121.82
     }
   ],
@@ -335,83 +335,83 @@
     {
       "symbol": "XLE",
       "qty": 243.616795,
-      "market_value": 13132.16,
+      "market_value": 13202.15,
       "avg_entry_price": 53.13,
-      "current_price": 53.91,
-      "unrealized_pl": 187.62,
-      "unrealized_pl_pct": 1.45
+      "current_price": 54.19,
+      "unrealized_pl": 257.62,
+      "unrealized_pl_pct": 1.99
     },
     {
       "symbol": "XLK",
       "qty": 71.829185,
-      "market_value": 13240.99,
+      "market_value": 13263.26,
       "avg_entry_price": 186.62,
-      "current_price": 184.34,
-      "unrealized_pl": -163.68,
-      "unrealized_pl_pct": -1.22
+      "current_price": 184.65,
+      "unrealized_pl": -141.41,
+      "unrealized_pl_pct": -1.05
     },
     {
       "symbol": "EMXC",
       "qty": 56.710032,
-      "market_value": 5769.68,
+      "market_value": 5762.31,
       "avg_entry_price": 103.16,
-      "current_price": 101.74,
-      "unrealized_pl": -80.7,
-      "unrealized_pl_pct": -1.38
+      "current_price": 101.61,
+      "unrealized_pl": -88.07,
+      "unrealized_pl_pct": -1.5
     },
     {
       "symbol": "EWJ",
       "qty": 56.207377,
-      "market_value": 5257.08,
+      "market_value": 5247.52,
       "avg_entry_price": 94.06,
-      "current_price": 93.53,
-      "unrealized_pl": -29.79,
-      "unrealized_pl_pct": -0.56
-    },
-    {
-      "symbol": "XLP",
-      "qty": 48.817079,
-      "market_value": 4090.14,
-      "avg_entry_price": 84.26,
-      "current_price": 83.78,
-      "unrealized_pl": -23.37,
-      "unrealized_pl_pct": -0.57
-    },
-    {
-      "symbol": "QQQ",
-      "qty": 6.209194,
-      "market_value": 4446.34,
-      "avg_entry_price": 717.52,
-      "current_price": 716.09,
-      "unrealized_pl": -8.86,
-      "unrealized_pl_pct": -0.2
-    },
-    {
-      "symbol": "XLU",
-      "qty": 56.949555,
-      "market_value": 2606.58,
-      "avg_entry_price": 45.92,
-      "current_price": 45.77,
-      "unrealized_pl": -8.53,
-      "unrealized_pl_pct": -0.33
+      "current_price": 93.36,
+      "unrealized_pl": -39.35,
+      "unrealized_pl_pct": -0.74
     },
     {
       "symbol": "TLT",
       "qty": 85.700678,
-      "market_value": 7498.38,
+      "market_value": 7484.67,
       "avg_entry_price": 87.59,
-      "current_price": 87.5,
-      "unrealized_pl": -8.29,
-      "unrealized_pl_pct": -0.11
+      "current_price": 87.33,
+      "unrealized_pl": -22.01,
+      "unrealized_pl_pct": -0.29
+    },
+    {
+      "symbol": "XLP",
+      "qty": 48.817079,
+      "market_value": 4098.68,
+      "avg_entry_price": 84.26,
+      "current_price": 83.96,
+      "unrealized_pl": -14.83,
+      "unrealized_pl_pct": -0.36
     },
     {
       "symbol": "EEM",
       "qty": 72.326679,
-      "market_value": 4922.55,
+      "market_value": 4913.15,
       "avg_entry_price": 68.03,
-      "current_price": 68.06,
-      "unrealized_pl": 2.05,
-      "unrealized_pl_pct": 0.04
+      "current_price": 67.93,
+      "unrealized_pl": -7.35,
+      "unrealized_pl_pct": -0.15
+    },
+    {
+      "symbol": "QQQ",
+      "qty": 6.209194,
+      "market_value": 4451.43,
+      "avg_entry_price": 717.52,
+      "current_price": 716.91,
+      "unrealized_pl": -3.77,
+      "unrealized_pl_pct": -0.08
+    },
+    {
+      "symbol": "XLU",
+      "qty": 56.949555,
+      "market_value": 2611.42,
+      "avg_entry_price": 45.92,
+      "current_price": 45.85,
+      "unrealized_pl": -3.69,
+      "unrealized_pl_pct": -0.14
     }
   ],
   "recent_orders": [
