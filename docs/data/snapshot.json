@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-07-06T20:26:41Z",
+  "last_updated": "2026-07-06T21:56:00Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 102493.66,
+    "equity": 102506.54,
     "cash": 39005.5,
-    "long_market_value": 63488.16,
-    "day_change": 354.74,
-    "day_change_pct": 0.35,
-    "total_return_pct": 2.49
+    "long_market_value": 63501.04,
+    "day_change": 367.62,
+    "day_change_pct": 0.36,
+    "total_return_pct": 2.51
   },
   "benchmarks": {
     "spy_return_pct": 14.32,
     "qqq_return_pct": 22.16,
-    "vs_spy_pp": -11.82,
-    "vs_qqq_pp": -19.67
+    "vs_spy_pp": -11.81,
+    "vs_qqq_pp": -19.65
   },
   "metrics": {
     "total_return_pct": 2.08,
@@ -365,11 +365,20 @@
     {
       "symbol": "SPY",
       "qty": 32.891006,
-      "market_value": 24719.56,
+      "market_value": 24726.8,
       "avg_entry_price": 748.59,
-      "current_price": 751.56,
-      "unrealized_pl": 97.6,
-      "unrealized_pl_pct": 0.4
+      "current_price": 751.78,
+      "unrealized_pl": 104.84,
+      "unrealized_pl_pct": 0.43
+    },
+    {
+      "symbol": "QQQ",
+      "qty": 32.891006,
+      "market_value": 23780.2,
+      "avg_entry_price": 721.24,
+      "current_price": 723.0,
+      "unrealized_pl": 57.89,
+      "unrealized_pl_pct": 0.24
     },
     {
       "symbol": "XLF",
@@ -381,31 +390,22 @@
       "unrealized_pl_pct": 0.71
     },
     {
-      "symbol": "QQQ",
-      "qty": 32.891006,
-      "market_value": 23772.37,
-      "avg_entry_price": 721.24,
-      "current_price": 722.76,
-      "unrealized_pl": 50.06,
-      "unrealized_pl_pct": 0.21
-    },
-    {
       "symbol": "XLP",
       "qty": 55.403334,
-      "market_value": 4659.42,
+      "market_value": 4652.77,
       "avg_entry_price": 84.73,
-      "current_price": 84.1,
-      "unrealized_pl": -34.9,
-      "unrealized_pl_pct": -0.74
+      "current_price": 83.98,
+      "unrealized_pl": -41.55,
+      "unrealized_pl_pct": -0.89
     },
     {
       "symbol": "EEM",
       "qty": 44.694601,
-      "market_value": 3019.12,
+      "market_value": 3023.59,
       "avg_entry_price": 67.33,
-      "current_price": 67.55,
-      "unrealized_pl": 9.83,
-      "unrealized_pl_pct": 0.33
+      "current_price": 67.65,
+      "unrealized_pl": 14.3,
+      "unrealized_pl_pct": 0.47
     }
   ],
   "recent_orders": [
