@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-07-17T20:57:57Z",
+  "last_updated": "2026-07-17T22:00:21Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101467.44,
+    "equity": 101450.46,
     "cash": 86342.85,
-    "long_market_value": 15124.59,
-    "day_change": -788.78,
-    "day_change_pct": -0.77,
-    "total_return_pct": 1.47
+    "long_market_value": 15107.61,
+    "day_change": -805.76,
+    "day_change_pct": -0.79,
+    "total_return_pct": 1.45
   },
   "benchmarks": {
     "spy_return_pct": 15.23,
     "qqq_return_pct": 21.02,
-    "vs_spy_pp": -13.76,
-    "vs_qqq_pp": -19.55
+    "vs_spy_pp": -13.78,
+    "vs_qqq_pp": -19.57
   },
   "metrics": {
     "total_return_pct": 2.5,
@@ -407,11 +407,11 @@
     {
       "symbol": "IWM",
       "qty": 51.461698,
-      "market_value": 15124.59,
+      "market_value": 15107.61,
       "avg_entry_price": 295.33,
-      "current_price": 293.9,
-      "unrealized_pl": -73.75,
-      "unrealized_pl_pct": -0.48
+      "current_price": 293.57,
+      "unrealized_pl": -90.74,
+      "unrealized_pl_pct": -0.6
     }
   ],
   "recent_orders": [
