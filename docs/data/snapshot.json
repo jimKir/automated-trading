@@ -1,26 +1,26 @@
 {
-  "last_updated": "2026-07-17T22:00:21Z",
+  "last_updated": "2026-07-20T15:12:31Z",
   "inception_date": "2026-03-24",
   "account": {
-    "equity": 101450.46,
-    "cash": 86342.85,
-    "long_market_value": 15107.61,
-    "day_change": -805.76,
-    "day_change_pct": -0.79,
-    "total_return_pct": 1.45
+    "equity": 101558.41,
+    "cash": 101558.41,
+    "long_market_value": 0.0,
+    "day_change": 83.88,
+    "day_change_pct": 0.08,
+    "total_return_pct": 1.56
   },
   "benchmarks": {
-    "spy_return_pct": 15.23,
-    "qqq_return_pct": 21.02,
-    "vs_spy_pp": -13.78,
-    "vs_qqq_pp": -19.57
+    "spy_return_pct": 14.09,
+    "qqq_return_pct": 19.2,
+    "vs_spy_pp": -12.53,
+    "vs_qqq_pp": -17.64
   },
   "metrics": {
-    "total_return_pct": 2.5,
+    "total_return_pct": 2.26,
     "max_drawdown_pct": -2.34,
-    "sharpe": 1.73,
-    "volatility_pct": 5.91,
-    "trades_total": 33,
+    "sharpe": 1.54,
+    "volatility_pct": 5.89,
+    "trades_total": 32,
     "win_rate_pct": null
   },
   "equity_curve": [
@@ -401,20 +401,32 @@
       "bot": 102.5,
       "spy": 115.23,
       "qqq": 121.02
-    }
-  ],
-  "positions": [
+    },
     {
-      "symbol": "IWM",
-      "qty": 51.461698,
-      "market_value": 15107.61,
-      "avg_entry_price": 295.33,
-      "current_price": 293.57,
-      "unrealized_pl": -90.74,
-      "unrealized_pl_pct": -0.6
+      "date": "2026-07-17",
+      "bot": 102.26,
+      "spy": 114.09,
+      "qqq": 119.2
     }
   ],
+  "positions": [],
   "recent_orders": [
+    {
+      "submitted_at": "2026-07-20T13:27:09.644392Z",
+      "symbol": "IWM",
+      "side": "sell",
+      "qty": 51.461698,
+      "status": "filled",
+      "filled_avg_price": 295.67
+    },
+    {
+      "submitted_at": "2026-07-20T13:26:50.270692Z",
+      "symbol": "IWM",
+      "side": "sell",
+      "qty": 51.461698,
+      "status": "canceled",
+      "filled_avg_price": null
+    },
     {
       "submitted_at": "2026-07-17T13:27:20.824738Z",
       "symbol": "EMXC",
@@ -556,22 +568,6 @@
       "symbol": "VGK",
       "side": "sell",
       "qty": 38.325297,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-07-17T13:26:57.343516Z",
-      "symbol": "QQQ",
-      "side": "sell",
-      "qty": 5.535675,
-      "status": "canceled",
-      "filled_avg_price": null
-    },
-    {
-      "submitted_at": "2026-07-17T13:26:56.910716Z",
-      "symbol": "SPY",
-      "side": "sell",
-      "qty": 3.653788,
       "status": "canceled",
       "filled_avg_price": null
     }
