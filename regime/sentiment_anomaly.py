@@ -31,6 +31,20 @@ log = get_logger("SentimentAnomaly")
 _REPO_ROOT = Path(__file__).parent.parent
 _DATA_DIR = _REPO_ROOT / "data" / "historical" / "daily"
 
+# Vol-of-VIX calibration, from the measured distribution of 10d realised vol of VIX
+# daily returns (2015-2026): median 0.062, elevated ~0.12, crisis ~0.20.
+VVIX_CALM = 0.06
+VVIX_CRISIS = 0.20
+
+# SPY/TLT correlation is scored relative to its own trailing median rather than to a
+# fixed sign, because the stock/bond correlation regime flipped after 2022.
+CORR_BASELINE_WINDOW = 252
+CORR_EXCESS_SPAN = 0.50
+
+# Calendar days of history the single-date live path pulls. Must comfortably exceed
+# CORR_BASELINE_WINDOW business days so live and backtest scores agree.
+SCORE_AT_LOOKBACK_DAYS = 500
+
 
 class SentimentAnomalyDetector:
     """
@@ -85,8 +99,10 @@ class SentimentAnomalyDetector:
             # 2. VVIX proxy: vol-of-VIX (realised VIX volatility over 10d)
             # High VVIX = uncertainty about uncertainty = regime instability
             vix_rvol = vix_a.pct_change().rolling(10).std()
-            # Calibration: calm ~0.03, stress ~0.08, crisis ~0.15+
-            vvix_score = ((vix_rvol - 0.03) / 0.12).clip(0, 1)
+            # Calm baseline was 0.030, which is ~half the true median: measured median of
+            # this statistic is 0.062 over 2015-2026 (0.079 in 2026). That floor made a
+            # typical day score ~0.27-0.41 and kept the composite pinned at ELEVATED.
+            vvix_score = ((vix_rvol - VVIX_CALM) / (VVIX_CRISIS - VVIX_CALM)).clip(0, 1)
             components.append(vvix_score.fillna(0))
             weights.append(0.20)
 
@@ -127,13 +143,18 @@ class SentimentAnomalyDetector:
             tlt_r = tlt_a.pct_change()
             # Rolling 20d correlation
             corr_20d = spy_r.rolling(20).corr(tlt_r)
-            # Normally negative (stocks up, bonds down). Positive = stress.
-            # Both falling together = worst case (liquidity crisis).
-            # Positive correlation + both falling = maximum stress
+            # Measured against its OWN trailing baseline, not a hardcoded sign assumption.
+            # The previous version scored any positive correlation as stress ((corr-0)/0.5),
+            # which was true pre-2022 (mean -0.39) but is the structural norm post-2022
+            # (mean +0.12, +0.34 in 2026). It therefore reported ~0.56 on calm days and was
+            # the single largest contributor to the layer being stuck at ELEVATED.
+            # Stress is now a *rise above* the prevailing regime, so this self-recalibrates.
+            corr_baseline = corr_20d.rolling(CORR_BASELINE_WINDOW, min_periods=60).median()
+            corr_baseline = corr_baseline.fillna(corr_20d.expanding(min_periods=20).median())
+            corr_excess = (corr_20d - corr_baseline) / CORR_EXCESS_SPAN
+            corr_stress = corr_excess.clip(0, 1).fillna(0)
+            # Extra penalty when equities are also falling (liquidity-crisis signature)
             spy_falling = (spy_a.pct_change(10) < -0.02).astype(float)
-            # High positive correlation = stress
-            corr_stress = ((corr_20d - 0.0) / 0.5).clip(0, 1).fillna(0)
-            # Extra penalty when both falling
             both_falling_bonus = corr_stress * spy_falling * 0.3
             rotation_score = (corr_stress + both_falling_bonus).clip(0, 1)
             components.append(rotation_score)
@@ -148,7 +169,10 @@ class SentimentAnomalyDetector:
 
     def score_at(self, date: pd.Timestamp) -> float:
         """Score for a single date (for live use)."""
-        idx = pd.date_range(date - pd.Timedelta(days=90), date, freq="B")
+        # Must span the longest rolling window used above (the 252-bar correlation
+        # baseline) or the live score silently differs from the backtest series, which
+        # only had ~64 bars here and so ran on unwarmed rolling windows.
+        idx = pd.date_range(date - pd.Timedelta(days=SCORE_AT_LOOKBACK_DAYS), date, freq="B")
         series = self.score_series_fast(idx)
         if series.empty:
             return 0.0
