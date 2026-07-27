@@ -414,9 +414,13 @@ class TestRebalanceCadence:
 
         assert engine._should_rebalance(datetime.now(UTC)) is False
 
-    def test_daily_cadence_allows_after_20_hours(self):
-        """Daily cadence: should allow if > 20 hours since last rebalance."""
-        old_fill = datetime.now(UTC) - timedelta(hours=21)
+    def test_daily_cadence_allows_after_24_hours(self):
+        """Daily cadence: should allow if > 24h since last rebalance.
+
+        Note: P0-1 added a hard 24h minimum interval guard that takes
+        precedence over the old 20h daily cadence check.
+        """
+        old_fill = datetime.now(UTC) - timedelta(hours=25)
         engine = self._make_engine(rebalance_freq="daily", last_rebalance=old_fill)
 
         assert engine._should_rebalance(datetime.now(UTC)) is True

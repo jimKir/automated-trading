@@ -8,6 +8,7 @@ generates signals, computes orders, and executes.
 
 from __future__ import annotations
 
+import json as _json
 import signal
 import sys
 import time
@@ -118,9 +119,52 @@ class LiveEngine:
         self._rebalance_freq = config.get("strategy", {}).get("rebalance_frequency", "weekly")
         self._last_rebalance: datetime | None = None
 
+        # ── Rebalance guards ─────────────────────────────────────────────
+        _rbg = config.get("rebalance_guards", {})
+        self._min_rebalance_interval_s: int = int(_rbg.get("min_rebalance_interval_seconds", 86400))
+        self._min_order_delta_pct: float = float(_rbg.get("min_order_delta_pct_of_position", 0.02))
+        self._min_order_delta_shares: float = float(_rbg.get("min_order_delta_shares", 1.0))
+
+        # ── Daily turnover cap ────────────────────────────────────────────
+        _rl = config.get("risk_limits", {})
+        self._max_daily_turnover_x: float = float(_rl.get("max_daily_turnover_x", 2.0))
+        self._persist_turnover: bool = bool(_rl.get("persist_turnover_state", True))
+        self._daily_gross_traded_usd: float = 0.0
+        self._turnover_date: str = ""  # UTC date string YYYY-MM-DD
+        self._turnover_cap_hit: bool = False
+
+        # ── Signal cache ──────────────────────────────────────────────────
+        self._signal_cache_enabled: bool = bool(
+            config.get("signals", {}).get("cache_per_session", True)
+        )
+        self._signal_cache: dict[str, float] = {}
+        self._signal_cache_date: str = ""  # UTC date string YYYY-MM-DD
+        self._signal_cache_ts: datetime | None = None
+
+        # ── Re-entry ramp ─────────────────────────────────────────────────
+        _rr = config.get("reentry_ramp", {})
+        self._ramp_day_0_pct: float = float(_rr.get("day_0_pct", 0.50))
+        self._ramp_day_1_pct: float = float(_rr.get("day_1_pct", 0.75))
+        self._ramp_day_2_plus_pct: float = float(_rr.get("day_2_plus_pct", 1.00))
+        self._reentry_start_date: str | None = None  # UTC date string
+
+        # ── State persistence directory ───────────────────────────────────
+        self._state_dir = Path("/tmp/trading_bot_state")  # noqa: S108
+        self._state_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load persisted last-rebalance timestamp (survives ECS restarts)
+        self._load_persisted_rebalance_ts()
+
+        # Load persisted daily turnover
+        self._load_persisted_turnover()
+
+        # Load persisted re-entry start date
+        self._load_persisted_reentry_date()
+
         # Seed _last_rebalance from the broker's last filled order so the
         # adaptive cadence survives ECS container restarts.
-        if hasattr(self.broker, "get_last_filled_order_time"):
+        # Only seed if persisted timestamp not already loaded (persistence wins).
+        if self._last_rebalance is None and hasattr(self.broker, "get_last_filled_order_time"):
             try:
                 last_fill = self.broker.get_last_filled_order_time()
                 if last_fill is not None:
@@ -419,14 +463,31 @@ class LiveEngine:
         if "SPY" in all_data:
             spy_prices = all_data["SPY"]["Close"]
 
-        # Generate signals with regime context
-        try:
-            signals = self.signal_gen.generate_latest(
-                all_data, choppy_score=choppy_score, spy_prices=spy_prices
+        # ── P0-2: Signal cache — compute once per market session ─────────
+        today_utc = now.strftime("%Y-%m-%d")
+        if (
+            self._signal_cache_enabled
+            and self._signal_cache_date == today_utc
+            and self._signal_cache
+        ):
+            signals = self._signal_cache
+            log.info(
+                f"[SIGNALS] Using cached signals from {self._signal_cache_ts}; "
+                f"next refresh: {today_utc} +1d"
             )
-        except Exception as sig_err:
-            log.error(f"Signal generation failed: {sig_err}", exc_info=True)
-            return
+        else:
+            try:
+                signals = self.signal_gen.generate_latest(
+                    all_data, choppy_score=choppy_score, spy_prices=spy_prices
+                )
+            except Exception as sig_err:
+                log.error(f"Signal generation failed: {sig_err}", exc_info=True)
+                return
+            if self._signal_cache_enabled:
+                self._signal_cache = signals
+                self._signal_cache_date = today_utc
+                self._signal_cache_ts = now
+                log.info(f"[SIGNALS] Computing fresh signals for session {today_utc}")
         log.info(f"Signals: { {k: f'{v:+.3f}' for k, v in signals.items() if abs(v) > 0.05} }")
 
         # Record signals for anomaly detector (flip-rate tracking)
@@ -546,7 +607,7 @@ class LiveEngine:
         except Exception as _me:
             log.debug(f"Live macro data update failed: {_me}")
 
-        # ── Re-entry guard: gate first rebalance after circuit breaker ────
+        # ── P1-2: Re-entry ramp — gradual capital deployment ─────────────
         effective_heat = max_heat * combined_scale
         if self._reentry_gate_active:
             reentry_ok, effective_heat, _reentry_reason = self._check_reentry_gates(
@@ -554,6 +615,15 @@ class LiveEngine:
             )
             if not reentry_ok:
                 return
+        # Apply ramp cap even after gate clears (day 0/1/2+ progression)
+        ramp_cap = self._get_reentry_ramp_cap()
+        if ramp_cap < 1.0:
+            effective_heat = min(effective_heat, ramp_cap)
+            log.info(
+                f"[RE-ENTRY-RAMP] Day +{self._days_since_reentry()}, "
+                f"max_deploy={ramp_cap:.0%}, "
+                f"current_deploy={effective_heat:.0%}"
+            )
 
         temp_portfolio = Portfolio(self.config)
         temp_portfolio.cash = account.cash
@@ -579,6 +649,13 @@ class LiveEngine:
         if _skipped:
             log.info(f"Skipping non-tradeable symbols: {sorted(_skipped)}")
 
+        # ── P1-1: Reset daily turnover counter at UTC date change ────────
+        today_utc_str = now.strftime("%Y-%m-%d")
+        if self._turnover_date != today_utc_str:
+            self._daily_gross_traded_usd = 0.0
+            self._turnover_date = today_utc_str
+            self._turnover_cap_hit = False
+
         # Compute orders (delta from current to target)
         for sym, target_w in tradeable_weights.items():
             if sym not in prices or prices[sym] <= 0:
@@ -590,7 +667,13 @@ class LiveEngine:
             curr_value = curr_qty * prices[sym]
             delta_value = target_value - curr_value
 
-            if abs(delta_value) < prices[sym] * 0.5:  # less than half a unit — skip
+            # P0-1: Raised delta threshold — suppress micro-rebalance noise.
+            # Order must move >= max(min_order_delta_shares, 2% of position notional).
+            min_delta_notional = max(
+                self._min_order_delta_shares * prices[sym],
+                self._min_order_delta_pct * abs(curr_value) if curr_value != 0 else 0,
+            )
+            if abs(delta_value) < min_delta_notional:
                 continue
 
             qty_delta = delta_value / prices[sym]
@@ -633,6 +716,21 @@ class LiveEngine:
                     f"CAPITAL ADJUST → {sym}: qty {qty_abs:.4f} → {adj_qty:.4f} ({cap_reason})"
                 )
                 qty_abs = adj_qty
+
+            # ── P1-1: Daily turnover cap — skip order if cap hit ────────
+            order_notional = qty_abs * prices[sym]
+            turnover_allowed = self._max_daily_turnover_x * equity
+            if self._daily_gross_traded_usd + order_notional > turnover_allowed:
+                if not self._turnover_cap_hit:
+                    log.warning(
+                        f"[TURNOVER-CAP] Daily cap hit: "
+                        f"${self._daily_gross_traded_usd:,.0f} traded vs "
+                        f"${turnover_allowed:,.0f} allowed "
+                        f"({self._max_daily_turnover_x:.1f}x equity). "
+                        f"Suppressing remaining orders for today."
+                    )
+                    self._turnover_cap_hit = True
+                continue
 
             order = Order(
                 symbol=sym,
@@ -678,6 +776,12 @@ class LiveEngine:
                 f"FILLED → {sym} avg_px=${filled.avg_fill_price:.4f} status={filled.status.value}"
             )
 
+            # P1-1: Track gross turnover for daily cap
+            fill_px = filled.avg_fill_price or prices.get(sym, 0)
+            self._daily_gross_traded_usd += qty_abs * fill_px
+            if self._persist_turnover:
+                self._persist_daily_turnover()
+
             # Record order for anomaly detector
             if self._anomaly_detector is not None:
                 self._anomaly_detector.record_order(
@@ -691,6 +795,11 @@ class LiveEngine:
         if self._reentry_gate_active:
             self._reentry_gate_active = False
             log.info("[RE-ENTRY] First re-entry rebalance complete — clearing gate")
+        # P1-2: Clear ramp entirely once day_2_plus is reached
+        if self._reentry_start_date is not None and self._days_since_reentry() >= 2:
+            self._reentry_start_date = None
+            self._persist_reentry_date()
+            log.info("[RE-ENTRY-RAMP] Day +2 reached — ramp cleared")
 
         # Set stop losses for open positions
         updated_positions = self.broker.get_positions()
@@ -748,6 +857,7 @@ class LiveEngine:
         )
 
         self._last_rebalance = now
+        self._persist_rebalance_ts(now)
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")
 
     def _detect_cash_only_reentry(self) -> None:
@@ -773,6 +883,10 @@ class LiveEngine:
 
             # Cash-only state detected
             self._reentry_gate_active = True
+            # P1-2: Set ramp start date for gradual capital deployment
+            if self._reentry_start_date is None:
+                self._reentry_start_date = datetime.now(UTC).strftime("%Y-%m-%d")
+                self._persist_reentry_date()
             log.warning(
                 f"[RE-ENTRY] Cash-only state detected — gating first rebalance "
                 f"(equity=${account.equity:,.2f} cash=${account.cash:,.2f} "
@@ -849,10 +963,8 @@ class LiveEngine:
 
         Supports "daily" | "weekly" | "biweekly" | "monthly" | "adaptive".
 
-        "adaptive" mode uses ChoppyRegimeDetector.score_today() to decide:
-          - GREEN (score < threshold): biweekly cadence — rebalance every 10 days
-          - YELLOW/ORANGE/RED (score >= threshold): weekly cadence — rebalance Fridays
-        Threshold default: 0.17 (YELLOW onset, validated 2000-2022, all 8 folds pass).
+        Hard guard: regardless of cadence/regime/startup, at least
+        min_rebalance_interval_seconds must have elapsed since last rebalance.
         """
         # Startup cooldown: skip the very first rebalance if a prior instance
         # already traded recently (prevents duplicate orders on restart).
@@ -860,6 +972,21 @@ class LiveEngine:
             log.info("[DEDUP GUARD] Skipping rebalance — startup cooldown active")
             self._startup_cooldown_active = False
             return False
+
+        # ── Hard 24h minimum interval guard (P0-1) ───────────────────────
+        # Runs regardless of startup state, regime, or cadence override.
+        # Persisted timestamp survives ECS restarts.
+        if self._last_rebalance is not None:
+            elapsed = now - self._last_rebalance
+            elapsed_s = elapsed.total_seconds()
+            if elapsed_s < self._min_rebalance_interval_s:
+                elapsed_h = elapsed_s / 3600
+                log.info(
+                    f"[REBAL] gated: 24h min interval "
+                    f"(last_rebalance={self._last_rebalance.strftime('%Y-%m-%d %H:%M:%S')}, "
+                    f"elapsed={elapsed_h:.1f}h)"
+                )
+                return False
 
         if self._last_rebalance is None:
             return True
@@ -908,6 +1035,104 @@ class LiveEngine:
             return elapsed >= timedelta(days=14)
 
         return elapsed >= timedelta(hours=24)
+
+    # ── State persistence helpers ────────────────────────────────────────
+
+    def _persist_rebalance_ts(self, ts: datetime) -> None:
+        """Write last-rebalance timestamp to disk so it survives restarts."""
+        try:
+            path = self._state_dir / "last_rebalance.json"
+            path.write_text(_json.dumps({"ts": ts.isoformat()}))
+        except Exception as e:
+            log.debug(f"Failed to persist rebalance ts: {e}")
+
+    def _load_persisted_rebalance_ts(self) -> None:
+        """Load persisted last-rebalance timestamp from disk."""
+        try:
+            path = self._state_dir / "last_rebalance.json"
+            if path.exists():
+                data = _json.loads(path.read_text())
+                ts = datetime.fromisoformat(data["ts"])
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC)
+                self._last_rebalance = ts
+                log.info(
+                    f"Loaded persisted _last_rebalance: {ts.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+                )
+        except Exception as e:
+            log.debug(f"Failed to load persisted rebalance ts: {e}")
+
+    def _persist_daily_turnover(self) -> None:
+        """Persist daily turnover state to disk."""
+        try:
+            path = self._state_dir / "daily_turnover.json"
+            path.write_text(
+                _json.dumps(
+                    {
+                        "date": self._turnover_date,
+                        "gross_traded_usd": self._daily_gross_traded_usd,
+                    }
+                )
+            )
+        except Exception as e:
+            log.debug(f"Failed to persist turnover: {e}")
+
+    def _load_persisted_turnover(self) -> None:
+        """Load persisted daily turnover from disk."""
+        try:
+            path = self._state_dir / "daily_turnover.json"
+            if path.exists():
+                data = _json.loads(path.read_text())
+                today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+                if data.get("date") == today_str:
+                    self._daily_gross_traded_usd = float(data.get("gross_traded_usd", 0))
+                    self._turnover_date = today_str
+                    log.info(
+                        f"Loaded persisted turnover: "
+                        f"${self._daily_gross_traded_usd:,.0f} for {today_str}"
+                    )
+        except Exception as e:
+            log.debug(f"Failed to load persisted turnover: {e}")
+
+    def _persist_reentry_date(self) -> None:
+        """Persist re-entry start date to disk."""
+        try:
+            path = self._state_dir / "reentry_start.json"
+            path.write_text(_json.dumps({"date": self._reentry_start_date}))
+        except Exception as e:
+            log.debug(f"Failed to persist reentry date: {e}")
+
+    def _load_persisted_reentry_date(self) -> None:
+        """Load persisted re-entry start date from disk."""
+        try:
+            path = self._state_dir / "reentry_start.json"
+            if path.exists():
+                data = _json.loads(path.read_text())
+                d = data.get("date")
+                if d:
+                    self._reentry_start_date = d
+                    log.info(f"Loaded persisted reentry start: {d}")
+        except Exception as e:
+            log.debug(f"Failed to load persisted reentry date: {e}")
+
+    def _days_since_reentry(self) -> int:
+        """Return number of calendar days since re-entry started."""
+        if self._reentry_start_date is None:
+            return 999  # effectively no ramp
+        try:
+            start = datetime.strptime(self._reentry_start_date, "%Y-%m-%d").replace(tzinfo=UTC)
+            return (datetime.now(UTC) - start).days
+        except Exception:
+            return 999
+
+    def _get_reentry_ramp_cap(self) -> float:
+        """Return the deployment cap based on days since re-entry."""
+        days = self._days_since_reentry()
+        if days == 0:
+            return self._ramp_day_0_pct
+        if days == 1:
+            return self._ramp_day_1_pct
+        return self._ramp_day_2_plus_pct
 
 
 if __name__ == "__main__":

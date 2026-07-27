@@ -44,6 +44,9 @@ class BacktestEngine:
         self.use_ews = config.get("ews", {}).get("enabled", False)
         self.use_vol_targeting = config.get("vol_targeting", {}).get("enabled", False)
         self.use_intraday_shock = config.get("intraday_shock", {}).get("enabled", False)
+        # P2-2: Intraday circuit-breaker simulator
+        self.use_intraday_cb_sim = self.bt_cfg.get("intraday_cb_simulation", True)
+        self.intraday_cb_threshold = float(self.bt_cfg.get("intraday_cb_threshold_pct", 0.08))
 
     # -----------------------------------------------------------------------
     # Core loop
@@ -259,6 +262,13 @@ class BacktestEngine:
         isd_scale_log = []  # track intraday shock scale factor over time
         _equity_buffer: list = []  # rolling equity values for vol estimation
 
+        # P2-2: Intraday CB simulator state
+        _cb_cooldown = False
+        _cb_events: list = []
+
+        # P2-1: Per-symbol round-trip tracking for turnover report
+        _symbol_fills: dict[str, list] = {}  # {sym: [{"date", "qty", "price", "side"}]}
+
         # Pre-compute intraday shock scales for backtest (needs equity curve first
         # — done incrementally below using equity buffer)
 
@@ -282,6 +292,13 @@ class BacktestEngine:
                 continue
 
             portfolio.update_prices(prices)
+
+            # P2-2: If intraday CB fired yesterday, start today in cooldown (cash)
+            if _cb_cooldown:
+                _cb_cooldown = False
+                log.info(f"[{date.date()}] [CB-SIM] Cooldown day — skipping trading")
+                portfolio.record_equity(date)
+                continue
 
             # Check risk circuit breakers (pass cash for realised-only daily check)
             halt, reason = risk_mgr.check_halt(portfolio.equity, cash=portfolio.cash, date=date)
@@ -535,9 +552,69 @@ class BacktestEngine:
                         commission_pct=self.commission,
                         slippage_pct=self.slippage,
                     )
+                    # P2-1: Track per-symbol fills for turnover report
+                    _symbol_fills.setdefault(sym, []).append(
+                        {
+                            "date": date,
+                            "qty": qty,
+                            "price": prices[sym],
+                            "side": "buy" if qty > 0 else "sell",
+                        }
+                    )
 
             # Check stop-losses
             self._check_stops(portfolio, prices, date)
+
+            # ── P2-2: Intraday circuit-breaker simulation ─────────────────
+            # Estimate worst intraday drawdown from daily Open/High/Low.
+            if self.use_intraday_cb_sim and portfolio.positions:
+                equity_at_open = portfolio.equity  # approximate: close prices already applied
+                intraday_dd = 0.0
+                for sym, pos in portfolio.positions.items():
+                    if pos.quantity == 0 or sym not in all_data:
+                        continue
+                    df = all_data[sym]
+                    if date not in df.index:
+                        continue
+                    row = df.loc[date]
+                    if "Open" in row and "Low" in row:
+                        open_px = float(row["Open"])
+                        low_px = float(row["Low"])
+                        if open_px > 0:
+                            # Worst-case excursion for this position
+                            excursion = pos.quantity * (low_px - open_px)
+                            intraday_dd += excursion
+
+                if (
+                    equity_at_open > 0
+                    and abs(intraday_dd) >= self.intraday_cb_threshold * equity_at_open
+                ):
+                    # CB triggered — liquidate at mid-point price with slippage
+                    log.warning(
+                        f"[{date.date()}] [CB-SIM] Intraday CB triggered: "
+                        f"est_dd=${intraday_dd:,.0f} "
+                        f"({abs(intraday_dd) / equity_at_open:.1%} of equity)"
+                    )
+                    for sym in list(portfolio.positions.keys()):
+                        pos = portfolio.positions[sym]
+                        if abs(pos.quantity) < 1e-8 or sym not in all_data:
+                            continue
+                        df = all_data[sym]
+                        if date not in df.index:
+                            continue
+                        row = df.loc[date]
+                        open_px = float(row.get("Open", prices.get(sym, 0)))
+                        close_px = float(row.get("Close", prices.get(sym, 0)))
+                        mid_px = (open_px + close_px) / 2
+                        # Apply 0.05% slippage penalty
+                        liq_px = (
+                            mid_px * (1 - 0.0005) if pos.quantity > 0 else mid_px * (1 + 0.0005)
+                        )
+                        portfolio.execute_order(
+                            sym, -pos.quantity, liq_px, date, self.commission, self.slippage
+                        )
+                    _cb_cooldown = True
+                    _cb_events.append({"date": date, "dd_pct": abs(intraday_dd) / equity_at_open})
 
             # Apply daily carrying costs
             portfolio.apply_daily_costs(date)
@@ -569,6 +646,40 @@ class BacktestEngine:
         metrics["final_equity"] = portfolio.equity
         metrics["cash"] = portfolio.cash
         metrics["run_label"] = run_label
+
+        # P2-2: Intraday CB simulation summary
+        if _cb_events:
+            metrics["intraday_cb_events"] = _cb_events
+            metrics["intraday_cb_count"] = len(_cb_events)
+            log.info(f"Intraday CB simulator: {len(_cb_events)} event(s) triggered")
+        else:
+            metrics["intraday_cb_events"] = []
+            metrics["intraday_cb_count"] = 0
+
+        # P2-1: Per-symbol round-trip and turnover report
+        _sym_turnover: list[dict] = []
+        trading_weeks = max(1, len(all_dates) / 5)
+        for sym, fills in _symbol_fills.items():
+            n_fills = len(fills)
+            buys = [f for f in fills if f["side"] == "buy"]
+            sells = [f for f in fills if f["side"] == "sell"]
+            round_trips = min(len(buys), len(sells))
+            rt_per_week = round_trips / trading_weeks
+            entry = {
+                "symbol": sym,
+                "total_fills": n_fills,
+                "buys": len(buys),
+                "sells": len(sells),
+                "round_trips": round_trips,
+                "rt_per_week": round(rt_per_week, 1),
+                "high_turnover": rt_per_week > 10,
+            }
+            _sym_turnover.append(entry)
+        _sym_turnover.sort(key=lambda x: x["round_trips"], reverse=True)
+        metrics["per_symbol_turnover"] = _sym_turnover
+        high_churn = [s for s in _sym_turnover if s["high_turnover"]]
+        if high_churn:
+            log.warning(f"HIGH_TURNOVER symbols (>10 RT/week): {[s['symbol'] for s in high_churn]}")
 
         # Cost breakdown
         cost_summary = portfolio.cost_model.get_summary()

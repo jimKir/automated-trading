@@ -23,9 +23,9 @@ system:
   healthcheck: true          # HTTP server on :8080 for container health
 
 capital:
-  initial_equity: 25000     # EUR / USD base
+  initial_equity: 100000    # aligned with paper account ($100K)
   base_currency: USD
-  max_portfolio_heat: 0.75  # v15b: set to 0.75 (balanced)
+  max_portfolio_heat: 0.95  # raised from 0.75 to reduce cash drag in GREEN regime
                              # Diagnostic showed Sharpe ∝ deployment but DD also scales.
                              # 0.75 targets ~65% vol, ~28% max DD — better than v14's 29%.
                              # min() scaling + regime boost allow effective heat up to ~0.98 in bull
@@ -224,12 +224,22 @@ dynamic_universe:
       - "^VIX"  # CBOE Volatility Index
       - SHY     # 1-3yr Treasury (short end of yield curve)
 
+# ============================================================
+# SIGNAL CACHE
+# Cache signals once per market session to prevent intraday
+# noise from flipping signals on partial-bar recomputation.
+# ============================================================
+signals:
+  cache_per_session: true                # cache signals at market open, reuse all day
+
 backtest:
   start_date: "2018-01-01"
   end_date: "2025-12-31"
   commission_pct: 0.001     # 0.1% round-trip commission
   slippage_pct: 0.0005      # 0.05% slippage per trade
   benchmark: SPY
+  intraday_cb_simulation: true           # simulate intraday circuit breaker from daily H/L
+  intraday_cb_threshold_pct: 0.08        # 8% intraday drawdown triggers CB
 
 # ============================================================
 # COST MODEL — realistic per-asset-class costs
@@ -494,6 +504,35 @@ anomaly_layer:
   isolation_weight: 0.15
 
 # Regime switching configuration moved into strategy: block above (Apr 2026)
+
+# ============================================================
+# REBALANCE GUARDS
+# Hard limits on rebalance frequency and minimum order delta to
+# prevent excessive turnover from micro-rebalancing every cycle.
+# ============================================================
+rebalance_guards:
+  min_rebalance_interval_seconds: 86400   # 24h hard floor regardless of regime/startup
+  min_order_delta_pct_of_position: 0.02   # order must move >=2% of position notional
+  min_order_delta_shares: 1.0             # order must be >= 1.0 shares
+
+# ============================================================
+# RISK LIMITS — daily turnover cap
+# Prevents churning by capping total gross $ traded per UTC day.
+# ============================================================
+risk_limits:
+  max_daily_turnover_x: 2.0              # max gross traded = 2× current equity per day
+  persist_turnover_state: true            # persist daily counter to survive restarts
+  max_portfolio_heat: 0.95               # raised from 0.75 to allow ~95% deployment in GREEN
+
+# ============================================================
+# RE-ENTRY RAMP
+# Gradual capital deployment after circuit-breaker liquidation.
+# Replaces the binary 50%→unlimited gate.
+# ============================================================
+reentry_ramp:
+  day_0_pct: 0.50                        # day of re-entry: max 50% deployment
+  day_1_pct: 0.75                        # day +1: max 75% deployment
+  day_2_plus_pct: 1.00                   # day +2 onward: no cap
 
 # Options hedge — protective puts triggered by ChoppyDetector
 options_hedge:
