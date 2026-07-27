@@ -49,6 +49,7 @@ class Portfolio:
         self.positions: dict[str, Position] = {}
         self.trade_log: list = []
         self.equity_curve: list = []
+        self.heat_curve: list = []
         self._equity_curve_dates: list = []
         self.cost_model = CostModel(config)
         self._config = config
@@ -76,12 +77,24 @@ class Portfolio:
     def equity(self) -> float:
         return self.cash + sum(p.market_value for p in self.positions.values())
 
+    @property
+    def gross_exposure(self) -> float:
+        """Gross exposure as a fraction of equity — realised portfolio heat."""
+        eq = self.equity
+        if eq <= 0:
+            return 0.0
+        return sum(abs(p.market_value) for p in self.positions.values()) / eq
+
     def record_equity(self, date: pd.Timestamp) -> None:
         self._equity_curve_dates.append(date)
         self.equity_curve.append(self.equity)
+        self.heat_curve.append(self.gross_exposure)
 
     def get_equity_series(self) -> pd.Series:
         return pd.Series(self.equity_curve, index=self._equity_curve_dates, name="equity")
+
+    def get_heat_series(self) -> pd.Series:
+        return pd.Series(self.heat_curve, index=self._equity_curve_dates, name="heat")
 
     # -----------------------------------------------------------------------
     # Target weights → orders
@@ -254,6 +267,12 @@ class Portfolio:
 
         pos = self.positions[symbol]
         old_qty = pos.quantity
+        # Mark at the traded price. A fresh Position starts at current_price 0, and
+        # update_prices only runs at the top of the next day, so without this the
+        # position contributes no market value for the rest of the session: recorded
+        # equity dropped by the entire notional on every entry day and recovered the
+        # next, inflating backtest volatility and drawdown enormously.
+        pos.current_price = price
 
         if (old_qty >= 0 and quantity > 0) or (old_qty <= 0 and quantity < 0):
             new_qty = old_qty + quantity
