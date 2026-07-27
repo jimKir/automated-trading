@@ -27,11 +27,11 @@ from scanner import MomentumScanner
 from filters import RankingEngine
 
 scanner = MomentumScanner()
-results = scanner.run_full_scan('sp500', 100)
+results = scanner.run_full_scan("sp500", 100)
 
 # Test different ranking methods
 engine = RankingEngine()
-ranked1 = engine.rank_by_metric(results, metric='combined')
+ranked1 = engine.rank_by_metric(results, metric="combined")
 ranked2 = engine.rank_by_volume_weighted_momentum(results)
 ranked3 = engine.rank_by_surprise_factor(results)
 
@@ -53,12 +53,12 @@ ranked3 = engine.rank_by_surprise_factor(results)
 **To Experiment:**
 ```python
 # Test Alpaca for S&P 500
-scanner_alpaca = MomentumScanner(data_source='alpaca')
-sp500_results = scanner_alpaca.run_full_scan('sp500')
+scanner_alpaca = MomentumScanner(data_source="alpaca")
+sp500_results = scanner_alpaca.run_full_scan("sp500")
 
 # Test DataBento for extended universe
-scanner_databento = MomentumScanner(data_source='databento')
-russell3k_results = scanner_databento.run_full_scan('all')
+scanner_databento = MomentumScanner(data_source="databento")
+russell3k_results = scanner_databento.run_full_scan("all")
 
 # Compare results and latency
 ```

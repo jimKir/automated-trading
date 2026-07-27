@@ -200,11 +200,11 @@ from scanner import MomentumScanner
 from analysis.ranking_comparison import RankingComparison
 
 scanner = MomentumScanner()
-results = scanner.run_full_scan('sp500', 500)
+results = scanner.run_full_scan("sp500", 500)
 
 comp = RankingComparison()
 comparison = comp.compare_rankings(results)
-consensus = comparison['overlap_analysis']['symbols_in_all_three']
+consensus = comparison["overlap_analysis"]["symbols_in_all_three"]
 ```
 
 ### With Volatility Predictor
@@ -212,7 +212,7 @@ consensus = comparison['overlap_analysis']['symbols_in_all_three']
 from examples.trading_integration import MomentumTradingStrategy
 
 strategy = MomentumTradingStrategy()
-signals = strategy.scan_and_filter('sp500')
+signals = strategy.scan_and_filter("sp500")
 signals_with_vol = strategy.check_volatility(signals)
 trades = strategy.generate_signals(signals_with_vol)
 ```

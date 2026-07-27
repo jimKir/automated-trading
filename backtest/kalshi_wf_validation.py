@@ -82,8 +82,8 @@ def get_fed_stress_live() -> float:
     if not meeting_hold:
         return 0.0
 
-    # Use nearest meeting (sort by meeting code)
-    nearest = sorted(meeting_hold.keys())[0]
+    # Use nearest meeting (lowest meeting code)
+    nearest = min(meeting_hold.keys())
     hold_prob = meeting_hold[nearest]
     # Stress = 1 - hold probability (uncertainty = expecting a move)
     return round(1.0 - hold_prob, 3)
@@ -116,7 +116,7 @@ def get_inflation_stress_live() -> float:
     if not month_stress:
         return 0.0
 
-    nearest = sorted(month_stress.keys())[0]
+    nearest = min(month_stress.keys())
     # P(>0.3%) maps to stress: 0.3 = moderate, 0.5 = elevated, 0.7 = high
     raw = month_stress[nearest]
     # Normalize: 0.15 = baseline, 0.50 = max stress

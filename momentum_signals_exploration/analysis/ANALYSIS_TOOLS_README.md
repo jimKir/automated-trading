@@ -283,11 +283,11 @@ results = your_scan_results
 ranked = sorted(
     results,
     key=lambda r: (
-        r['combined_momentum'] * 0.4 +
-        (r['volume'] / 1000000) * 0.3 +
-        (r['hourly_return_pct'] ** 2) * 0.3
+        r["combined_momentum"] * 0.4
+        + (r["volume"] / 1000000) * 0.3
+        + (r["hourly_return_pct"] ** 2) * 0.3
     ),
-    reverse=True
+    reverse=True,
 )
 ```
 
@@ -296,14 +296,10 @@ ranked = sorted(
 from ranking_comparison import RankingComparison
 
 comp = RankingComparison()
-results = comp.run_scan('sp500', 100)
+results = comp.run_scan("sp500", 100)
 
 # Apply filters
-filtered = comp.filters.apply_all_filters(
-    results,
-    min_volume=500000,
-    min_magnitude=0.01
-)
+filtered = comp.filters.apply_all_filters(results, min_volume=500000, min_magnitude=0.01)
 
 # Compare methods on filtered results
 comparison = comp.compare_rankings(filtered)
@@ -316,8 +312,8 @@ from backtest_ranking_methods import RankingMethodsBacktest
 backtester = RankingMethodsBacktest()
 backtest = backtester.run_backtest(
     symbols=your_symbols,
-    period='1d',  # Daily instead of hourly
-    lookback_days=90
+    period="1d",  # Daily instead of hourly
+    lookback_days=90,
 )
 ```
 
@@ -330,7 +326,7 @@ from scanner import MomentumScanner
 from analysis.ranking_comparison import RankingComparison
 
 scanner = MomentumScanner()
-results = scanner.run_full_scan('sp500', 500)
+results = scanner.run_full_scan("sp500", 500)
 
 comp = RankingComparison()
 comparison = comp.compare_rankings(results)

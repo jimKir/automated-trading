@@ -59,13 +59,13 @@ def _get_github_token() -> str:
 def github_fetch_json(path: str) -> dict | None:
     """Fetch a JSON file from the repo's main branch via GitHub raw content."""
     url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{path}"
-    req = urllib.request.Request(url)  # noqa: S310 — always https://
+    req = urllib.request.Request(url)
     token = _get_github_token()
     if token:
         req.add_header("Authorization", f"token {token}")
     req.add_header("Accept", "application/vnd.github.v3.raw")
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310 — url is always https
             return json.loads(resp.read().decode())
     except Exception as e:
         print(f"Failed to fetch {path}: {e}")
@@ -128,8 +128,10 @@ def format_daily_summary(m: dict) -> tuple[str, str]:
     if not m.get("has_data"):
         return (
             f"[Trading] Daily Summary {date} | No data yet",
-            f"Daily Performance Summary — {date}\n\n"
-            f"No trading data available.\n{m.get('error', '')}\n"
+            (
+                f"Daily Performance Summary — {date}\n\n"
+                f"No trading data available.\n{m.get('error', '')}\n"
+            ),
         )
 
     cap = m["capital"]
