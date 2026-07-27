@@ -78,6 +78,13 @@
     qqqEl.textContent = fmtPP(b.vs_qqq_pp);
     qqqEl.className = "value " + colorClass(b.vs_qqq_pp);
 
+    var sfEl = $("kpi-vs-6040");
+    sfEl.textContent = b.vs_6040_pp == null ? "—" : fmtPP(b.vs_6040_pp);
+    sfEl.className = "value " + colorClass(b.vs_6040_pp);
+    if (data.probation_deadline) {
+      $("kpi-6040-sub").textContent = "probation benchmark · by " + data.probation_deadline;
+    }
+
     var ddEl = $("kpi-drawdown");
     ddEl.textContent = fmtPct(m.max_drawdown_pct, false);
     ddEl.className = "value negative";
@@ -93,6 +100,7 @@
     var botData = curve.map(function (p) { return p.bot; });
     var spyData = curve.map(function (p) { return p.spy; });
     var qqqData = curve.map(function (p) { return p.qqq; });
+    var sfData = curve.map(function (p) { return p.sixty_forty; });
 
     var ctx = $("perf-chart").getContext("2d");
     if (chartInstance) chartInstance.destroy();
@@ -136,6 +144,17 @@
             pointHitRadius: 8,
             borderWidth: 1.5,
             borderDash: [4, 3],
+          },
+          {
+            label: "60/40 SPY/AGG",
+            data: sfData,
+            borderColor: "#3fb950",
+            backgroundColor: "transparent",
+            fill: false,
+            tension: 0.2,
+            pointRadius: 0,
+            pointHitRadius: 8,
+            borderWidth: 1.5,
           },
         ],
       },
@@ -231,6 +250,7 @@
       })
       .then(function (data) {
         $("last-updated").textContent = relativeTime(data.last_updated);
+        if (data.inception_note) $("inception-note").textContent = data.inception_note;
         renderKPIs(data);
         renderChart(data.equity_curve);
         renderPositions(data.positions);
