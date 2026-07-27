@@ -28,6 +28,16 @@ HEADERS = {
 
 OUTPUT = Path(__file__).resolve().parent.parent / "docs" / "data" / "snapshot.json"
 
+# The account was funded 2026-03-24 but placed no orders until 2026-04-22. Measuring from
+# the funding date charges the strategy a month of flat-line it never traded, and dilutes
+# every rate metric. Inception is floored here rather than in the dashboard so the metrics
+# and the equity curve share one baseline.
+INCEPTION_FLOOR = "2026-04-22"
+INCEPTION_NOTE = (
+    "Re-baselined 2026-04-22 per strategy review — bot had zero trading activity "
+    "Mar 24–Apr 21 (dead deployment period)"
+)
+
 
 def alpaca_get(path: str, params: dict | None = None) -> dict | list:
     """GET from Alpaca API with error handling."""
@@ -75,11 +85,10 @@ def build_equity_df(history: dict) -> pd.DataFrame:
 
 
 def find_inception(equity_df: pd.DataFrame) -> str:
-    """First date where equity > 0."""
+    """First date where equity > 0, floored at INCEPTION_FLOOR."""
     positive = equity_df[equity_df["equity"] > 0]
-    if positive.empty:
-        return equity_df["date"].iloc[0]
-    return positive["date"].iloc[0]
+    first = equity_df["date"].iloc[0] if positive.empty else positive["date"].iloc[0]
+    return max(first, INCEPTION_FLOOR)
 
 
 def fetch_benchmarks(inception: str, end: str) -> pd.DataFrame:
@@ -259,6 +268,7 @@ def build_snapshot() -> dict:
     snapshot = {
         "last_updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "inception_date": inception,
+        "inception_note": INCEPTION_NOTE,
         "account": account_summary,
         "benchmarks": benchmark_summary,
         "metrics": metrics,
