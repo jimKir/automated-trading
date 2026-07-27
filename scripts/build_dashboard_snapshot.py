@@ -28,6 +28,25 @@ HEADERS = {
 
 OUTPUT = Path(__file__).resolve().parent.parent / "docs" / "data" / "snapshot.json"
 
+# The account was funded 2026-03-24 but placed no orders until 2026-04-22. Measuring from
+# the funding date charges the strategy a month of flat-line it never traded, and dilutes
+# every rate metric. Inception is floored here rather than in the dashboard so the metrics
+# and the equity curve share one baseline.
+INCEPTION_FLOOR = "2026-04-22"
+INCEPTION_NOTE = (
+    "Re-baselined 2026-04-22 per strategy review — bot had zero trading activity "
+    "Mar 24–Apr 21 (dead deployment period)"
+)
+
+# Probation terms agreed in docs/fix_on_probation_2026_07.md. Carried in the snapshot so
+# the dashboard states the deadline it is being judged against.
+PROBATION_DEADLINE = "2026-10-31"
+PROBATION_BENCHMARK = "60/40"
+
+# 60/40 SPY/AGG, rebalanced monthly — the probation benchmark. A long-only equity
+# benchmark flatters a strategy that is deliberately not fully deployed.
+SIXTY_FORTY = {"SPY": 0.60, "AGG": 0.40}
+
 
 def alpaca_get(path: str, params: dict | None = None) -> dict | list:
     """GET from Alpaca API with error handling."""
@@ -75,24 +94,23 @@ def build_equity_df(history: dict) -> pd.DataFrame:
 
 
 def find_inception(equity_df: pd.DataFrame) -> str:
-    """First date where equity > 0."""
+    """First date where equity > 0, floored at INCEPTION_FLOOR."""
     positive = equity_df[equity_df["equity"] > 0]
-    if positive.empty:
-        return equity_df["date"].iloc[0]
-    return positive["date"].iloc[0]
+    first = equity_df["date"].iloc[0] if positive.empty else positive["date"].iloc[0]
+    return max(first, INCEPTION_FLOOR)
 
 
 def fetch_benchmarks(inception: str, end: str) -> pd.DataFrame:
-    """Fetch SPY & QQQ daily closes via yfinance."""
+    """Fetch SPY, QQQ & AGG daily closes via yfinance."""
     tickers = yf.download(
-        "SPY QQQ",
+        "SPY QQQ AGG",
         start=inception,
         end=end,
         auto_adjust=True,
         progress=False,
     )
     if tickers.empty:
-        return pd.DataFrame(columns=["date", "SPY", "QQQ"])
+        return pd.DataFrame(columns=["date", "SPY", "QQQ", "AGG"])
 
     close = tickers["Close"]
     if isinstance(close, pd.Series):
@@ -102,7 +120,39 @@ def fetch_benchmarks(inception: str, end: str) -> pd.DataFrame:
     close.columns = [c[0] if isinstance(c, tuple) else c for c in close.columns]
     close.rename(columns={"Date": "date"}, inplace=True)
     close["date"] = pd.to_datetime(close["date"]).dt.strftime("%Y-%m-%d")
-    return close[["date", "SPY", "QQQ"]]
+    return close[["date", "SPY", "QQQ", "AGG"]]
+
+
+def sixty_forty_curve(prices: pd.DataFrame) -> pd.Series:
+    """
+    Base-100 curve for a 60/40 SPY/AGG portfolio rebalanced at each month end.
+
+    Weights drift with returns within the month and reset on the first bar of the next
+    one; buy-and-hold would let the equity leg creep well above 60% over a long window
+    and stop being the benchmark it claims to be.
+    """
+    legs = [c for c in SIXTY_FORTY if c in prices.columns]
+    if not legs:
+        return pd.Series(100.0, index=prices.index)
+
+    rets = prices[legs].pct_change().fillna(0.0)
+    months = pd.to_datetime(prices["date"]).dt.to_period("M").to_numpy()
+
+    weights = {c: SIXTY_FORTY[c] for c in legs}
+    total = sum(weights.values())
+    weights = {c: w / total for c, w in weights.items()}
+
+    values = dict(weights)
+    curve = []
+    for i in range(len(rets)):
+        if i > 0:
+            if months[i] != months[i - 1]:
+                nav = sum(values.values())
+                values = {c: nav * weights[c] for c in legs}
+            values = {c: values[c] * (1.0 + rets[c].iloc[i]) for c in legs}
+        curve.append(sum(values.values()))
+
+    return pd.Series(curve, index=prices.index) * 100.0
 
 
 def normalise(series: pd.Series) -> pd.Series:
@@ -172,13 +222,15 @@ def build_snapshot() -> dict:
         merged = equity_df.copy()
         merged["SPY"] = 100.0
         merged["QQQ"] = 100.0
+        merged["AGG"] = 100.0
 
     # 5. Normalise
     merged["bot"] = normalise(merged["equity"])
     merged["spy"] = normalise(merged["SPY"])
     merged["qqq"] = normalise(merged["QQQ"])
+    merged["sixty_forty"] = sixty_forty_curve(merged)
 
-    equity_curve = merged[["date", "bot", "spy", "qqq"]].copy()
+    equity_curve = merged[["date", "bot", "spy", "qqq", "sixty_forty"]].copy()
     equity_curve = equity_curve.round(2)
 
     # 6. Compute metrics from raw equity
@@ -206,6 +258,7 @@ def build_snapshot() -> dict:
     qqq_return = (
         ((merged["QQQ"].iloc[-1] / merged["QQQ"].iloc[0]) - 1) * 100 if len(merged) > 1 else 0.0
     )
+    sf_return = merged["sixty_forty"].iloc[-1] - 100.0 if len(merged) > 1 else 0.0
 
     account_summary = {
         "equity": round(equity_val, 2),
@@ -219,8 +272,10 @@ def build_snapshot() -> dict:
     benchmark_summary = {
         "spy_return_pct": round(spy_return, 2),
         "qqq_return_pct": round(qqq_return, 2),
+        "sixty_forty_return_pct": round(sf_return, 2),
         "vs_spy_pp": round(total_return_pct - spy_return, 2),
         "vs_qqq_pp": round(total_return_pct - qqq_return, 2),
+        "vs_6040_pp": round(total_return_pct - sf_return, 2),
     }
 
     # 8. Positions
@@ -259,6 +314,9 @@ def build_snapshot() -> dict:
     snapshot = {
         "last_updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "inception_date": inception,
+        "inception_note": INCEPTION_NOTE,
+        "probation_deadline": PROBATION_DEADLINE,
+        "probation_benchmark": PROBATION_BENCHMARK,
         "account": account_summary,
         "benchmarks": benchmark_summary,
         "metrics": metrics,

@@ -8,6 +8,7 @@ YAML config loader with environment variable interpolation. Resolves `${ENV_VAR}
 
 ```python
 from utils.config_loader import load_config
+
 config = load_config("config/settings.yaml")
 ```
 
@@ -21,6 +22,7 @@ Centralized logging with console (stdout) and date-stamped file handlers.
 
 ```python
 from utils.logger import get_logger
+
 log = get_logger("MyModule")
 log.info("message")
 ```

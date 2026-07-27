@@ -73,8 +73,10 @@ PERIODS = [
         "2020-02-01",
         "2020-12-31",
         "crash_recovery",
-        "Feb 2020 crash (-35% SPY in 23 days) followed by V-shape recovery. "
-        "ChoppyDetector should fire RED in Mar, GREEN by Jun.",
+        (
+            "Feb 2020 crash (-35% SPY in 23 days) followed by V-shape recovery. "
+            "ChoppyDetector should fire RED in Mar, GREEN by Jun."
+        ),
     ),
     (
         "Post-COVID Bull + Rate Fears",
@@ -82,8 +84,10 @@ PERIODS = [
         "2021-01-01",
         "2021-12-31",
         "bull_with_fears",
-        "Strong tech bull. Delta wave Aug-Sep, taper tantrum Nov. "
-        "Mostly GREEN with brief YELLOW spikes.",
+        (
+            "Strong tech bull. Delta wave Aug-Sep, taper tantrum Nov. "
+            "Mostly GREEN with brief YELLOW spikes."
+        ),
     ),
     (
         "Rate Hike Bear Market",
@@ -91,8 +95,10 @@ PERIODS = [
         "2022-01-01",
         "2022-12-31",
         "sustained_bear",
-        "Fed hiked 425bp. SPY -18%, NDX -33%, BTC -65%. "
-        "ChoppyDetector should fire persistently YELLOW/ORANGE.",
+        (
+            "Fed hiked 425bp. SPY -18%, NDX -33%, BTC -65%. "
+            "ChoppyDetector should fire persistently YELLOW/ORANGE."
+        ),
     ),
     (
         "Bear-to-Bull Recovery",
@@ -108,8 +114,10 @@ PERIODS = [
         "2024-01-01",
         "2024-12-31",
         "sustained_bull",
-        "SPY +25%. Low vol, strong momentum. "
-        "ChoppyDetector should stay mostly GREEN (low false positive test).",
+        (
+            "SPY +25%. Low vol, strong momentum. "
+            "ChoppyDetector should stay mostly GREEN (low false positive test)."
+        ),
     ),
 ]
 

@@ -138,13 +138,17 @@ dynamic_candidates:
 
 dynamic_universe:
   enabled: true              # dynamic universe with adaptive caps active
-  top_n: 20                  # number of instruments to hold at any time
-  momentum_window: 126       # 6-month momentum lookback (standard cross-sectional)
+  top_n: 9                   # number of instruments to hold at any time
+  # 63d (3-month) selection lookback. Was 126d until 2026-07: the 126d factor turned
+  # significantly anti-predictive in 2026 (rank IC -0.088, t=-3.68) and loaded the book into
+  # SLV/GLD right before they broke; 63d still carries signal. Only the universe SELECTOR
+  # reads this key — signals.regime_window and the ts/cs momentum blend factors are separate.
+  momentum_window: 63
   min_history_days: 252      # minimum history before an instrument is eligible
   rerank_frequency: monthly  # how often to rerank: weekly | monthly
   adaptive_caps: true        # dynamically adjust equity cap based on market regime
-  equity_cap_min: 0.60       # bear market floor  → 60% equity (12 of 20 slots)
-  equity_cap_max: 0.90       # bull market ceiling → 90% equity (18 of 20 slots)
+  equity_cap_min: 0.60       # bear market floor  → 60% equity (5 of 9 slots)
+  equity_cap_max: 0.90       # bull market ceiling → 90% equity (8 of 9 slots)
   # Candidate pool: all instruments the system can choose from
   # Must have yfinance data available
   candidates:

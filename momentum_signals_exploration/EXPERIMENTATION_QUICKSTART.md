@@ -237,7 +237,7 @@ git push origin main
 from analysis.ranking_comparison import RankingComparison
 
 comp = RankingComparison()
-results = comp.run_scan('sp500', 500)
+results = comp.run_scan("sp500", 500)
 overlap = comp.analyze_ranking_overlap(results, top_n=20)
 print(f"Consensus signals: {overlap['symbols_in_all_three']}")
 ```
@@ -250,8 +250,8 @@ print(f"Consensus signals: {overlap['symbols_in_all_three']}")
 - Keep 5-minute delay between scans
 
 ```python
-scanner = MomentumScanner(data_source='databento')
-results = scanner.run_full_scan('all', 5000)  # DataBento handles bulk
+scanner = MomentumScanner(data_source="databento")
+results = scanner.run_full_scan("all", 5000)  # DataBento handles bulk
 ```
 
 ### Scenario 3: Live Results Don't Match Backtest
@@ -279,7 +279,7 @@ strategy = MomentumTradingStrategy()
 predictor = HybridPredictor()
 
 # Scanner finds momentum signals
-momentum_signals = strategy.scan_and_filter('sp500')
+momentum_signals = strategy.scan_and_filter("sp500")
 
 # Volatility predictor sizes positions
 signals_with_vol = strategy.check_volatility(momentum_signals, predictor)

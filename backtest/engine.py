@@ -637,6 +637,8 @@ class BacktestEngine:
 
         metrics = self._compute_metrics(equity_series, returns, bench_returns, risk_mgr)
         metrics["equity_curve"] = equity_series
+        metrics["heat_curve"] = portfolio.get_heat_series()
+        metrics["avg_heat"] = float(portfolio.get_heat_series().mean())
         metrics["returns"] = returns
         metrics["trades"] = portfolio.get_trade_df()
         metrics["positions_final"] = {

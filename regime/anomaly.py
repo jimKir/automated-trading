@@ -35,6 +35,19 @@ RETRAIN_EVERY_DAYS = 21  # monthly
 TRAIN_WINDOW_DAYS = 756  # 3 years of history
 MIN_TRAIN_DAYS = 120  # minimum before first fit
 
+# decision_function is centred so that the contamination quantile sits at 0: positive is
+# an inlier, negative an outlier. Scoring must therefore start at 0, not above it. The
+# previous map, (-raw + 0.1) / 0.3, returned a nonzero score for any raw < 0.1 — which on
+# purely normal data is ~84% of days (median 0.114) — and was a standing contributor to
+# the anomaly layer reading ELEVATED. Saturate at -0.15, comfortably beyond observed
+# inlier range.
+_ANOM_SATURATION = 0.15
+
+
+def _normalise_decision_score(raw_score: float) -> float:
+    """Map IsolationForest decision_function output to an anomaly score in [0, 1]."""
+    return float(np.clip(-raw_score / _ANOM_SATURATION, 0.0, 1.0))
+
 
 class PositionAnomalyDetector:
     """
@@ -169,11 +182,7 @@ class PositionAnomalyDetector:
 
         # decision_function: higher = more normal, lower = more anomalous
         raw_score = self._model.decision_function(X)[0]
-
-        # Normalise: typical range is roughly [-0.2, 0.2]
-        # Convert so that anomalous → high score
-        normalised = float(np.clip((-raw_score + 0.1) / 0.3, 0.0, 1.0))
-        return normalised
+        return _normalise_decision_score(raw_score)
 
     # ------------------------------------------------------------------
     def score_series(self, prices: pd.DataFrame) -> pd.Series:
@@ -215,6 +224,6 @@ class PositionAnomalyDetector:
 
             X_test = self._scaler.transform(features.iloc[[i]].values)
             raw = self._model.decision_function(X_test)[0]
-            scores.iloc[i] = float(np.clip((-raw + 0.1) / 0.3, 0.0, 1.0))
+            scores.iloc[i] = _normalise_decision_score(raw)
 
         return scores

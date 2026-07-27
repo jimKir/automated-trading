@@ -226,9 +226,9 @@ from alpaca_trade_api import REST
 
 api = REST()
 bars = api.get_barset(
-    symbols=['AAPL', 'MSFT', ...],  # Up to 500
-    timeframe='1h',
-    limit=5
+    symbols=["AAPL", "MSFT", ...],  # Up to 500
+    timeframe="1h",
+    limit=5,
 )
 ```
 
@@ -286,7 +286,7 @@ gainers, losers = scanner.run_full_scan(symbols, top_n=20)
 
 # Get top gainer
 top_symbol = gainers[0][0]
-top_momentum = gainers[0][1]['intra_momentum']
+top_momentum = gainers[0][1]["intra_momentum"]
 
 # Send to your trading engine
 if top_momentum > 0.02:  # 2%+ momentum
