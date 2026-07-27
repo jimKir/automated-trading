@@ -85,6 +85,11 @@ from utils.logger import get_logger
 
 log = get_logger("Optimizer")
 
+# Heat-restoration tolerances (Step 7b). The iteration cap only matters when many
+# positions saturate their ceilings one after another; convergence is typically immediate.
+_HEAT_TOL = 1e-6
+_HEAT_RESTORE_MAX_ITERS = 12
+
 
 def _classify_asset(symbol: str) -> str:
     """Classify a symbol into equity / futures / crypto."""
@@ -210,12 +215,16 @@ class PortfolioOptimizer:
         # ── Step 5: Risk parity concentration cap (optional) ────────────────
         # Caps any position at N× its risk-parity budget (configurable).
         # Preserves momentum edge while limiting extreme concentration.
+        # Each symbol's binding ceiling is recorded so Step 7b knows its headroom.
+        symbol_caps: dict[str, float] = dict.fromkeys(signed_weights, max_position_pct)
         rp_cap_mult = self.rp_concentration_cap
         if self.method in ("risk_parity", "min_variance") and price_history:
             rp = self._risk_parity_weights(active, price_history, as_of_date)
             for sym in list(signed_weights.keys()):
                 rp_budget = rp.get(sym, 1.0 / max(len(active), 1)) * effective_heat
                 cap = rp_budget * rp_cap_mult
+                if cap > 0:
+                    symbol_caps[sym] = min(symbol_caps[sym], cap)
                 if abs(signed_weights[sym]) > cap > 0:
                     signed_weights[sym] = float(np.sign(signed_weights[sym]) * cap)
 
@@ -227,6 +236,15 @@ class PortfolioOptimizer:
 
         # ── Step 7: Crypto cap ─────────────────────────────────────────────
         signed_weights = self._apply_crypto_cap(signed_weights, effective_heat)
+
+        # ── Step 7b: Restore the heat budget consumed by the caps ──────────
+        # Steps 5-7 can only cut. Without this, every cut leaks straight into cash and
+        # the portfolio silently deploys below effective_heat — the compounding cash drag
+        # that kept live deployment at ~65% against a 75% cap. Raising max_portfolio_heat
+        # has no effect unless the shortfall is redistributed back.
+        signed_weights = self._restore_target_heat(
+            signed_weights, effective_heat, symbol_caps, max_position_pct
+        )
 
         # ── Step 8: Zero out symbols not in active set ─────────────────────
         for sym in signals:
@@ -381,6 +399,66 @@ class PortfolioOptimizer:
     # ─────────────────────────────────────────────────────────────────────────
     # Crypto cap
     # ─────────────────────────────────────────────────────────────────────────
+
+    def _restore_target_heat(
+        self,
+        weights: dict[str, float],
+        target_heat: float,
+        symbol_caps: dict[str, float],
+        max_position_pct: float,
+    ) -> dict[str, float]:
+        """
+        Redistribute the gross exposure removed by the cap steps back onto positions
+        that still have headroom, so the book actually deploys `target_heat`.
+
+        Weight is added in proportion to existing weight, preserving the signal tilt,
+        then re-clipped to each symbol's ceiling. Iterating handles the case where a
+        position hits its cap mid-redistribution and its share must pass to others.
+        Crypto is excluded from receiving weight so the group crypto cap cannot be
+        breached; it is already sized by `_apply_crypto_cap`.
+        """
+        if not weights or target_heat <= 0:
+            return weights
+
+        result = dict(weights)
+        eligible = [
+            s for s in result if abs(result[s]) > _HEAT_TOL and _classify_asset(s) != "crypto"
+        ]
+        if not eligible:
+            return result
+
+        for _ in range(_HEAT_RESTORE_MAX_ITERS):
+            gross = sum(abs(w) for w in result.values())
+            shortfall = target_heat - gross
+            if shortfall <= _HEAT_TOL:
+                break
+
+            headroom = {}
+            for sym in eligible:
+                ceiling = min(symbol_caps.get(sym, max_position_pct), max_position_pct)
+                room = ceiling - abs(result[sym])
+                if room > _HEAT_TOL:
+                    headroom[sym] = room
+            if not headroom:
+                break
+
+            basis = sum(abs(result[s]) for s in headroom)
+            if basis <= 0:
+                break
+
+            addable = min(shortfall, sum(headroom.values()))
+            for sym, room in headroom.items():
+                share = abs(result[sym]) / basis
+                delta = min(addable * share, room)
+                result[sym] += float(np.sign(result[sym]) * delta)
+
+        final_gross = sum(abs(w) for w in result.values())
+        if final_gross < target_heat - _HEAT_TOL:
+            log.debug(
+                f"HeatRestore: capped out at {final_gross:.1%} of {target_heat:.1%} target "
+                f"— every eligible position is at its ceiling"
+            )
+        return result
 
     def _apply_crypto_cap(
         self,
