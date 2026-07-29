@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-07-29T16:38:48Z",
+  "last_updated": "2026-07-29T17:55:45Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
@@ -14,11 +14,11 @@
   },
   "benchmarks": {
     "spy_return_pct": NaN,
-    "qqq_return_pct": NaN,
-    "sixty_forty_return_pct": 1.98,
+    "qqq_return_pct": 3.22,
+    "sixty_forty_return_pct": 2.22,
     "vs_spy_pp": NaN,
-    "vs_qqq_pp": NaN,
-    "vs_6040_pp": -0.44
+    "vs_qqq_pp": -1.68,
+    "vs_6040_pp": -0.68
   },
   "metrics": {
     "total_return_pct": 1.54,
@@ -391,14 +391,14 @@
       "bot": 101.34,
       "spy": 104.17,
       "qqq": 104.56,
-      "sixty_forty": 101.98
+      "sixty_forty": 102.03
     },
     {
       "date": "2026-07-28",
       "bot": 101.54,
       "spy": NaN,
-      "qqq": NaN,
-      "sixty_forty": 101.98
+      "qqq": 103.22,
+      "sixty_forty": 102.22
     }
   ],
   "positions": [],
