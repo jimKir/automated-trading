@@ -1,23 +1,23 @@
 {
-  "last_updated": "2026-08-14T21:26:29Z",
+  "last_updated": "2026-08-14T21:50:52Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
   "probation_benchmark": "60/40",
   "account": {
-    "equity": 102373.28,
+    "equity": 102368.62,
     "cash": 66513.35,
-    "long_market_value": 35859.93,
-    "day_change": 41.04,
+    "long_market_value": 35855.27,
+    "day_change": 36.38,
     "day_change_pct": 0.04,
-    "total_return_pct": 2.28
+    "total_return_pct": 2.27
   },
   "benchmarks": {
     "spy_return_pct": 9.66,
     "qqq_return_pct": 11.87,
     "sixty_forty_return_pct": 5.49,
     "vs_spy_pp": -7.38,
-    "vs_qqq_pp": -9.59,
+    "vs_qqq_pp": -9.6,
     "vs_6040_pp": -3.21
   },
   "metrics": {
@@ -475,20 +475,20 @@
     {
       "symbol": "XLV",
       "qty": 56.959646,
-      "market_value": 9537.89,
+      "market_value": 9537.32,
       "avg_entry_price": 169.09,
-      "current_price": 167.45,
-      "unrealized_pl": -93.43,
-      "unrealized_pl_pct": -0.97
+      "current_price": 167.44,
+      "unrealized_pl": -94.0,
+      "unrealized_pl_pct": -0.98
     },
     {
       "symbol": "IWM",
       "qty": 18.350527,
-      "market_value": 5592.51,
+      "market_value": 5593.06,
       "avg_entry_price": 302.91,
-      "current_price": 304.76,
-      "unrealized_pl": 33.95,
-      "unrealized_pl_pct": 0.61
+      "current_price": 304.79,
+      "unrealized_pl": 34.5,
+      "unrealized_pl_pct": 0.62
     },
     {
       "symbol": "EMXC",
@@ -502,11 +502,11 @@
     {
       "symbol": "XLP",
       "qty": 53.016446,
-      "market_value": 4559.41,
+      "market_value": 4560.47,
       "avg_entry_price": 85.66,
-      "current_price": 86.0,
-      "unrealized_pl": 18.03,
-      "unrealized_pl_pct": 0.4
+      "current_price": 86.02,
+      "unrealized_pl": 19.09,
+      "unrealized_pl_pct": 0.42
     },
     {
       "symbol": "TLT",
@@ -520,11 +520,11 @@
     {
       "symbol": "EWJ",
       "qty": 51.898277,
-      "market_value": 5096.93,
+      "market_value": 5091.23,
       "avg_entry_price": 98.04,
-      "current_price": 98.21,
-      "unrealized_pl": 8.82,
-      "unrealized_pl_pct": 0.17
+      "current_price": 98.1,
+      "unrealized_pl": 3.12,
+      "unrealized_pl_pct": 0.06
     }
   ],
   "recent_orders": [
