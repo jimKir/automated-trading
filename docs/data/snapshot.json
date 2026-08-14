@@ -1,23 +1,23 @@
 {
-  "last_updated": "2026-08-14T20:45:56Z",
+  "last_updated": "2026-08-14T21:26:29Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
   "probation_benchmark": "60/40",
   "account": {
-    "equity": 102369.71,
+    "equity": 102373.28,
     "cash": 66513.35,
-    "long_market_value": 35856.36,
-    "day_change": 37.47,
+    "long_market_value": 35859.93,
+    "day_change": 41.04,
     "day_change_pct": 0.04,
-    "total_return_pct": 2.27
+    "total_return_pct": 2.28
   },
   "benchmarks": {
     "spy_return_pct": 9.66,
     "qqq_return_pct": 11.87,
     "sixty_forty_return_pct": 5.49,
     "vs_spy_pp": -7.38,
-    "vs_qqq_pp": -9.6,
+    "vs_qqq_pp": -9.59,
     "vs_6040_pp": -3.21
   },
   "metrics": {
@@ -475,20 +475,20 @@
     {
       "symbol": "XLV",
       "qty": 56.959646,
-      "market_value": 9535.61,
+      "market_value": 9537.89,
       "avg_entry_price": 169.09,
-      "current_price": 167.41,
-      "unrealized_pl": -95.71,
-      "unrealized_pl_pct": -0.99
+      "current_price": 167.45,
+      "unrealized_pl": -93.43,
+      "unrealized_pl_pct": -0.97
     },
     {
       "symbol": "IWM",
       "qty": 18.350527,
-      "market_value": 5593.24,
+      "market_value": 5592.51,
       "avg_entry_price": 302.91,
-      "current_price": 304.8,
-      "unrealized_pl": 34.68,
-      "unrealized_pl_pct": 0.62
+      "current_price": 304.76,
+      "unrealized_pl": 33.95,
+      "unrealized_pl_pct": 0.61
     },
     {
       "symbol": "EMXC",
@@ -511,11 +511,11 @@
     {
       "symbol": "TLT",
       "qty": 67.433651,
-      "market_value": 5529.56,
+      "market_value": 5531.58,
       "avg_entry_price": 82.22,
-      "current_price": 82.0,
-      "unrealized_pl": -14.84,
-      "unrealized_pl_pct": -0.27
+      "current_price": 82.03,
+      "unrealized_pl": -12.81,
+      "unrealized_pl_pct": -0.23
     },
     {
       "symbol": "EWJ",
