@@ -1,24 +1,24 @@
 {
-  "last_updated": "2026-08-17T22:00:48Z",
+  "last_updated": "2026-08-18T13:42:55Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
   "probation_benchmark": "60/40",
   "account": {
-    "equity": 102303.8,
-    "cash": 102303.8,
+    "equity": 102302.99,
+    "cash": 102302.99,
     "long_market_value": 0.0,
-    "day_change": -75.34,
-    "day_change_pct": -0.07,
+    "day_change": 0.0,
+    "day_change_pct": 0.0,
     "total_return_pct": 2.21
   },
   "benchmarks": {
     "spy_return_pct": 9.44,
     "qqq_return_pct": 11.72,
-    "sixty_forty_return_pct": 5.27,
+    "sixty_forty_return_pct": 5.48,
     "vs_spy_pp": -7.23,
     "vs_qqq_pp": -9.51,
-    "vs_6040_pp": -3.06
+    "vs_6040_pp": -3.27
   },
   "metrics": {
     "total_return_pct": 2.24,
@@ -370,112 +370,112 @@
       "bot": 101.46,
       "spy": 105.48,
       "qqq": 108.34,
-      "sixty_forty": 102.92
+      "sixty_forty": 103.11
     },
     {
       "date": "2026-07-22",
       "bot": 101.73,
       "spy": 105.36,
       "qqq": 107.79,
-      "sixty_forty": 102.78
+      "sixty_forty": 103.04
     },
     {
       "date": "2026-07-23",
       "bot": 101.71,
       "spy": 104.06,
       "qqq": 105.74,
-      "sixty_forty": 101.92
+      "sixty_forty": 102.28
     },
     {
       "date": "2026-07-24",
       "bot": 101.34,
       "spy": 104.17,
       "qqq": 104.56,
-      "sixty_forty": 102.03
+      "sixty_forty": 102.39
     },
     {
       "date": "2026-07-28",
       "bot": 101.54,
       "spy": 104.44,
       "qqq": 103.22,
-      "sixty_forty": 102.38
+      "sixty_forty": 102.74
     },
     {
       "date": "2026-07-29",
       "bot": 101.56,
       "spy": 102.83,
       "qqq": 101.12,
-      "sixty_forty": 101.28
+      "sixty_forty": 101.64
     },
     {
       "date": "2026-07-30",
       "bot": 101.54,
       "spy": 104.55,
       "qqq": 104.46,
-      "sixty_forty": 102.33
+      "sixty_forty": 102.69
     },
     {
       "date": "2026-07-31",
       "bot": 102.02,
       "spy": 105.31,
       "qqq": 105.13,
-      "sixty_forty": 102.66
+      "sixty_forty": 103.13
     },
     {
       "date": "2026-08-04",
       "bot": 101.92,
       "spy": 108.73,
       "qqq": 110.61,
-      "sixty_forty": 104.93
+      "sixty_forty": 105.14
     },
     {
       "date": "2026-08-05",
       "bot": 102.37,
       "spy": 108.52,
       "qqq": 109.61,
-      "sixty_forty": 104.83
+      "sixty_forty": 105.04
     },
     {
       "date": "2026-08-06",
       "bot": 102.02,
       "spy": 108.34,
       "qqq": 109.21,
-      "sixty_forty": 104.61
+      "sixty_forty": 104.82
     },
     {
       "date": "2026-08-07",
       "bot": 101.54,
       "spy": 109.0,
       "qqq": 110.49,
-      "sixty_forty": 105.07
+      "sixty_forty": 105.28
     },
     {
       "date": "2026-08-11",
       "bot": 101.71,
       "spy": 108.62,
       "qqq": 109.79,
-      "sixty_forty": 104.73
+      "sixty_forty": 104.93
     },
     {
       "date": "2026-08-12",
       "bot": 101.67,
       "spy": 108.9,
       "qqq": 110.59,
-      "sixty_forty": 104.93
+      "sixty_forty": 105.14
     },
     {
       "date": "2026-08-13",
       "bot": 101.84,
       "spy": 109.66,
       "qqq": 111.87,
-      "sixty_forty": 105.49
+      "sixty_forty": 105.7
     },
     {
       "date": "2026-08-14",
       "bot": 102.24,
       "spy": 109.44,
       "qqq": 111.72,
-      "sixty_forty": 105.27
+      "sixty_forty": 105.48
     }
   ],
   "positions": [],
