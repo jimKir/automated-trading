@@ -1,24 +1,24 @@
 {
-  "last_updated": "2026-08-21T21:39:22Z",
+  "last_updated": "2026-08-21T21:59:54Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
   "probation_benchmark": "60/40",
   "account": {
-    "equity": 102168.72,
+    "equity": 102155.84,
     "cash": 64120.04,
-    "long_market_value": 38048.68,
-    "day_change": 273.26,
-    "day_change_pct": 0.27,
-    "total_return_pct": 2.07
+    "long_market_value": 38035.8,
+    "day_change": 260.38,
+    "day_change_pct": 0.26,
+    "total_return_pct": 2.06
   },
   "benchmarks": {
     "spy_return_pct": 7.5,
     "qqq_return_pct": 8.64,
     "sixty_forty_return_pct": 4.14,
-    "vs_spy_pp": -5.43,
-    "vs_qqq_pp": -6.57,
-    "vs_6040_pp": -2.07
+    "vs_spy_pp": -5.44,
+    "vs_qqq_pp": -6.58,
+    "vs_6040_pp": -2.08
   },
   "metrics": {
     "total_return_pct": 1.98,
@@ -519,15 +519,6 @@
       "unrealized_pl_pct": 0.63
     },
     {
-      "symbol": "VNQ",
-      "qty": 85.883564,
-      "market_value": 8472.41,
-      "avg_entry_price": 98.46,
-      "current_price": 98.65,
-      "unrealized_pl": 16.17,
-      "unrealized_pl_pct": 0.19
-    },
-    {
       "symbol": "EWJ",
       "qty": 85.883564,
       "market_value": 8182.13,
@@ -544,6 +535,15 @@
       "current_price": 97.35,
       "unrealized_pl": -9.64,
       "unrealized_pl_pct": -0.11
+    },
+    {
+      "symbol": "VNQ",
+      "qty": 85.883564,
+      "market_value": 8459.53,
+      "avg_entry_price": 98.46,
+      "current_price": 98.5,
+      "unrealized_pl": 3.28,
+      "unrealized_pl_pct": 0.04
     }
   ],
   "recent_orders": [
