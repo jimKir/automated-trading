@@ -1,24 +1,24 @@
 {
-  "last_updated": "2026-09-04T21:40:43Z",
+  "last_updated": "2026-09-04T23:21:22Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
   "probation_benchmark": "60/40",
   "account": {
-    "equity": 101077.45,
+    "equity": 101062.69,
     "cash": 74080.17,
-    "long_market_value": 26997.28,
-    "day_change": -540.79,
-    "day_change_pct": -0.53,
-    "total_return_pct": 0.98
+    "long_market_value": 26982.52,
+    "day_change": -555.55,
+    "day_change_pct": -0.55,
+    "total_return_pct": 0.97
   },
   "benchmarks": {
     "spy_return_pct": 8.99,
     "qqq_return_pct": 9.67,
     "sixty_forty_return_pct": 4.92,
-    "vs_spy_pp": -8.01,
-    "vs_qqq_pp": -8.69,
-    "vs_6040_pp": -3.94
+    "vs_spy_pp": -8.02,
+    "vs_qqq_pp": -8.7,
+    "vs_6040_pp": -3.95
   },
   "metrics": {
     "total_return_pct": 1.38,
@@ -559,47 +559,47 @@
     {
       "symbol": "EEM",
       "qty": 82.969118,
-      "market_value": 5698.32,
+      "market_value": 5699.98,
       "avg_entry_price": 67.24,
-      "current_price": 68.68,
-      "unrealized_pl": 119.54,
-      "unrealized_pl_pct": 2.14
+      "current_price": 68.7,
+      "unrealized_pl": 121.2,
+      "unrealized_pl_pct": 2.17
     },
     {
       "symbol": "QQQ",
       "qty": 8.425891,
-      "market_value": 6047.77,
+      "market_value": 6047.68,
       "avg_entry_price": 706.65,
-      "current_price": 717.76,
-      "unrealized_pl": 93.61,
+      "current_price": 717.75,
+      "unrealized_pl": 93.53,
       "unrealized_pl_pct": 1.57
     },
     {
       "symbol": "XLE",
       "qty": 112.563343,
-      "market_value": 7218.69,
+      "market_value": 7218.7,
       "avg_entry_price": 63.36,
       "current_price": 64.13,
-      "unrealized_pl": 86.32,
+      "unrealized_pl": 86.33,
       "unrealized_pl_pct": 1.21
     },
     {
       "symbol": "VGK",
       "qty": 38.186708,
-      "market_value": 3519.29,
+      "market_value": 3503.25,
       "avg_entry_price": 91.45,
-      "current_price": 92.16,
-      "unrealized_pl": 27.22,
-      "unrealized_pl_pct": 0.78
+      "current_price": 91.74,
+      "unrealized_pl": 11.18,
+      "unrealized_pl_pct": 0.32
     },
     {
       "symbol": "IWM",
       "qty": 15.268495,
-      "market_value": 4513.21,
+      "market_value": 4512.91,
       "avg_entry_price": 295.44,
-      "current_price": 295.59,
-      "unrealized_pl": 2.25,
-      "unrealized_pl_pct": 0.05
+      "current_price": 295.57,
+      "unrealized_pl": 1.94,
+      "unrealized_pl_pct": 0.04
     }
   ],
   "recent_orders": [
