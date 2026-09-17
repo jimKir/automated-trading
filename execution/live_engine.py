@@ -27,6 +27,7 @@ import pandas as pd
 from core.portfolio import Portfolio
 from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
+from execution.tradeable_universe import TradeableUniverse
 from monitoring.alerting import AlertManager
 from monitoring.anomaly_detector import AnomalyDetector
 from risk.capital_manager import CapitalManager
@@ -310,6 +311,16 @@ class LiveEngine:
 
         # Price data cache for live mode
         self._price_df_live: pd.DataFrame | None = None
+
+        # ── Execution guards: tradeable-universe filter ───────────────────
+        # Classifies every candidate symbol (equity/ETF, Alpaca crypto,
+        # unsupported crypto, futures, unknown) and blocks anything Alpaca
+        # cannot execute from reaching order generation. Futures/unsupported
+        # crypto remain in the data feed for signal/regime generation.
+        self._tradeable_guard: TradeableUniverse | None = None
+        self._guards_enabled: bool = bool(
+            config.get("execution_guards", {}).get("enabled", True)
+        )
 
     def start(self, loop_interval_seconds: int = 60) -> None:
         """Main trading loop."""
@@ -633,21 +644,11 @@ class LiveEngine:
             max_portfolio_heat=effective_heat,
         )
 
-        # ── Filter out symbols that Alpaca cannot trade ─────────────────
-        # yfinance-style futures (ES=F, NQ=F, GC=F, CL=F) and indices (^VIX)
-        # are used for signal generation / regime detection but cannot be
-        # sent as orders to Alpaca.
-        _NON_TRADEABLE_SUFFIXES = ("=F",)
-        _NON_TRADEABLE_PREFIXES = ("^",)
-        tradeable_weights = {
-            sym: w
-            for sym, w in target_weights.items()
-            if not sym.endswith(_NON_TRADEABLE_SUFFIXES)
-            and not sym.startswith(_NON_TRADEABLE_PREFIXES)
-        }
-        _skipped = set(target_weights) - set(tradeable_weights)
-        if _skipped:
-            log.info(f"Skipping non-tradeable symbols: {sorted(_skipped)}")
+        # ── Execution guards: block symbols Alpaca cannot trade ─────────
+        # yfinance-style futures (ES=F, NQ=F, GC=F, CL=F, …), indices (^VIX)
+        # and unsupported crypto (BNB-USD, ADA-USD, …) are used for signal
+        # generation / regime detection but must never become orders.
+        tradeable_weights = self._filter_tradeable_weights(target_weights)
 
         # ── P1-1: Reset daily turnover counter at UTC date change ────────
         today_utc_str = now.strftime("%Y-%m-%d")
@@ -860,6 +861,45 @@ class LiveEngine:
         self._persist_rebalance_ts(now)
         log.info(f"Account equity after cycle: ${account.equity:,.2f}")
 
+    # ── Execution guard helpers ──────────────────────────────────────────
+
+    def _get_tradeable_guard(self) -> TradeableUniverse:
+        """Lazy-build the guard so the Alpaca client can be attached after
+        broker.connect() (broker isn't connected during __init__)."""
+        if self._tradeable_guard is None:
+            client = getattr(self.broker, "trading_client", None)
+            self._tradeable_guard = TradeableUniverse(self.config, trading_client=client)
+        return self._tradeable_guard
+
+    def _guard_is_tradeable(self, symbol: str) -> bool:
+        """Tradeable on Alpaca? Falls back to the legacy suffix filter if the
+        guard itself fails, so a guard outage can never invent phantom orders."""
+        try:
+            return self._get_tradeable_guard().is_tradeable(symbol)
+        except Exception as e:
+            log.debug(f"[GUARD] classifier failed for {symbol}: {e}")
+            return not symbol.endswith("=F") and not symbol.startswith("^")
+
+    def _filter_tradeable_weights(self, target_weights: dict[str, float]) -> dict[str, float]:
+        """Drop non-tradeable symbols from order generation with audit logs.
+
+        Ranking/scoring upstream is unaffected — futures and unsupported
+        crypto still contribute signals; they are only removed here, at the
+        order boundary.
+        """
+        guard = self._get_tradeable_guard()
+        out: dict[str, float] = {}
+        for sym, w in target_weights.items():
+            if guard.is_tradeable(sym):
+                out[sym] = w
+                continue
+            if guard.enabled:
+                _ok, reason = guard.check(sym)
+            else:
+                reason = "legacy suffix filter"
+            log.info(f"[GUARD] Skipping {sym} — not tradeable on Alpaca ({reason})")
+        return out
+
     def _detect_cash_only_reentry(self) -> None:
         """Detect cash-only state after a circuit breaker liquidation.
 
@@ -917,14 +957,10 @@ class LiveEngine:
             return False, 0.0, reason
 
         # Gate 2: At least one tradeable symbol with signal >= min_signal_threshold
-        _NON_TRADEABLE_SUFFIXES = ("=F",)
-        _NON_TRADEABLE_PREFIXES = ("^",)
         tradeable_positive = [
             (sym, sig)
             for sym, sig in signals.items()
-            if sig >= self._reentry_min_signal
-            and not sym.endswith(_NON_TRADEABLE_SUFFIXES)
-            and not sym.startswith(_NON_TRADEABLE_PREFIXES)
+            if sig >= self._reentry_min_signal and self._guard_is_tradeable(sym)
         ]
         if not tradeable_positive:
             reason = (

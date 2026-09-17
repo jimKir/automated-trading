@@ -151,6 +151,84 @@ def run_checks() -> list[dict]:
             else:
                 PASS(f"{blend} sums to {total:.3f}")
 
+    # Section 2c: Execution guards
+    eg = config.get("execution_guards", {})
+    if eg.get("enabled"):
+        PASS("execution_guards.enabled = true")
+    else:
+        FAIL("execution_guards.enabled missing/false — phantom instruments can reach orders")
+
+    try:
+        from execution.tradeable_universe import (
+            AssetClass,
+            classify,
+            is_tradeable,
+        )
+
+        phantoms = ["ES=F", "NQ=F", "GC=F", "CL=F", "SI=F", "ZB=F", "NG=F"]
+        phantom_crypto = ["BNB-USD", "ADA-USD", "AVAX-USD", "DOT-USD", "LINK-USD"]
+        ok_fut = all(
+            classify(s) is AssetClass.FUTURES and not is_tradeable(s) for s in phantoms
+        )
+        ok_crypto = all(
+            classify(s) is AssetClass.CRYPTO_UNSUPPORTED and not is_tradeable(s)
+            for s in phantom_crypto
+        )
+        ok_allowed = all(
+            is_tradeable(s) for s in ["SPY", "QQQ", "BTC-USD", "BTC/USD", "BTCUSD", "ETH-USD", "SOL-USD"]
+        )
+        if ok_fut and ok_crypto and ok_allowed:
+            PASS("Tradeable classifier: futures/phantom crypto blocked, ETF+BTC/ETH/SOL allowed")
+        else:
+            FAIL(
+                f"Tradeable classifier misclassified: futures_ok={ok_fut} "
+                f"crypto_ok={ok_crypto} allowed_ok={ok_allowed}"
+            )
+    except Exception as e:
+        FAIL(f"Tradeable classifier check failed: {e}")
+
+    # Section 2d: Dynamic universe top-N contains only tradeable symbols
+    try:
+        import numpy as _np
+        import pandas as _pd
+
+        from strategy.universe import DynamicUniverseSelector
+
+        _cfg = {
+            "execution_guards": {"enabled": True},
+            "dynamic_universe": {
+                "enabled": True,
+                "top_n": 4,
+                "momentum_window": 63,
+                "min_history_days": 252,
+                "adaptive_caps": False,
+                "candidates": {
+                    "equities": ["SPY", "QQQ", "IWM", "TLT", "GLD", "SHY"],
+                    "futures": ["ES=F", "GC=F"],
+                    "crypto": ["BTC-USD", "BNB-USD"],
+                },
+            },
+        }
+        idx = _pd.bdate_range("2024-01-01", periods=320, tz="UTC")
+        _data = {}
+        for i, sym in enumerate(["SPY", "QQQ", "IWM", "TLT", "GLD", "SHY", "ES=F", "GC=F", "BTC-USD", "BNB-USD"]):
+            # Futures/crypto get the STRONGEST drift — without the guard they
+            # would take the top slots.
+            drift = 0.001 + 0.0005 * (9 - i)
+            close = 100 * _np.cumprod(1 + drift + 0.01 * _np.sin(_np.arange(320) / 7))
+            _data[sym] = _pd.DataFrame({"Close": close}, index=idx)
+        sel = DynamicUniverseSelector(_cfg)
+        picked = sel.select(_data, idx[-1])
+        bad = [s for s in picked if not is_tradeable(s)]
+        if bad:
+            FAIL(f"Top-N selection contains non-tradeable symbols: {bad}")
+        elif picked:
+            PASS(f"Top-N selection tradeable-only ({len(picked)} names: {sorted(picked)})")
+        else:
+            FAIL("Top-N selection empty under execution guards")
+    except Exception as e:
+        FAIL(f"Universe-selection guard check failed: {e}")
+
     # Section 3: Strategy config merged
     strategy = config.get("strategy", {})
     if "rebalance_frequency" in strategy and "name" in strategy:

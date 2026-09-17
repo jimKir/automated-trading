@@ -510,6 +510,20 @@ anomaly_layer:
 # Regime switching configuration moved into strategy: block above (Apr 2026)
 
 # ============================================================
+# EXECUTION GUARDS — tradeable-universe classifier
+# The data feed contains instruments Alpaca cannot execute (CME futures
+# ES=F..NG=F, crypto beyond BTC/ETH/SOL). They are legitimate signal/regime
+# inputs and must stay in the feed — but they must never reach the order
+# boundary. Every skip is logged: [GUARD] Skipping <sym> — not tradeable ...
+# ============================================================
+execution_guards:
+  enabled: true
+  allowed_crypto: [BTC-USD, ETH-USD, SOL-USD]   # Alpaca crypto pairs (long-only)
+  block_futures: true                            # *=F tickers: never orderable
+  verify_with_alpaca: true                       # check tradable/shortable/easy_to_borrow
+                                                 # attributes at runtime (cached per session)
+
+# ============================================================
 # REBALANCE GUARDS
 # Hard limits on rebalance frequency and minimum order delta to
 # prevent excessive turnover from micro-rebalancing every cycle.
