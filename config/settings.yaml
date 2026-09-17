@@ -530,7 +530,13 @@ execution_guards:
 # Docs: docs/shorting_design.md
 # ============================================================
 shorting:
-  enabled: true            # paper only — flip to false before live capital review
+  # DISABLED by default (2026-09-17): validation backtest showed the overlay
+  # materially worsening Sharpe/MaxDD on both windows (2022 bear: Sharpe
+  # -1.55→-1.97, MaxDD -27.9%→-32.1%; 2026 YTD: -0.62→-0.69, -15.5%→-15.7%) —
+  # see results/short_selling_backtest.json and docs/shorting_design.md.
+  # Machinery is fully implemented and tested; re-enable only after the
+  # turnover problem (daily re-targeting churn, 95.8x/yr in 2022) is solved.
+  enabled: false           # paper only — flip to true only with owner review
   asset_classes: [equity_etf]   # NO crypto shorts, NO futures
   max_short_notional_pct: 0.30
   max_single_short_pct: 0.08
