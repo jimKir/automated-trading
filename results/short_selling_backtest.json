@@ -1,0 +1,104 @@
+{
+  "generated": "2026-09-17T22:04:30Z",
+  "experiment": "Gap B short overlay validation: long-only vs +short overlay",
+  "config_shorting": {
+    "enabled": true,
+    "asset_classes": [
+      "equity_etf"
+    ],
+    "max_short_notional_pct": 0.3,
+    "max_single_short_pct": 0.08,
+    "min_signal_strength": 0.0,
+    "universe": "liquid_etfs_only",
+    "cover_on_regime_improvement": true,
+    "hard_stop_pct": 0.08
+  },
+  "windows": {
+    "2022_bear": {
+      "start": "2022-01-01",
+      "end": "2022-12-31",
+      "trading_days": 365,
+      "symbols_loaded": 56,
+      "arms": {
+        "long_only": {
+          "label": "Long-only (current config)",
+          "total_return_pct": -26.15,
+          "sharpe": -1.55,
+          "max_drawdown_pct": -27.86,
+          "ann_volatility_pct": 15.39,
+          "turnover_x_per_year": 25.53,
+          "n_fills": 604,
+          "avg_portfolio_heat": 0.6013,
+          "pct_days_with_shorts": 0.0,
+          "short_pnl_total_usd": 0.0,
+          "short_hard_stop_covers": 0,
+          "short_entries": 0
+        },
+        "short_overlay": {
+          "label": "+ Bear-regime short overlay",
+          "total_return_pct": -30.23,
+          "sharpe": -1.97,
+          "max_drawdown_pct": -32.11,
+          "ann_volatility_pct": 14.14,
+          "turnover_x_per_year": 95.82,
+          "n_fills": 5070,
+          "avg_portfolio_heat": 0.8316,
+          "pct_days_with_shorts": 98.08,
+          "short_pnl_total_usd": 1818.57,
+          "short_hard_stop_covers": 0,
+          "short_entries": 2286
+        },
+        "spy_ref": {
+          "label": "SPY buy & hold",
+          "total_return_pct": -18.65,
+          "sharpe": -0.9,
+          "max_drawdown_pct": -24.5,
+          "ann_volatility_pct": 24.28
+        }
+      }
+    },
+    "2026_ytd": {
+      "start": "2026-04-22",
+      "end": "2026-09-17",
+      "trading_days": 149,
+      "symbols_loaded": 56,
+      "arms": {
+        "long_only": {
+          "label": "Long-only (current config)",
+          "total_return_pct": -4.38,
+          "sharpe": -0.62,
+          "max_drawdown_pct": -15.5,
+          "ann_volatility_pct": 16.48,
+          "turnover_x_per_year": 23.15,
+          "n_fills": 251,
+          "avg_portfolio_heat": 0.6534,
+          "pct_days_with_shorts": 0.0,
+          "short_pnl_total_usd": 0.0,
+          "short_hard_stop_covers": 0,
+          "short_entries": 0
+        },
+        "short_overlay": {
+          "label": "+ Bear-regime short overlay",
+          "total_return_pct": -4.95,
+          "sharpe": -0.69,
+          "max_drawdown_pct": -15.71,
+          "ann_volatility_pct": 16.44,
+          "turnover_x_per_year": 46.84,
+          "n_fills": 463,
+          "avg_portfolio_heat": 0.7198,
+          "pct_days_with_shorts": 61.74,
+          "short_pnl_total_usd": -165.29,
+          "short_hard_stop_covers": 0,
+          "short_entries": 99
+        },
+        "spy_ref": {
+          "label": "SPY buy & hold",
+          "total_return_pct": 7.5,
+          "sharpe": 1.18,
+          "max_drawdown_pct": -4.49,
+          "ann_volatility_pct": 12.41
+        }
+      }
+    }
+  }
+}

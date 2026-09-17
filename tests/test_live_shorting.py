@@ -176,7 +176,9 @@ class TestOverlayIntegrationPoints:
         with open(cfg_path) as f:
             full = yaml.safe_load(f)
         scfg = ShortingConfig.from_config(full)
-        assert scfg.enabled is True
+        # enabled flag is deliberately NOT asserted here — it flips with
+        # deployment decisions (see docs/shorting_design.md)
+        assert isinstance(scfg.enabled, bool)
         assert scfg.asset_classes == ["equity_etf"]
         assert scfg.universe_symbols == ["SPY", "QQQ", "IWM", "DIA", "MDY", "EEM", "VGK", "EWJ",
                                          "XLE", "XLF", "XLV", "XLU", "XLP", "XLY", "XLK", "VNQ"]
