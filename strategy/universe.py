@@ -268,12 +268,12 @@ class DynamicUniverseSelector:
         self._guard = None
         if config.get("execution_guards", {}).get("enabled", False):
             try:
-                from execution.tradeable_universe import TradeableUniverse
-
                 # Static classes only — no broker verification inside the
                 # selector (backtests have no Alpaca client; live order
                 # generation is guarded again in LiveEngine).
                 import copy as _copy
+
+                from execution.tradeable_universe import TradeableUniverse
 
                 guard_cfg = _copy.deepcopy(config)
                 guard_cfg.setdefault("execution_guards", {})["verify_with_alpaca"] = False
@@ -420,9 +420,7 @@ class DynamicUniverseSelector:
                 if sym in selected or not self._guard.is_tradeable(sym):
                     continue
                 selected.append(sym)
-                log.info(
-                    f"[GUARD] Filling freed slot with next-ranked tradeable name: {sym}"
-                )
+                log.info(f"[GUARD] Filling freed slot with next-ranked tradeable name: {sym}")
 
         log.debug(
             f"Selected {len(selected)}: "

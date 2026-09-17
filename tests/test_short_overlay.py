@@ -30,6 +30,7 @@ from strategy.short_overlay import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _hist(start, end, n=300):
     """Downward or arbitrary close series with n business days."""
     return pd.DataFrame(
@@ -39,13 +40,13 @@ def _hist(start, end, n=300):
 
 
 def _cfg(**kw):
-    base = dict(
-        enabled=True,
-        max_short_notional_pct=0.30,
-        max_single_short_pct=0.08,
-        min_signal_strength=0.0,
-        hard_stop_pct=0.08,
-    )
+    base = {
+        "enabled": True,
+        "max_short_notional_pct": 0.30,
+        "max_single_short_pct": 0.08,
+        "min_signal_strength": 0.0,
+        "hard_stop_pct": 0.08,
+    }
     base.update(kw)
     return ShortingConfig(**base)
 
@@ -53,6 +54,7 @@ def _cfg(**kw):
 # ---------------------------------------------------------------------------
 # Config parsing
 # ---------------------------------------------------------------------------
+
 
 class TestShortingConfig:
     def test_defaults_disabled(self):
@@ -84,12 +86,11 @@ class TestShortingConfig:
 # Regime detection
 # ---------------------------------------------------------------------------
 
+
 class TestRegime:
     def test_bear_when_below_ma200(self):
         # First 200 days at 100, then drop to 80 → last < MA200
-        close = pd.Series(
-            np.concatenate([np.full(200, 100.0), np.full(100, 80.0)])
-        )
+        close = pd.Series(np.concatenate([np.full(200, 100.0), np.full(100, 80.0)]))
         assert is_bear_regime(close) is True
 
     def test_bull_when_above_ma200(self):
@@ -110,6 +111,7 @@ class TestRegime:
 # ---------------------------------------------------------------------------
 # Eligibility + sizing
 # ---------------------------------------------------------------------------
+
 
 class TestEligibility:
     def test_disabled_returns_empty(self):
@@ -138,13 +140,17 @@ class TestEligibility:
     def test_non_bear_requires_below_own_ma200(self):
         # QQQ falling (below own MA), SPY falling but above its own MA? use flat:
         hist = {
-            "QQQ": _hist(200, 100),   # falling → below MA200
-            "SPY": _hist(100, 110),   # gently rising → above MA200
+            "QQQ": _hist(200, 100),  # falling → below MA200
+            "SPY": _hist(100, 110),  # gently rising → above MA200
         }
         sigs = {"QQQ": -0.3, "SPY": -0.3}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(), bear_regime=False,
-            long_gross=0.0, max_portfolio_heat=0.95,
+            sigs,
+            hist,
+            cfg=_cfg(),
+            bear_regime=False,
+            long_gross=0.0,
+            max_portfolio_heat=0.95,
         )
         assert "QQQ" in out
         assert "SPY" not in out  # not below its own MA200 outside bear regime
@@ -152,8 +158,12 @@ class TestEligibility:
     def test_bear_regime_relaxes_ma_requirement(self):
         hist = {"SPY": _hist(100, 110)}  # above its own MA200
         out = compute_short_targets(
-            {"SPY": -0.3}, hist, cfg=_cfg(), bear_regime=True,
-            long_gross=0.0, max_portfolio_heat=0.95,
+            {"SPY": -0.3},
+            hist,
+            cfg=_cfg(),
+            bear_regime=True,
+            long_gross=0.0,
+            max_portfolio_heat=0.95,
         )
         assert "SPY" in out
 
@@ -183,11 +193,15 @@ class TestEligibility:
 
 class TestSizing:
     def test_aggregate_cap(self):
-        sigs = {s: -0.2 for s in LIQUID_ETF_UNIVERSE}
+        sigs = dict.fromkeys(LIQUID_ETF_UNIVERSE, -0.2)
         hist = {s: _hist(200, 100) for s in LIQUID_ETF_UNIVERSE}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(), bear_regime=True,
-            long_gross=0.0, max_portfolio_heat=0.95,
+            sigs,
+            hist,
+            cfg=_cfg(),
+            bear_regime=True,
+            long_gross=0.0,
+            max_portfolio_heat=0.95,
         )
         total = sum(abs(w) for w in out.values())
         assert total <= 0.30 + 1e-9
@@ -197,28 +211,40 @@ class TestSizing:
         sigs = {"SPY": -0.9, "QQQ": -0.01}
         hist = {"SPY": _hist(200, 100), "QQQ": _hist(200, 100)}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(), bear_regime=True,
-            long_gross=0.0, max_portfolio_heat=0.95,
+            sigs,
+            hist,
+            cfg=_cfg(),
+            bear_regime=True,
+            long_gross=0.0,
+            max_portfolio_heat=0.95,
         )
         assert abs(out["SPY"]) <= 0.08 + 1e-9
 
     def test_heat_headroom_limits_shorts(self):
-        sigs = {s: -0.2 for s in LIQUID_ETF_UNIVERSE}
+        sigs = dict.fromkeys(LIQUID_ETF_UNIVERSE, -0.2)
         hist = {s: _hist(200, 100) for s in LIQUID_ETF_UNIVERSE}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(), bear_regime=True,
-            long_gross=0.80, max_portfolio_heat=0.95,
+            sigs,
+            hist,
+            cfg=_cfg(),
+            bear_regime=True,
+            long_gross=0.80,
+            max_portfolio_heat=0.95,
         )
         total = sum(abs(w) for w in out.values())
         assert total <= 0.15 + 1e-9  # only 15% heat headroom remains
         assert 0.80 + total <= 0.95 + 1e-9
 
     def test_no_heat_headroom_no_shorts(self):
-        sigs = {s: -0.2 for s in LIQUID_ETF_UNIVERSE}
+        sigs = dict.fromkeys(LIQUID_ETF_UNIVERSE, -0.2)
         hist = {s: _hist(200, 100) for s in LIQUID_ETF_UNIVERSE}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(), bear_regime=True,
-            long_gross=0.95, max_portfolio_heat=0.95,
+            sigs,
+            hist,
+            cfg=_cfg(),
+            bear_regime=True,
+            long_gross=0.95,
+            max_portfolio_heat=0.95,
         )
         assert out == {}
 
@@ -230,8 +256,13 @@ class TestSizing:
         sigs = {"SPY": -0.3, "QQQ": -0.3}
         hist = {"SPY": _hist(200, 100), "QQQ": _hist(200, 100)}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(), bear_regime=True,
-            long_gross=0.0, max_portfolio_heat=0.95, guard=_NoShortGuard(),
+            sigs,
+            hist,
+            cfg=_cfg(),
+            bear_regime=True,
+            long_gross=0.0,
+            max_portfolio_heat=0.95,
+            guard=_NoShortGuard(),
         )
         assert "SPY" in out
         assert "QQQ" not in out
@@ -240,8 +271,12 @@ class TestSizing:
         sigs = {"SPY": -0.6, "QQQ": -0.3}
         hist = {"SPY": _hist(200, 100), "QQQ": _hist(200, 100)}
         out = compute_short_targets(
-            sigs, hist, cfg=_cfg(max_single_short_pct=0.30), bear_regime=True,
-            long_gross=0.0, max_portfolio_heat=0.95,
+            sigs,
+            hist,
+            cfg=_cfg(max_single_short_pct=0.30),
+            bear_regime=True,
+            long_gross=0.0,
+            max_portfolio_heat=0.95,
         )
         assert abs(out["SPY"]) > abs(out["QQQ"])
         assert abs(out["SPY"]) / abs(out["QQQ"]) == pytest.approx(2.0, rel=0.01)
@@ -250,6 +285,7 @@ class TestSizing:
 # ---------------------------------------------------------------------------
 # Merge + cover semantics
 # ---------------------------------------------------------------------------
+
 
 class TestMergeAndCover:
     def test_merge_replaces_long_target(self):
@@ -275,6 +311,7 @@ class TestMergeAndCover:
 # ---------------------------------------------------------------------------
 # Hard stops
 # ---------------------------------------------------------------------------
+
 
 class TestHardStops:
     def test_cover_when_up_past_stop(self):
@@ -310,6 +347,7 @@ class TestHardStops:
 # ---------------------------------------------------------------------------
 # Portfolio accounting with shorts (core/portfolio.py)
 # ---------------------------------------------------------------------------
+
 
 class TestPortfolioShorts:
     def _portfolio(self):

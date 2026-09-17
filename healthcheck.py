@@ -167,15 +167,14 @@ def run_checks() -> list[dict]:
 
         phantoms = ["ES=F", "NQ=F", "GC=F", "CL=F", "SI=F", "ZB=F", "NG=F"]
         phantom_crypto = ["BNB-USD", "ADA-USD", "AVAX-USD", "DOT-USD", "LINK-USD"]
-        ok_fut = all(
-            classify(s) is AssetClass.FUTURES and not is_tradeable(s) for s in phantoms
-        )
+        ok_fut = all(classify(s) is AssetClass.FUTURES and not is_tradeable(s) for s in phantoms)
         ok_crypto = all(
             classify(s) is AssetClass.CRYPTO_UNSUPPORTED and not is_tradeable(s)
             for s in phantom_crypto
         )
         ok_allowed = all(
-            is_tradeable(s) for s in ["SPY", "QQQ", "BTC-USD", "BTC/USD", "BTCUSD", "ETH-USD", "SOL-USD"]
+            is_tradeable(s)
+            for s in ["SPY", "QQQ", "BTC-USD", "BTC/USD", "BTCUSD", "ETH-USD", "SOL-USD"]
         )
         if ok_fut and ok_crypto and ok_allowed:
             PASS("Tradeable classifier: futures/phantom crypto blocked, ETF+BTC/ETH/SOL allowed")
@@ -189,8 +188,8 @@ def run_checks() -> list[dict]:
 
     # Section 2d: Dynamic universe top-N contains only tradeable symbols
     try:
-        import numpy as _np
-        import pandas as _pd
+        import numpy as np
+        import pandas as pd
 
         from strategy.universe import DynamicUniverseSelector
 
@@ -209,14 +208,16 @@ def run_checks() -> list[dict]:
                 },
             },
         }
-        idx = _pd.bdate_range("2024-01-01", periods=320, tz="UTC")
+        idx = pd.bdate_range("2024-01-01", periods=320, tz="UTC")
         _data = {}
-        for i, sym in enumerate(["SPY", "QQQ", "IWM", "TLT", "GLD", "SHY", "ES=F", "GC=F", "BTC-USD", "BNB-USD"]):
+        for i, sym in enumerate(
+            ["SPY", "QQQ", "IWM", "TLT", "GLD", "SHY", "ES=F", "GC=F", "BTC-USD", "BNB-USD"]
+        ):
             # Futures/crypto get the STRONGEST drift — without the guard they
             # would take the top slots.
             drift = 0.001 + 0.0005 * (9 - i)
-            close = 100 * _np.cumprod(1 + drift + 0.01 * _np.sin(_np.arange(320) / 7))
-            _data[sym] = _pd.DataFrame({"Close": close}, index=idx)
+            close = 100 * np.cumprod(1 + drift + 0.01 * np.sin(np.arange(320) / 7))
+            _data[sym] = pd.DataFrame({"Close": close}, index=idx)
         sel = DynamicUniverseSelector(_cfg)
         picked = sel.select(_data, idx[-1])
         bad = [s for s in picked if not is_tradeable(s)]
@@ -232,17 +233,13 @@ def run_checks() -> list[dict]:
     # Section 2e: Shorting config sanity
     if "shorting" in config:
         try:
-            from execution.tradeable_universe import AssetClass as _AC2
-            from execution.tradeable_universe import classify as _classify2
+            from execution.tradeable_universe import AssetClass, classify
             from strategy.short_overlay import (
                 LIQUID_ETF_UNIVERSE,
                 ShortingConfig,
                 compute_short_targets,
                 is_bear_regime,
             )
-
-            import numpy as _np2
-            import pandas as _pd2
 
             scfg = ShortingConfig.from_config(config)
             if scfg.enabled:
@@ -262,7 +259,7 @@ def run_checks() -> list[dict]:
             else:
                 FAIL(f"max_single_short_pct out of range: {scfg.max_single_short_pct}")
             if set(scfg.universe_symbols) == set(LIQUID_ETF_UNIVERSE) and all(
-                _classify2(s) is _AC2.EQUITY_ETF for s in scfg.universe_symbols
+                classify(s) is AssetClass.EQUITY_ETF for s in scfg.universe_symbols
             ):
                 PASS(f"short universe = {len(scfg.universe_symbols)} liquid equity ETFs")
             else:
@@ -279,13 +276,13 @@ def run_checks() -> list[dict]:
                 max_single_short_pct=0.08,
             )
             dom_hist = {
-                s: _pd2.DataFrame(
-                    {"Close": _np2.linspace(200, 100, 300)},
-                    index=_pd2.bdate_range("2025-01-01", periods=300),
+                s: pd.DataFrame(
+                    {"Close": np.linspace(200, 100, 300)},
+                    index=pd.bdate_range("2025-01-01", periods=300),
                 )
                 for s in LIQUID_ETF_UNIVERSE
             }
-            _sigs = {s: -0.2 for s in LIQUID_ETF_UNIVERSE}
+            _sigs = dict.fromkeys(LIQUID_ETF_UNIVERSE, -0.2)
             _targets = compute_short_targets(
                 _sigs,
                 dom_hist,

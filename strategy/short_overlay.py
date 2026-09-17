@@ -25,8 +25,10 @@ Weights are returned as NEGATIVE portfolio weights (fraction of equity).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
 from utils.logger import get_logger
 
@@ -34,10 +36,22 @@ log = get_logger("ShortOverlay")
 
 # Liquid, easy-to-borrow US equity ETFs (config key: universe: liquid_etfs_only)
 LIQUID_ETF_UNIVERSE: list[str] = [
-    "SPY", "QQQ", "IWM", "DIA", "MDY",       # broad equity
-    "EEM", "VGK", "EWJ",                     # international
-    "XLE", "XLF", "XLV", "XLU", "XLP", "XLY", "XLK",  # sectors
-    "VNQ",                                   # real estate
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",
+    "MDY",  # broad equity
+    "EEM",
+    "VGK",
+    "EWJ",  # international
+    "XLE",
+    "XLF",
+    "XLV",
+    "XLU",
+    "XLP",
+    "XLY",
+    "XLK",  # sectors
+    "VNQ",  # real estate
 ]
 
 _UNIVERSES = {"liquid_etfs_only": LIQUID_ETF_UNIVERSE}
@@ -59,7 +73,7 @@ class ShortingConfig:
     hard_stop_pct: float = 0.08
 
     @classmethod
-    def from_config(cls, config: dict) -> "ShortingConfig":
+    def from_config(cls, config: dict) -> ShortingConfig:
         raw = config.get("shorting", {}) if isinstance(config, dict) else {}
         return cls(
             enabled=bool(raw.get("enabled", False)),
@@ -172,10 +186,7 @@ def merge_short_targets(
     only fires on names whose signal is negative, so a long target for the
     same symbol should not exist — but never stack both).
     """
-    out = dict(target_weights)
-    for sym, w in short_targets.items():
-        out[sym] = w
-    return out
+    return {**target_weights, **short_targets}
 
 
 def hard_stop_covers(
@@ -194,9 +205,7 @@ def hard_stop_covers(
         qty = float(pos.get("quantity", 0) or 0)
         if qty >= 0:
             continue  # longs or flat — not our concern here
-        entry = float(
-            pos.get("avg_price", pos.get("avg_entry_price", 0)) or 0
-        )
+        entry = float(pos.get("avg_price", pos.get("avg_entry_price", 0)) or 0)
         price = prices.get(sym)
         if entry <= 0 or price is None or price <= 0:
             continue

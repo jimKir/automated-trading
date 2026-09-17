@@ -19,8 +19,8 @@ from execution.tradeable_universe import (
     KNOWN_FUTURES,
     AssetClass,
     TradeableUniverse,
-    classify,
     classification_reason,
+    classify,
     filter_tradeable,
     is_tradeable,
     normalize_crypto_symbol,
@@ -30,10 +30,9 @@ from execution.tradeable_universe import (
 # classify() — all five classes
 # ---------------------------------------------------------------------------
 
+
 class TestClassify:
-    @pytest.mark.parametrize(
-        "sym", ["ES=F", "NQ=F", "GC=F", "CL=F", "SI=F", "ZB=F", "NG=F"]
-    )
+    @pytest.mark.parametrize("sym", ["ES=F", "NQ=F", "GC=F", "CL=F", "SI=F", "ZB=F", "NG=F"])
     def test_futures_suffix(self, sym):
         assert classify(sym) is AssetClass.FUTURES
         assert sym in KNOWN_FUTURES
@@ -42,22 +41,44 @@ class TestClassify:
     def test_unknown_futures_suffix_still_futures(self, sym):
         assert classify(sym) is AssetClass.FUTURES
 
-    @pytest.mark.parametrize(
-        "sym", ["SPY", "QQQ", "IWM", "AAPL", "BRK-B", "BF.B", "VNQ"]
-    )
+    @pytest.mark.parametrize("sym", ["SPY", "QQQ", "IWM", "AAPL", "BRK-B", "BF.B", "VNQ"])
     def test_equities_and_etfs(self, sym):
         assert classify(sym) is AssetClass.EQUITY_ETF
 
     @pytest.mark.parametrize(
-        "sym", ["BTC-USD", "BTC/USD", "BTCUSD", "BTC_USD", "BTC-USDT", "btc-usd",
-                "ETH-USD", "ETH/USD", "ETHUSD", "SOL-USD", "SOL/USD", "SOLUSD"]
+        "sym",
+        [
+            "BTC-USD",
+            "BTC/USD",
+            "BTCUSD",
+            "BTC_USD",
+            "BTC-USDT",
+            "btc-usd",
+            "ETH-USD",
+            "ETH/USD",
+            "ETHUSD",
+            "SOL-USD",
+            "SOL/USD",
+            "SOLUSD",
+        ],
     )
     def test_alpaca_crypto_variants(self, sym):
         assert classify(sym) is AssetClass.CRYPTO_ALPACA
 
     @pytest.mark.parametrize(
-        "sym", ["BNB-USD", "ADA-USD", "AVAX-USD", "DOT-USD", "LINK-USD",
-                "BNB/USD", "ADAUSD", "AVAX_USD", "DOGE-USD", "XRPUSDT"]
+        "sym",
+        [
+            "BNB-USD",
+            "ADA-USD",
+            "AVAX-USD",
+            "DOT-USD",
+            "LINK-USD",
+            "BNB/USD",
+            "ADAUSD",
+            "AVAX_USD",
+            "DOGE-USD",
+            "XRPUSDT",
+        ],
     )
     def test_unsupported_crypto(self, sym):
         assert classify(sym) is AssetClass.CRYPTO_UNSUPPORTED
@@ -88,6 +109,7 @@ class TestNormalizeCrypto:
 # Static helpers
 # ---------------------------------------------------------------------------
 
+
 class TestStaticHelpers:
     def test_is_tradeable(self):
         assert is_tradeable("SPY")
@@ -109,6 +131,7 @@ class TestStaticHelpers:
 # ---------------------------------------------------------------------------
 # TradeableUniverse — config-driven behaviour
 # ---------------------------------------------------------------------------
+
 
 class TestTradeableUniverseConfig:
     def test_defaults_enabled_no_config(self):
@@ -147,6 +170,7 @@ class TestTradeableUniverseConfig:
 # ---------------------------------------------------------------------------
 # TradeableUniverse — Alpaca runtime verification
 # ---------------------------------------------------------------------------
+
 
 class _FakeAsset:
     def __init__(self, tradable=True, shortable=True, easy_to_borrow=True):
@@ -230,6 +254,7 @@ class TestAlpacaVerification:
 # ---------------------------------------------------------------------------
 # DynamicUniverseSelector integration — guard skips phantom top ranks
 # ---------------------------------------------------------------------------
+
 
 def _synthetic_data(symbols, drifts, n=320):
     idx = pd.bdate_range("2024-01-01", periods=n, tz="UTC")

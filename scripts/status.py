@@ -80,9 +80,7 @@ def run():
     if not pos:
         print(f"  {D('none')}")
     else:
-        print(
-            f"  {'Symbol':<8} {'Side':<6} {'Qty':>8} {'Avg':>9} {'Now':>9} {'P&L':>10} {'%':>7}"
-        )
+        print(f"  {'Symbol':<8} {'Side':<6} {'Qty':>8} {'Avg':>9} {'Now':>9} {'P&L':>10} {'%':>7}")
         print(f"  {'-' * 60}")
         n_shorts = 0
         for p in sorted(pos, key=lambda x: abs(float(x.unrealized_pl)), reverse=True):

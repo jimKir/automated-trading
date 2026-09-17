@@ -16,6 +16,7 @@ Environment variables (set in Lambda config or SSM Parameter Store):
                          refresh_token, token_uri)
     RECIPIENTS         — comma-separated emails (default: both addresses)
 """
+
 from __future__ import annotations
 
 import base64
@@ -30,9 +31,7 @@ import boto3
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "jimKir/automated-trading")
 GITHUB_TOKEN_PARAM = os.environ.get("GITHUB_TOKEN_PARAM", "/trading/github-token")
 SSM_CREDS_PARAM = os.environ.get("GMAIL_CREDENTIALS", "/trading/gmail-oauth")
-RECIPIENTS = os.environ.get(
-    "RECIPIENTS", "kiritsis.di@gmail.com,o.zoumpou@gmail.com"
-).split(",")
+RECIPIENTS = os.environ.get("RECIPIENTS", "kiritsis.di@gmail.com,o.zoumpou@gmail.com").split(",")
 
 SUMMARY_PATH = "results/daily_summary.json"
 SCORECARD_PATH = "results/paper_monitor.json"
@@ -73,6 +72,7 @@ def github_fetch_json(path: str) -> dict | None:
 
 
 # ── Gmail helpers ────────────────────────────────────────────────────────────
+
 
 def get_gmail_credentials() -> dict:
     """Load OAuth credentials from SSM Parameter Store."""
@@ -121,6 +121,7 @@ def create_gmail_draft(access_token: str, to: list[str], subject: str, body: str
 
 # ── Email formatting ─────────────────────────────────────────────────────────
 
+
 def format_daily_summary(m: dict) -> tuple[str, str]:
     """Format the daily summary JSON into subject + plain-text body."""
     date = m.get("report_date", "unknown")
@@ -152,13 +153,13 @@ def format_daily_summary(m: dict) -> tuple[str, str]:
 
     body = f"""DAILY PERFORMANCE SUMMARY — {date}
 Strategy: Multi-Factor Momentum + Mean-Reversion | Paper Trading
-{'=' * 60}
+{"=" * 60}
 
 CAPITAL
-  Equity:       ${cap['current_equity']:,.2f}  (peak: ${cap['peak_equity']:,.2f})
-  Daily P&L:    {cap['pnl_daily_pct']:+.2f}%  (${cap['pnl_daily']:+,.2f})
-  Total P&L:    {cap['pnl_total_pct']:+.2f}%  (${cap['pnl_total']:+,.2f})
-  Initial:      ${cap['initial_equity']:,.2f}"""
+  Equity:       ${cap["current_equity"]:,.2f}  (peak: ${cap["peak_equity"]:,.2f})
+  Daily P&L:    {cap["pnl_daily_pct"]:+.2f}%  (${cap["pnl_daily"]:+,.2f})
+  Total P&L:    {cap["pnl_total_pct"]:+.2f}%  (${cap["pnl_total"]:+,.2f})
+  Initial:      ${cap["initial_equity"]:,.2f}"""
 
     if cap.get("cash") is not None:
         body += f"\n  Cash:         ${cap['cash']:,.2f}"
@@ -168,35 +169,35 @@ CAPITAL
     body += f"""
 
 PERFORMANCE
-  Trading Days: {perf['n_trading_days']}  ({perf['start_date']} → {perf['end_date']})
-  Total Return: {perf['total_return_pct']:+.2f}%
-  CAGR:         {perf['cagr_pct']:+.2f}%
-  Volatility:   {perf['ann_volatility_pct']:.2f}%
-  Sharpe:       {perf['sharpe_ratio']:.3f}
-  Sortino:      {perf['sortino_ratio']:.3f}
-  Calmar:       {perf['calmar_ratio']:.3f}
-  Profit Factor:{perf['profit_factor']:.2f}
-  Win Rate:     {perf['win_rate_pct']:.1f}%  ({perf['win_days']}W / {perf['loss_days']}L / {perf['flat_days']}F)
-  Avg Win:      {perf['avg_win_pct']:+.3f}%
-  Avg Loss:     {perf['avg_loss_pct']:+.3f}%
-  Best Day:     {perf['best_day_return_pct']:+.3f}% ({perf['best_day_date']})
-  Worst Day:    {perf['worst_day_return_pct']:+.3f}% ({perf['worst_day_date']})
-  Rolling 5d:   {perf['rolling_5d_return_pct']:+.2f}%
-  Rolling 20d:  {perf['rolling_20d_return_pct']:+.2f}%
+  Trading Days: {perf["n_trading_days"]}  ({perf["start_date"]} → {perf["end_date"]})
+  Total Return: {perf["total_return_pct"]:+.2f}%
+  CAGR:         {perf["cagr_pct"]:+.2f}%
+  Volatility:   {perf["ann_volatility_pct"]:.2f}%
+  Sharpe:       {perf["sharpe_ratio"]:.3f}
+  Sortino:      {perf["sortino_ratio"]:.3f}
+  Calmar:       {perf["calmar_ratio"]:.3f}
+  Profit Factor:{perf["profit_factor"]:.2f}
+  Win Rate:     {perf["win_rate_pct"]:.1f}%  ({perf["win_days"]}W / {perf["loss_days"]}L / {perf["flat_days"]}F)
+  Avg Win:      {perf["avg_win_pct"]:+.3f}%
+  Avg Loss:     {perf["avg_loss_pct"]:+.3f}%
+  Best Day:     {perf["best_day_return_pct"]:+.3f}% ({perf["best_day_date"]})
+  Worst Day:    {perf["worst_day_return_pct"]:+.3f}% ({perf["worst_day_date"]})
+  Rolling 5d:   {perf["rolling_5d_return_pct"]:+.2f}%
+  Rolling 20d:  {perf["rolling_20d_return_pct"]:+.2f}%
 
 RISK
-  Max Drawdown:     {risk['max_drawdown_pct']:.2f}%
-  Current Drawdown: {risk['current_drawdown_pct']:.2f}%
-  Days Since Peak:  {risk['days_since_peak']}
-  DD Recoveries:    {risk['dd_recovery_episodes']} episodes (>5%)
-  VaR (95%):        {risk['var_95_pct']:.3f}%
-  CVaR (95%):       {risk['cvar_95_pct']:.3f}%
-  Max Consec Loss:  {risk['max_consecutive_losses']}
-  Max Consec Win:   {risk['max_consecutive_wins']}
-  System Uptime:    {risk['system_uptime_pct']:.1f}%
+  Max Drawdown:     {risk["max_drawdown_pct"]:.2f}%
+  Current Drawdown: {risk["current_drawdown_pct"]:.2f}%
+  Days Since Peak:  {risk["days_since_peak"]}
+  DD Recoveries:    {risk["dd_recovery_episodes"]} episodes (>5%)
+  VaR (95%):        {risk["var_95_pct"]:.3f}%
+  CVaR (95%):       {risk["cvar_95_pct"]:.3f}%
+  Max Consec Loss:  {risk["max_consecutive_losses"]}
+  Max Consec Win:   {risk["max_consecutive_wins"]}
+  System Uptime:    {risk["system_uptime_pct"]:.1f}%
   BT Correlation:   {corr_str}
 
-{'—' * 60}
+{"—" * 60}
 Auto-generated by Trading System — Paper Mode
 https://github.com/{GITHUB_REPO}
 """
@@ -231,8 +232,8 @@ def format_alert(sc: dict) -> tuple[str, str] | None:
     table = f"\n{'#':<3} {'Metric':<24} {'Threshold':<16} {'Current':<14} {'Status':<10}\n"
     table += "-" * 60 + "\n"
     for c in sc["criteria"]:
-        icon = "\u2717" if c["status"] == "FAILING" else (
-            "\u2713" if c["status"] == "PASSED" else " "
+        icon = (
+            "\u2717" if c["status"] == "FAILING" else ("\u2713" if c["status"] == "PASSED" else " ")
         )
         table += (
             f"{icon} {c['index']:<2} {c['metric']:<24} "
@@ -244,15 +245,14 @@ def format_alert(sc: dict) -> tuple[str, str] | None:
         failing_list += f"  - {c['metric']}: {c['current']} (need {c['threshold']})\n"
 
     footer = (
-        f"\n{'—' * 60}\n"
-        f"Auto-generated by Paper Trading Monitor\n"
-        f"https://github.com/{GITHUB_REPO}\n"
+        f"\n{'—' * 60}\nAuto-generated by Paper Trading Monitor\nhttps://github.com/{GITHUB_REPO}\n"
     )
 
     return subject, header + table + failing_list + footer
 
 
 # ── Lambda handler ───────────────────────────────────────────────────────────
+
 
 def lambda_handler(event, context):
     """Main entry point for EventBridge / manual invocation."""
@@ -291,8 +291,10 @@ def lambda_handler(event, context):
 
     return {
         "statusCode": 200,
-        "body": json.dumps({
-            "drafts_created": len(drafts_created),
-            "details": drafts_created,
-        }),
+        "body": json.dumps(
+            {
+                "drafts_created": len(drafts_created),
+                "details": drafts_created,
+            }
+        ),
     }

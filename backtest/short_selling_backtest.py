@@ -38,9 +38,9 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backtest.engine import BacktestEngine  # noqa: E402
-from data.data_store import get_store  # noqa: E402
-from strategy.short_overlay import LIQUID_ETF_UNIVERSE  # noqa: E402
+from backtest.engine import BacktestEngine
+from data.data_store import get_store
+from strategy.short_overlay import LIQUID_ETF_UNIVERSE
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_JSON = ROOT / "results" / "short_selling_backtest.json"
@@ -68,6 +68,7 @@ WINDOWS = [
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
+
 
 def candidate_symbols(config: dict) -> list[str]:
     cands = config.get("dynamic_universe", {}).get("candidates", {})
@@ -136,9 +137,11 @@ def load_data(config: dict, data_start: str, end: str, fetch: bool = True) -> di
                     import yfinance as yf
 
                     raw = yf.download(
-                        _yticker(sym), start=data_start,
+                        _yticker(sym),
+                        start=data_start,
                         end=(pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
-                        auto_adjust=True, progress=False,
+                        auto_adjust=True,
+                        progress=False,
                     )
                     if raw.empty:
                         continue
@@ -167,6 +170,7 @@ def load_data(config: dict, data_start: str, end: str, fetch: bool = True) -> di
 # ---------------------------------------------------------------------------
 # Arms
 # ---------------------------------------------------------------------------
+
 
 def metrics_from_curve(curve: pd.Series) -> dict:
     curve = curve.dropna()
@@ -201,7 +205,7 @@ def run_arm(config: dict, data: dict, label: str, shorting_enabled: bool, window
         gross = float((trades["quantity"].abs() * trades["fill_price"]).sum())
         avg_eq = float(curve.mean())
         m["turnover_x_per_year"] = round(gross / avg_eq * (TRADING_DAYS / n_days), 2)
-        m["n_fills"] = int(len(trades))
+        m["n_fills"] = len(trades)
     else:
         m["turnover_x_per_year"] = 0.0
         m["n_fills"] = 0
@@ -245,8 +249,10 @@ def main() -> None:
         }
         colours = {"long_only": "#7f7f7f", "short_overlay": "#1f77b4", "spy_ref": "#d62728"}
 
-        print(f"  {'Arm':<30} {'Return':>9} {'Sharpe':>7} {'MaxDD':>8} {'Turn/yr':>8} "
-              f"{'%short days':>11} {'short P&L':>11}")
+        print(
+            f"  {'Arm':<30} {'Return':>9} {'Sharpe':>7} {'MaxDD':>8} {'Turn/yr':>8} "
+            f"{'%short days':>11} {'short P&L':>11}"
+        )
         print("  " + "-" * 88)
         for k, v in arms.items():
             m = v["metrics"]

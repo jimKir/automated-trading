@@ -180,5 +180,21 @@ class TestOverlayIntegrationPoints:
         # deployment decisions (see docs/shorting_design.md)
         assert isinstance(scfg.enabled, bool)
         assert scfg.asset_classes == ["equity_etf"]
-        assert scfg.universe_symbols == ["SPY", "QQQ", "IWM", "DIA", "MDY", "EEM", "VGK", "EWJ",
-                                         "XLE", "XLF", "XLV", "XLU", "XLP", "XLY", "XLK", "VNQ"]
+        assert scfg.universe_symbols == [
+            "SPY",
+            "QQQ",
+            "IWM",
+            "DIA",
+            "MDY",
+            "EEM",
+            "VGK",
+            "EWJ",
+            "XLE",
+            "XLF",
+            "XLV",
+            "XLU",
+            "XLP",
+            "XLY",
+            "XLK",
+            "VNQ",
+        ]

@@ -259,8 +259,6 @@ class TradeableUniverse:
             if self.is_tradeable(c):
                 out.append(c)
             elif log_skips:
-                _ok, reason = (
-                    self.check(c) if self.enabled else (False, "legacy guard")
-                )
+                _ok, reason = self.check(c) if self.enabled else (False, "legacy guard")
                 log.info(f"[GUARD] Skipping {c} — not tradeable on Alpaca ({reason})")
         return out

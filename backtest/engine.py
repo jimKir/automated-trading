@@ -601,9 +601,7 @@ class BacktestEngine:
                                 )
                         _bear = False
                         if spy_hist is not None and "Close" in spy_hist.columns:
-                            _bear = is_bear_regime(
-                                spy_hist["Close"][spy_hist.index <= date]
-                            )
+                            _bear = is_bear_regime(spy_hist["Close"][spy_hist.index <= date])
                         _long_gross = sum(w for w in target_weights.values() if w > 0)
                         _short_targets = compute_short_targets(
                             _overlay_signals,
@@ -616,13 +614,9 @@ class BacktestEngine:
                         if _short_targets:
                             log.info(
                                 f"[{date.date()}] SHORT overlay (bear={_bear}): "
-                                + ", ".join(
-                                    f"{s} {w:+.1%}" for s, w in _short_targets.items()
-                                )
+                                + ", ".join(f"{s} {w:+.1%}" for s, w in _short_targets.items())
                             )
-                            target_weights = merge_short_targets(
-                                target_weights, _short_targets
-                            )
+                            target_weights = merge_short_targets(target_weights, _short_targets)
                         # Cover-on-regime-improvement / eligibility loss: any
                         # held short not re-targeted above gets an explicit
                         # zero target so compute_orders buys it back now.
@@ -649,9 +643,12 @@ class BacktestEngine:
                         commission_pct=self.commission,
                         slippage_pct=self.slippage,
                     )
-                    if self._short_cfg.enabled and sym in portfolio.positions:
-                        if portfolio.positions[sym].quantity < -1e-8:
-                            _short_entries += 1
+                    if (
+                        self._short_cfg.enabled
+                        and sym in portfolio.positions
+                        and portfolio.positions[sym].quantity < -1e-8
+                    ):
+                        _short_entries += 1
                     # P2-1: Track per-symbol fills for turnover report
                     _symbol_fills.setdefault(sym, []).append(
                         {
@@ -715,9 +712,7 @@ class BacktestEngine:
                             if pos.quantity > 0:
                                 excursion = pos.quantity * (low_px - open_px)
                             else:
-                                high_px = (
-                                    float(row["High"]) if "High" in row else open_px
-                                )
+                                high_px = float(row["High"]) if "High" in row else open_px
                                 excursion = pos.quantity * (high_px - open_px)
                             intraday_dd += excursion
 

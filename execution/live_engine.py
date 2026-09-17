@@ -28,6 +28,10 @@ from core.portfolio import Portfolio
 from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from execution.tradeable_universe import TradeableUniverse
+from monitoring.alerting import AlertManager
+from monitoring.anomaly_detector import AnomalyDetector
+from risk.capital_manager import CapitalManager
+from risk.manager import RiskManager
 from strategy.short_overlay import (
     ShortingConfig,
     compute_short_targets,
@@ -35,10 +39,6 @@ from strategy.short_overlay import (
     is_bear_regime,
     merge_short_targets,
 )
-from monitoring.alerting import AlertManager
-from monitoring.anomaly_detector import AnomalyDetector
-from risk.capital_manager import CapitalManager
-from risk.manager import RiskManager
 from strategy.signals import SignalGenerator
 from utils.logger import get_logger
 from version import __version__ as _bot_version
@@ -325,9 +325,7 @@ class LiveEngine:
         # cannot execute from reaching order generation. Futures/unsupported
         # crypto remain in the data feed for signal/regime generation.
         self._tradeable_guard: TradeableUniverse | None = None
-        self._guards_enabled: bool = bool(
-            config.get("execution_guards", {}).get("enabled", True)
-        )
+        self._guards_enabled: bool = bool(config.get("execution_guards", {}).get("enabled", True))
 
         # ── Short selling: bear-regime short overlay (paper) ─────────────
         # When enabled, negative ranked momentum on liquid easy-to-borrow
@@ -335,8 +333,8 @@ class LiveEngine:
         # count toward portfolio heat and all existing risk guards (turnover,
         # re-entry ramp, daily loss, drawdown) apply unchanged.
         self._short_cfg = ShortingConfig.from_config(config)
-        self._short_targets_active: set[str] = set()   # shorts targeted this cycle
-        self._prev_bear_regime: bool | None = None     # regime-flip detection
+        self._short_targets_active: set[str] = set()  # shorts targeted this cycle
+        self._prev_bear_regime: bool | None = None  # regime-flip detection
         if self._short_cfg.enabled:
             log.warning(
                 "SHORTING ENABLED (paper only) — universe="
@@ -1039,9 +1037,7 @@ class LiveEngine:
             qty = abs(float(positions[sym].get("quantity", 0)))
             if qty <= 0:
                 continue
-            order = Order(
-                symbol=sym, side=OrderSide.BUY, quantity=qty, order_type=OrderType.MARKET
-            )
+            order = Order(symbol=sym, side=OrderSide.BUY, quantity=qty, order_type=OrderType.MARKET)
             filled = self.broker.place_order(order)
             if filled.status == OrderStatus.REJECTED:
                 log.error(f"[SHORT-STOP] cover REJECTED for {sym}")
