@@ -158,11 +158,40 @@ class DynamicUniverseScanner:
 
         exclude = (existing_universe or set()) | _CORE_UNIVERSE
 
+        # Execution guard: the scanner pulls candidates from the Alpaca
+        # assets endpoint, which can only return US equities — but belt &
+        # braces: run results through the tradeable-universe classifier so a
+        # futures/crypto symbol can never escape into the trading pool even
+        # if a future code path adds them.
         try:
-            return self._scan_alpaca(max_names, exclude)
+            result = self._scan_alpaca(max_names, exclude)
         except Exception as e:
             log.warning(f"DynamicScanner scan failed: {e}")
             return ScanResult(error=str(e))
+
+        try:
+            from execution.tradeable_universe import TradeableUniverse
+
+            guard = TradeableUniverse({})
+            kept = []
+            for c in result.candidates:
+                if guard.is_tradeable(c.symbol):
+                    kept.append(c)
+                else:
+                    _ok, reason = guard.check(c.symbol)
+                    log.info(f"[GUARD] Skipping {c.symbol} — not tradeable on Alpaca ({reason})")
+            if len(kept) != len(result.candidates):
+                result = ScanResult(
+                    candidates=kept,
+                    n_screened=result.n_screened,
+                    n_rejected_filters=result.n_rejected_filters
+                    + (len(result.candidates) - len(kept)),
+                    error=result.error,
+                )
+        except Exception as e:
+            log.debug(f"DynamicScanner guard filter failed (passing through): {e}")
+
+        return result
 
     def _scan_alpaca(self, max_names: int, exclude: set) -> ScanResult:
         """

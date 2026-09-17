@@ -80,13 +80,26 @@ def run():
     if not pos:
         print(f"  {D('none')}")
     else:
-        print(f"  {'Symbol':<8} {'Qty':>7} {'Avg':>9} {'Now':>9} {'P&L':>10} {'%':>7}")
-        print(f"  {'-' * 52}")
+        print(f"  {'Symbol':<8} {'Side':<6} {'Qty':>8} {'Avg':>9} {'Now':>9} {'P&L':>10} {'%':>7}")
+        print(f"  {'-' * 60}")
+        n_shorts = 0
         for p in sorted(pos, key=lambda x: abs(float(x.unrealized_pl)), reverse=True):
+            qty = float(p.qty)
+            side = R("SHORT") if qty < 0 else G("LONG")
+            if qty < 0:
+                n_shorts += 1
             print(
-                f"  {p.symbol:<8} {float(p.qty):>7.2f} {float(p.avg_entry_price):>9.2f}"
+                f"  {p.symbol:<8} {side:<6} {qty:>8.2f} {float(p.avg_entry_price):>9.2f}"
                 f" {float(p.current_price):>9.2f} {pnl(p.unrealized_pl):>16}"
                 f" {pct(float(p.unrealized_plpc)):>13}"
+            )
+        if n_shorts:
+            short_expo = sum(
+                abs(float(p.qty) * float(p.current_price)) for p in pos if float(p.qty) < 0
+            )
+            print(
+                f"  {R(f'SHORTS: {n_shorts} position(s), gross ${short_expo:,.0f}')}"
+                f"  {D(f'({short_expo / eq:.1%} of equity)' if eq else '')}"
             )
     print(f"\n{B('ORDERS (last 5)')}")
     if not ords:

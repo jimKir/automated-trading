@@ -39,7 +39,9 @@ class Position:
     def unrealised_pnl_pct(self) -> float:
         if self.avg_entry_price == 0:
             return 0.0
-        return (self.current_price - self.avg_entry_price) / self.avg_entry_price
+        raw = (self.current_price - self.avg_entry_price) / self.avg_entry_price
+        # Shorts gain when price falls — flip the sign so pct means "our P&L %"
+        return raw if self.quantity >= 0 else -raw
 
 
 class Portfolio:

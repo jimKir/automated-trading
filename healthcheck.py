@@ -151,6 +151,167 @@ def run_checks() -> list[dict]:
             else:
                 PASS(f"{blend} sums to {total:.3f}")
 
+    # Section 2c: Execution guards
+    eg = config.get("execution_guards", {})
+    if eg.get("enabled"):
+        PASS("execution_guards.enabled = true")
+    else:
+        FAIL("execution_guards.enabled missing/false — phantom instruments can reach orders")
+
+    try:
+        from execution.tradeable_universe import (
+            AssetClass,
+            classify,
+            is_tradeable,
+        )
+
+        phantoms = ["ES=F", "NQ=F", "GC=F", "CL=F", "SI=F", "ZB=F", "NG=F"]
+        phantom_crypto = ["BNB-USD", "ADA-USD", "AVAX-USD", "DOT-USD", "LINK-USD"]
+        ok_fut = all(classify(s) is AssetClass.FUTURES and not is_tradeable(s) for s in phantoms)
+        ok_crypto = all(
+            classify(s) is AssetClass.CRYPTO_UNSUPPORTED and not is_tradeable(s)
+            for s in phantom_crypto
+        )
+        ok_allowed = all(
+            is_tradeable(s)
+            for s in ["SPY", "QQQ", "BTC-USD", "BTC/USD", "BTCUSD", "ETH-USD", "SOL-USD"]
+        )
+        if ok_fut and ok_crypto and ok_allowed:
+            PASS("Tradeable classifier: futures/phantom crypto blocked, ETF+BTC/ETH/SOL allowed")
+        else:
+            FAIL(
+                f"Tradeable classifier misclassified: futures_ok={ok_fut} "
+                f"crypto_ok={ok_crypto} allowed_ok={ok_allowed}"
+            )
+    except Exception as e:
+        FAIL(f"Tradeable classifier check failed: {e}")
+
+    # Section 2d: Dynamic universe top-N contains only tradeable symbols
+    try:
+        import numpy as np
+        import pandas as pd
+
+        from strategy.universe import DynamicUniverseSelector
+
+        _cfg = {
+            "execution_guards": {"enabled": True},
+            "dynamic_universe": {
+                "enabled": True,
+                "top_n": 4,
+                "momentum_window": 63,
+                "min_history_days": 252,
+                "adaptive_caps": False,
+                "candidates": {
+                    "equities": ["SPY", "QQQ", "IWM", "TLT", "GLD", "SHY"],
+                    "futures": ["ES=F", "GC=F"],
+                    "crypto": ["BTC-USD", "BNB-USD"],
+                },
+            },
+        }
+        idx = pd.bdate_range("2024-01-01", periods=320, tz="UTC")
+        _data = {}
+        for i, sym in enumerate(
+            ["SPY", "QQQ", "IWM", "TLT", "GLD", "SHY", "ES=F", "GC=F", "BTC-USD", "BNB-USD"]
+        ):
+            # Futures/crypto get the STRONGEST drift — without the guard they
+            # would take the top slots.
+            drift = 0.001 + 0.0005 * (9 - i)
+            close = 100 * np.cumprod(1 + drift + 0.01 * np.sin(np.arange(320) / 7))
+            _data[sym] = pd.DataFrame({"Close": close}, index=idx)
+        sel = DynamicUniverseSelector(_cfg)
+        picked = sel.select(_data, idx[-1])
+        bad = [s for s in picked if not is_tradeable(s)]
+        if bad:
+            FAIL(f"Top-N selection contains non-tradeable symbols: {bad}")
+        elif picked:
+            PASS(f"Top-N selection tradeable-only ({len(picked)} names: {sorted(picked)})")
+        else:
+            FAIL("Top-N selection empty under execution guards")
+    except Exception as e:
+        FAIL(f"Universe-selection guard check failed: {e}")
+
+    # Section 2e: Shorting config sanity
+    if "shorting" in config:
+        try:
+            from execution.tradeable_universe import AssetClass, classify
+            from strategy.short_overlay import (
+                LIQUID_ETF_UNIVERSE,
+                ShortingConfig,
+                compute_short_targets,
+                is_bear_regime,
+            )
+
+            scfg = ShortingConfig.from_config(config)
+            if scfg.enabled:
+                PASS("shorting.enabled = true (paper)")
+            else:
+                PASS("shorting present but disabled")
+            if scfg.asset_classes == ["equity_etf"]:
+                PASS("shorting.asset_classes = [equity_etf] only (no crypto/futures shorts)")
+            else:
+                FAIL(f"shorting.asset_classes suspicious: {scfg.asset_classes}")
+            if 0 < scfg.max_short_notional_pct <= 0.50:
+                PASS(f"max_short_notional_pct sane ({scfg.max_short_notional_pct:.0%})")
+            else:
+                FAIL(f"max_short_notional_pct out of range: {scfg.max_short_notional_pct}")
+            if 0 < scfg.max_single_short_pct <= scfg.max_short_notional_pct:
+                PASS(f"max_single_short_pct sane ({scfg.max_single_short_pct:.0%})")
+            else:
+                FAIL(f"max_single_short_pct out of range: {scfg.max_single_short_pct}")
+            if set(scfg.universe_symbols) == set(LIQUID_ETF_UNIVERSE) and all(
+                classify(s) is AssetClass.EQUITY_ETF for s in scfg.universe_symbols
+            ):
+                PASS(f"short universe = {len(scfg.universe_symbols)} liquid equity ETFs")
+            else:
+                FAIL(f"short universe mismatch: {scfg.universe_symbols}")
+            if 0 < scfg.hard_stop_pct <= 0.25:
+                PASS(f"hard_stop_pct sane ({scfg.hard_stop_pct:.0%})")
+            else:
+                FAIL(f"hard_stop_pct out of range: {scfg.hard_stop_pct}")
+
+            # Functional smoke: sizing respects aggregate + per-name caps
+            _caps_cfg = ShortingConfig(
+                enabled=True,
+                max_short_notional_pct=0.30,
+                max_single_short_pct=0.08,
+            )
+            dom_hist = {
+                s: pd.DataFrame(
+                    {"Close": np.linspace(200, 100, 300)},
+                    index=pd.bdate_range("2025-01-01", periods=300),
+                )
+                for s in LIQUID_ETF_UNIVERSE
+            }
+            _sigs = dict.fromkeys(LIQUID_ETF_UNIVERSE, -0.2)
+            _targets = compute_short_targets(
+                _sigs,
+                dom_hist,
+                cfg=_caps_cfg,
+                bear_regime=True,
+                long_gross=0.60,
+                max_portfolio_heat=0.95,
+            )
+            total_short = sum(abs(w) for w in _targets.values())
+            single_ok = all(abs(w) <= 0.08 + 1e-9 for w in _targets.values())
+            agg_ok = total_short <= 0.30 + 1e-9
+            heat_ok = 0.60 + total_short <= 0.95 + 1e-9
+            if _targets and single_ok and agg_ok and heat_ok:
+                PASS(
+                    f"Short sizing respects caps (total {total_short:.0%}, "
+                    f"max single {max(abs(w) for w in _targets.values()):.0%})"
+                )
+            else:
+                FAIL(
+                    f"Short sizing violated caps: total={total_short:.2%} "
+                    f"single_ok={single_ok} agg_ok={agg_ok} heat_ok={heat_ok}"
+                )
+            if not is_bear_regime(None):
+                PASS("is_bear_regime(None) fails safe to False")
+        except Exception as e:
+            FAIL(f"Shorting config check failed: {e}")
+    else:
+        FAIL("shorting block missing from config")
+
     # Section 3: Strategy config merged
     strategy = config.get("strategy", {})
     if "rebalance_frequency" in strategy and "name" in strategy:

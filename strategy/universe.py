@@ -260,6 +260,28 @@ class DynamicUniverseSelector:
             + candidates.get("crypto", [])
         )
 
+        # Execution guards: the selector still RANKS every candidate
+        # (futures/unsupported-crypto momentum informs regime + allocation),
+        # but the top-N output that reaches order generation skips any symbol
+        # Alpaca cannot execute and fills the slot with the next-ranked
+        # tradeable name.
+        self._guard = None
+        if config.get("execution_guards", {}).get("enabled", False):
+            try:
+                # Static classes only — no broker verification inside the
+                # selector (backtests have no Alpaca client; live order
+                # generation is guarded again in LiveEngine).
+                import copy as _copy
+
+                from execution.tradeable_universe import TradeableUniverse
+
+                guard_cfg = _copy.deepcopy(config)
+                guard_cfg.setdefault("execution_guards", {})["verify_with_alpaca"] = False
+                self._guard = TradeableUniverse(guard_cfg)
+                log.info("DynamicUniverseSelector: execution guards active on top-N selection")
+            except Exception as e:
+                log.warning(f"TradeableUniverse init failed — selection unguarded: {e}")
+
         self._last_selected: list[str] = []
         self._last_rank_date: pd.Timestamp | None = None
         self._adaptive_caps = AdaptiveCaps(config)
@@ -377,8 +399,28 @@ class DynamicUniverseSelector:
             ac = _classify(sym)
             if counts[ac] >= limits[ac]:
                 continue
+            # Execution guard: never let a phantom instrument (futures,
+            # unsupported crypto) occupy a selected slot. Skip it and keep
+            # walking the ranking to the next tradeable name.
+            if self._guard is not None and not self._guard.is_tradeable(sym):
+                _ok, reason = self._guard.check(sym)
+                log.info(f"[GUARD] Skipping {sym} — not tradeable on Alpaca ({reason})")
+                continue
             selected.append(sym)
             counts[ac] += 1
+
+        # Fill pass: with execution guards on, blocked classes (futures,
+        # unsupported crypto) free slots that the capped walk cannot reuse.
+        # Continue down the ranking and refill with the next-ranked tradeable
+        # names, ignoring class caps (the guard is the binding constraint).
+        if self._guard is not None and len(selected) < self.top_n:
+            for sym, _score in ranked:
+                if len(selected) >= self.top_n:
+                    break
+                if sym in selected or not self._guard.is_tradeable(sym):
+                    continue
+                selected.append(sym)
+                log.info(f"[GUARD] Filling freed slot with next-ranked tradeable name: {sym}")
 
         log.debug(
             f"Selected {len(selected)}: "

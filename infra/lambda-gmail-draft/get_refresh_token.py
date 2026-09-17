@@ -15,6 +15,7 @@ Usage:
 
 The script requests only the gmail.compose scope (create drafts).
 """
+
 import json
 from pathlib import Path
 
