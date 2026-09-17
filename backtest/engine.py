@@ -23,6 +23,12 @@ import pandas as pd
 from core.intraday_shock import VOL_LOOKBACK  # volume baseline window
 from core.portfolio import Portfolio
 from risk.manager import RiskManager
+from strategy.short_overlay import (
+    ShortingConfig,
+    compute_short_targets,
+    is_bear_regime,
+    merge_short_targets,
+)
 from strategy.signals import SignalGenerator
 from utils.logger import get_logger
 
@@ -47,6 +53,10 @@ class BacktestEngine:
         # P2-2: Intraday circuit-breaker simulator
         self.use_intraday_cb_sim = self.bt_cfg.get("intraday_cb_simulation", True)
         self.intraday_cb_threshold = float(self.bt_cfg.get("intraday_cb_threshold_pct", 0.08))
+
+        # Short overlay (Gap B): bear-regime shorts on liquid equity ETFs.
+        # Same ShortingConfig the live engine uses — one source of truth.
+        self._short_cfg = ShortingConfig.from_config(config)
 
     # -----------------------------------------------------------------------
     # Core loop
@@ -269,6 +279,12 @@ class BacktestEngine:
         # P2-1: Per-symbol round-trip tracking for turnover report
         _symbol_fills: dict[str, list] = {}  # {sym: [{"date", "qty", "price", "side"}]}
 
+        # Short overlay tracking (Gap B)
+        _short_days = 0  # days with any short exposure at close
+        _short_pnl_total = 0.0  # cumulative daily P&L attributable to shorts ($)
+        _short_stop_covers = 0  # intraday hard-stop covers executed
+        _short_entries = 0  # short openings (sell fills into zero/long→short)
+
         # Pre-compute intraday shock scales for backtest (needs equity curve first
         # — done incrementally below using equity buffer)
 
@@ -291,7 +307,25 @@ class BacktestEngine:
                 portfolio.record_equity(date)
                 continue
 
+            # Short overlay: capture pre-update marks for short P&L attribution
+            _pre_px = (
+                {s: p.current_price for s, p in portfolio.positions.items()}
+                if self._short_cfg.enabled
+                else {}
+            )
             portfolio.update_prices(prices)
+            if self._short_cfg.enabled and portfolio.positions:
+                _day_short_pnl = 0.0
+                _has_short = False
+                for s, p in portfolio.positions.items():
+                    if p.quantity < 0:
+                        _has_short = True
+                        new_px = prices.get(s, p.current_price)
+                        old_px = _pre_px.get(s, new_px)
+                        _day_short_pnl += p.quantity * (new_px - old_px)
+                if _has_short:
+                    _short_days += 1
+                _short_pnl_total += _day_short_pnl
 
             # P2-2: If intraday CB fired yesterday, start today in cooldown (cash)
             if _cb_cooldown:
@@ -539,6 +573,69 @@ class BacktestEngine:
                     as_of_date=date,
                     spy_data=spy_hist,
                 )
+
+                # ── Short overlay (Gap B) ──────────────────────────────────
+                # Negative ranked momentum on liquid easy-to-borrow equity ETFs
+                # becomes capped short targets. Bear regime = SPY < 200d MA;
+                # outside a bear regime a name must additionally be below its
+                # own 200d MA. Shorts consume remaining portfolio heat. Any
+                # held short not re-targeted here is left at weight 0 by the
+                # optimizer (cover_on_regime_improvement at the next rebalance).
+                if self._short_cfg.enabled:
+                    try:
+                        _overlay_hist: dict[str, pd.DataFrame] = {}
+                        _overlay_signals = dict(scaled_signals)
+                        for _s in self._short_cfg.universe_symbols:
+                            if _s not in all_data:
+                                continue
+                            _h = all_data[_s]
+                            _h = _h[_h.index <= date]
+                            if len(_h) < 84:
+                                continue
+                            _overlay_hist[_s] = _h
+                            if _s not in _overlay_signals:
+                                # 63d momentum, skipping the last 21 days — same
+                                # convention as DynamicUniverseSelector ranking
+                                _overlay_signals[_s] = float(
+                                    _h["Close"].iloc[-21] / _h["Close"].iloc[-84] - 1.0
+                                )
+                        _bear = False
+                        if spy_hist is not None and "Close" in spy_hist.columns:
+                            _bear = is_bear_regime(
+                                spy_hist["Close"][spy_hist.index <= date]
+                            )
+                        _long_gross = sum(w for w in target_weights.values() if w > 0)
+                        _short_targets = compute_short_targets(
+                            _overlay_signals,
+                            _overlay_hist,
+                            cfg=self._short_cfg,
+                            bear_regime=_bear,
+                            long_gross=_long_gross,
+                            max_portfolio_heat=effective_max_heat,
+                        )
+                        if _short_targets:
+                            log.info(
+                                f"[{date.date()}] SHORT overlay (bear={_bear}): "
+                                + ", ".join(
+                                    f"{s} {w:+.1%}" for s, w in _short_targets.items()
+                                )
+                            )
+                            target_weights = merge_short_targets(
+                                target_weights, _short_targets
+                            )
+                        # Cover-on-regime-improvement / eligibility loss: any
+                        # held short not re-targeted above gets an explicit
+                        # zero target so compute_orders buys it back now.
+                        for _psym, _ppos in portfolio.positions.items():
+                            if _ppos.quantity < 0 and _psym not in _short_targets:
+                                target_weights.setdefault(_psym, 0.0)
+                                log.info(
+                                    f"[{date.date()}] SHORT cover: {_psym} no longer "
+                                    "eligible (regime/signal) — covering"
+                                )
+                    except Exception as _so_err:
+                        log.warning(f"[{date.date()}] short overlay failed: {_so_err}")
+
                 orders = portfolio.compute_orders(target_weights, prices)
 
                 for sym, qty in orders.items():
@@ -552,6 +649,9 @@ class BacktestEngine:
                         commission_pct=self.commission,
                         slippage_pct=self.slippage,
                     )
+                    if self._short_cfg.enabled and sym in portfolio.positions:
+                        if portfolio.positions[sym].quantity < -1e-8:
+                            _short_entries += 1
                     # P2-1: Track per-symbol fills for turnover report
                     _symbol_fills.setdefault(sym, []).append(
                         {
@@ -564,6 +664,35 @@ class BacktestEngine:
 
             # Check stop-losses
             self._check_stops(portfolio, prices, date)
+
+            # ── Short hard stops (intraday, simulated from daily High) ────
+            # If the day's High traded >= hard_stop_pct above a short's entry,
+            # cover the full short at that stop price (matches the live
+            # intraday _check_short_hard_stops loop, using daily bars).
+            if self._short_cfg.enabled and portfolio.positions:
+                for _ssym in list(portfolio.positions.keys()):
+                    _spos = portfolio.positions[_ssym]
+                    if _spos.quantity >= -1e-8 or _ssym not in all_data:
+                        continue
+                    _sdf = all_data[_ssym]
+                    if date not in _sdf.index or "High" not in _sdf.columns:
+                        continue
+                    _stop_px = _spos.avg_entry_price * (1 + self._short_cfg.hard_stop_pct)
+                    if _spos.avg_entry_price > 0 and float(_sdf.loc[date, "High"]) >= _stop_px:
+                        log.warning(
+                            f"[{date.date()}] [SHORT-STOP] {_ssym}: high traded "
+                            f"{_sdf.loc[date, 'High']:.2f} >= stop {_stop_px:.2f} "
+                            f"(entry {_spos.avg_entry_price:.2f}) — covering"
+                        )
+                        portfolio.execute_order(
+                            _ssym,
+                            -_spos.quantity,  # buy to cover the full short
+                            _stop_px,
+                            date,
+                            self.commission,
+                            self.slippage,
+                        )
+                        _short_stop_covers += 1
 
             # ── P2-2: Intraday circuit-breaker simulation ─────────────────
             # Estimate worst intraday drawdown from daily Open/High/Low.
@@ -581,8 +710,15 @@ class BacktestEngine:
                         open_px = float(row["Open"])
                         low_px = float(row["Low"])
                         if open_px > 0:
-                            # Worst-case excursion for this position
-                            excursion = pos.quantity * (low_px - open_px)
+                            # Worst-case excursion for this position:
+                            # longs dip to Low, shorts squeeze to High.
+                            if pos.quantity > 0:
+                                excursion = pos.quantity * (low_px - open_px)
+                            else:
+                                high_px = (
+                                    float(row["High"]) if "High" in row else open_px
+                                )
+                                excursion = pos.quantity * (high_px - open_px)
                             intraday_dd += excursion
 
                 if (
@@ -648,6 +784,24 @@ class BacktestEngine:
         metrics["final_equity"] = portfolio.equity
         metrics["cash"] = portfolio.cash
         metrics["run_label"] = run_label
+
+        # Short overlay summary (Gap B)
+        if self._short_cfg.enabled:
+            _total_days = max(1, len(all_dates))
+            metrics["shorting_enabled"] = True
+            metrics["pct_days_with_shorts"] = round(100.0 * _short_days / _total_days, 2)
+            metrics["short_pnl_total_usd"] = round(_short_pnl_total, 2)
+            metrics["short_hard_stop_covers"] = _short_stop_covers
+            metrics["short_entries"] = _short_entries
+            if _short_days:
+                log.info(
+                    f"Short overlay: {_short_days}d with short exposure "
+                    f"({metrics['pct_days_with_shorts']:.1f}% of days) | "
+                    f"short P&L ${_short_pnl_total:,.0f} | "
+                    f"hard-stop covers {_short_stop_covers}"
+                )
+        else:
+            metrics["shorting_enabled"] = False
 
         # P2-2: Intraday CB simulation summary
         if _cb_events:

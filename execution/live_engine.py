@@ -28,6 +28,13 @@ from core.portfolio import Portfolio
 from data.feed import DataFeed
 from execution.broker_base import BrokerBase, Order, OrderSide, OrderStatus, OrderType
 from execution.tradeable_universe import TradeableUniverse
+from strategy.short_overlay import (
+    ShortingConfig,
+    compute_short_targets,
+    hard_stop_covers,
+    is_bear_regime,
+    merge_short_targets,
+)
 from monitoring.alerting import AlertManager
 from monitoring.anomaly_detector import AnomalyDetector
 from risk.capital_manager import CapitalManager
@@ -322,6 +329,22 @@ class LiveEngine:
             config.get("execution_guards", {}).get("enabled", True)
         )
 
+        # ── Short selling: bear-regime short overlay (paper) ─────────────
+        # When enabled, negative ranked momentum on liquid easy-to-borrow
+        # equity ETFs becomes capped short exposure in bear regimes. Shorts
+        # count toward portfolio heat and all existing risk guards (turnover,
+        # re-entry ramp, daily loss, drawdown) apply unchanged.
+        self._short_cfg = ShortingConfig.from_config(config)
+        self._short_targets_active: set[str] = set()   # shorts targeted this cycle
+        self._prev_bear_regime: bool | None = None     # regime-flip detection
+        if self._short_cfg.enabled:
+            log.warning(
+                "SHORTING ENABLED (paper only) — universe="
+                f"{self._short_cfg.universe} max_notional={self._short_cfg.max_short_notional_pct:.0%} "
+                f"max_single={self._short_cfg.max_single_short_pct:.0%} "
+                f"hard_stop={self._short_cfg.hard_stop_pct:.0%}"
+            )
+
     def start(self, loop_interval_seconds: int = 60) -> None:
         """Main trading loop."""
         log.info(f"Starting {self.mode.upper()} trading engine")
@@ -333,6 +356,23 @@ class LiveEngine:
         if not self.broker.connect():
             log.error("Broker connection failed. Exiting.")
             return
+
+        # ── PDT check — shorting involves frequent round-trips ────────────
+        # Pattern-day-trader accounts with equity < $25k face day-trade
+        # restrictions; covers/exits can be constrained. Warning only.
+        if self._short_cfg.enabled:
+            try:
+                client = getattr(self.broker, "trading_client", None)
+                if client is not None:
+                    acct_raw = client.get_account()
+                    if getattr(acct_raw, "pattern_day_trader", False):
+                        log.warning(
+                            "[SHORT] Account is flagged pattern_day_trader — if equity "
+                            "drops below $25k, day-trading (incl. same-day short cover) "
+                            "may be restricted. See docs/shorting_design.md."
+                        )
+            except Exception as _pdt_e:
+                log.debug(f"PDT flag check failed: {_pdt_e}")
 
         # ── Detect cash-only re-entry state (needs broker connected) ──────
         self._detect_cash_only_reentry()
@@ -408,6 +448,15 @@ class LiveEngine:
             return
 
         self.risk_mgr.update_equity(account.equity)
+
+        # ── Short hard stops — every cycle, before the rebalance gate ─────
+        # A short that moves +hard_stop_pct against us is covered
+        # immediately; this must not wait for the next scheduled rebalance.
+        if self._short_cfg.enabled and not self.dry_run:
+            try:
+                self._check_short_hard_stops(account)
+            except Exception as _hs_e:
+                log.warning(f"Short hard-stop check failed: {_hs_e}")
 
         # Check if it's time to rebalance
         if not self._should_rebalance(now):
@@ -650,6 +699,50 @@ class LiveEngine:
         # generation / regime detection but must never become orders.
         tradeable_weights = self._filter_tradeable_weights(target_weights)
 
+        # ── Short overlay: bear-regime shorts on liquid equity ETFs ──────
+        # Negative ranked momentum becomes capped negative target weights.
+        # Runs AFTER the execution guards, so only Alpaca-executable names
+        # can be shorted; shorts count toward portfolio heat via the
+        # remaining-heat budget inside compute_short_targets.
+        if self._short_cfg.enabled:
+            guard = self._get_tradeable_guard()
+            bear = is_bear_regime(spy_prices)
+            if self._prev_bear_regime is True and not bear:
+                n_shorts = sum(
+                    1 for p in curr_positions.values() if float(p.get("quantity", 0)) < 0
+                )
+                log.info(
+                    f"[SHORT] Regime improved (bear→non-bear) — covering {n_shorts} "
+                    "short position(s) at this rebalance"
+                )
+            self._prev_bear_regime = bear
+
+            long_gross = sum(w for w in tradeable_weights.values() if w > 0)
+            short_targets = compute_short_targets(
+                signals,
+                all_data,
+                cfg=self._short_cfg,
+                bear_regime=bear,
+                long_gross=long_gross,
+                max_portfolio_heat=effective_heat,
+                guard=guard,
+            )
+            if short_targets:
+                log.info(
+                    f"[SHORT] Overlay targets (bear={bear}): "
+                    f"{ {s: f'{w:.2%}' for s, w in short_targets.items()} }"
+                )
+                tradeable_weights = merge_short_targets(tradeable_weights, short_targets)
+            self._short_targets_active = set(short_targets)
+
+            # Ensure held shorts get covered when they leave the overlay
+            # (signal turned positive / regime improved / hard cap tightened):
+            # give them an explicit zero target so the order loop buys to cover.
+            for sym, pos in curr_positions.items():
+                if float(pos.get("quantity", 0)) < 0 and sym not in tradeable_weights:
+                    tradeable_weights[sym] = 0.0
+                    log.info(f"[SHORT] {sym} no longer targeted — covering (target=0)")
+
         # ── P1-1: Reset daily turnover counter at UTC date change ────────
         today_utc_str = now.strftime("%Y-%m-%d")
         if self._turnover_date != today_utc_str:
@@ -693,17 +786,32 @@ class LiveEngine:
                 log.warning(f"CLAMP {sym}: qty {qty_abs:.1f} → {max_shares} (max_order_shares)")
                 qty_abs = max_shares
 
-            # ── SELL qty cap: never sell more than current holdings ────
+            # ── SELL qty cap: long-only sells never exceed holdings ─────
+            # With shorting enabled, a SELL may go beyond current holdings
+            # (open/extend a short) — but only for names targeted by the
+            # short overlay this cycle and confirmed shortable on Alpaca.
             if side == OrderSide.SELL:
                 held_qty = float(curr_pos.get("quantity", 0))
-                if held_qty <= 0:
+                short_sell_allowed = (
+                    self._short_cfg.enabled
+                    and sym in self._short_targets_active
+                    and target_w < 0
+                    and self._get_tradeable_guard().is_shortable(sym)
+                )
+                if held_qty <= 0 and not short_sell_allowed:
                     log.warning(f"SKIP SELL {sym}: no position held")
                     continue
-                if qty_abs > held_qty:
+                if not short_sell_allowed and qty_abs > held_qty:
                     log.info(
                         f"CAP SELL {sym}: qty {qty_abs:.4f} → {held_qty:.4f} (current holdings)"
                     )
                     qty_abs = held_qty
+                if short_sell_allowed and qty_abs > held_qty:
+                    log.info(
+                        f"[SHORT] Opening/extending short {sym}: "
+                        f"sell qty {qty_abs:.4f} vs holdings {held_qty:.4f} "
+                        f"(target {target_w:+.2%})"
+                    )
 
             # ── Capital management validation ───────────────────────────
             approved, adj_qty, cap_reason = self._capital_mgr.validate_order(
@@ -899,6 +1007,50 @@ class LiveEngine:
                 reason = "legacy suffix filter"
             log.info(f"[GUARD] Skipping {sym} — not tradeable on Alpaca ({reason})")
         return out
+
+    def _check_short_hard_stops(self, account) -> None:
+        """Cover any short that has moved +hard_stop_pct against entry.
+
+        Runs every cycle (intraday loop), independent of the rebalance
+        schedule. Submits market BUY-to-cover orders through the normal
+        broker path; fills still count toward the daily turnover cap is
+        intentionally NOT applied here — a hard-stop cover is a risk exit
+        and must not be suppressed by the turnover guard.
+        """
+        positions = getattr(account, "positions", None) or {}
+        short_syms = [s for s, p in positions.items() if float(p.get("quantity", 0)) < 0]
+        if not short_syms:
+            return
+
+        # Current prices for the shorts only (small, targeted fetch)
+        prices: dict[str, float] = {}
+        try:
+            if hasattr(self.broker, "get_latest_prices"):
+                prices = self.broker.get_latest_prices(short_syms)
+            else:
+                for s in short_syms:
+                    prices[s] = self.broker.get_latest_price(s)
+        except Exception as e:
+            log.debug(f"[SHORT-STOP] price fetch failed: {e}")
+            return
+
+        covers = hard_stop_covers(positions, prices, self._short_cfg.hard_stop_pct)
+        for sym in covers:
+            qty = abs(float(positions[sym].get("quantity", 0)))
+            if qty <= 0:
+                continue
+            order = Order(
+                symbol=sym, side=OrderSide.BUY, quantity=qty, order_type=OrderType.MARKET
+            )
+            filled = self.broker.place_order(order)
+            if filled.status == OrderStatus.REJECTED:
+                log.error(f"[SHORT-STOP] cover REJECTED for {sym}")
+                continue
+            fill_px = filled.avg_fill_price or prices.get(sym, 0)
+            self._daily_gross_traded_usd += qty * fill_px
+            if self._persist_turnover:
+                self._persist_daily_turnover()
+            log.warning(f"[SHORT-STOP] COVERED {sym} qty={qty:.4f} @ ~${fill_px:.2f}")
 
     def _detect_cash_only_reentry(self) -> None:
         """Detect cash-only state after a circuit breaker liquidation.

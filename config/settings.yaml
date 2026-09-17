@@ -524,6 +524,22 @@ execution_guards:
                                                  # attributes at runtime (cached per session)
 
 # ============================================================
+# SHORTING — bear-regime short selling (liquid equity ETFs)
+# Gap B: bear regime previously only reduced longs (go to cash).
+# Negative momentum is now expressible as capped short exposure.
+# Docs: docs/shorting_design.md
+# ============================================================
+shorting:
+  enabled: true            # paper only — flip to false before live capital review
+  asset_classes: [equity_etf]   # NO crypto shorts, NO futures
+  max_short_notional_pct: 0.30
+  max_single_short_pct: 0.08
+  min_signal_strength: 0.0      # only short when ranked momentum score < 0
+  universe: liquid_etfs_only    # SPY QQQ IWM DIA MDY EEM VGK EWJ XLE XLF XLV XLU XLP XLY XLK VNQ
+  cover_on_regime_improvement: true
+  hard_stop_pct: 0.08          # cover any short that moves +8% against us
+
+# ============================================================
 # REBALANCE GUARDS
 # Hard limits on rebalance frequency and minimum order delta to
 # prevent excessive turnover from micro-rebalancing every cycle.

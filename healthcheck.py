@@ -229,6 +229,92 @@ def run_checks() -> list[dict]:
     except Exception as e:
         FAIL(f"Universe-selection guard check failed: {e}")
 
+    # Section 2e: Shorting config sanity
+    if "shorting" in config:
+        try:
+            from execution.tradeable_universe import AssetClass as _AC2
+            from execution.tradeable_universe import classify as _classify2
+            from strategy.short_overlay import (
+                LIQUID_ETF_UNIVERSE,
+                ShortingConfig,
+                compute_short_targets,
+                is_bear_regime,
+            )
+
+            import numpy as _np2
+            import pandas as _pd2
+
+            scfg = ShortingConfig.from_config(config)
+            if scfg.enabled:
+                PASS("shorting.enabled = true (paper)")
+            else:
+                PASS("shorting present but disabled")
+            if scfg.asset_classes == ["equity_etf"]:
+                PASS("shorting.asset_classes = [equity_etf] only (no crypto/futures shorts)")
+            else:
+                FAIL(f"shorting.asset_classes suspicious: {scfg.asset_classes}")
+            if 0 < scfg.max_short_notional_pct <= 0.50:
+                PASS(f"max_short_notional_pct sane ({scfg.max_short_notional_pct:.0%})")
+            else:
+                FAIL(f"max_short_notional_pct out of range: {scfg.max_short_notional_pct}")
+            if 0 < scfg.max_single_short_pct <= scfg.max_short_notional_pct:
+                PASS(f"max_single_short_pct sane ({scfg.max_single_short_pct:.0%})")
+            else:
+                FAIL(f"max_single_short_pct out of range: {scfg.max_single_short_pct}")
+            if set(scfg.universe_symbols) == set(LIQUID_ETF_UNIVERSE) and all(
+                _classify2(s) is _AC2.EQUITY_ETF for s in scfg.universe_symbols
+            ):
+                PASS(f"short universe = {len(scfg.universe_symbols)} liquid equity ETFs")
+            else:
+                FAIL(f"short universe mismatch: {scfg.universe_symbols}")
+            if 0 < scfg.hard_stop_pct <= 0.25:
+                PASS(f"hard_stop_pct sane ({scfg.hard_stop_pct:.0%})")
+            else:
+                FAIL(f"hard_stop_pct out of range: {scfg.hard_stop_pct}")
+
+            # Functional smoke: sizing respects aggregate + per-name caps
+            _caps_cfg = ShortingConfig(
+                enabled=True,
+                max_short_notional_pct=0.30,
+                max_single_short_pct=0.08,
+            )
+            dom_hist = {
+                s: _pd2.DataFrame(
+                    {"Close": _np2.linspace(200, 100, 300)},
+                    index=_pd2.bdate_range("2025-01-01", periods=300),
+                )
+                for s in LIQUID_ETF_UNIVERSE
+            }
+            _sigs = {s: -0.2 for s in LIQUID_ETF_UNIVERSE}
+            _targets = compute_short_targets(
+                _sigs,
+                dom_hist,
+                cfg=_caps_cfg,
+                bear_regime=True,
+                long_gross=0.60,
+                max_portfolio_heat=0.95,
+            )
+            total_short = sum(abs(w) for w in _targets.values())
+            single_ok = all(abs(w) <= 0.08 + 1e-9 for w in _targets.values())
+            agg_ok = total_short <= 0.30 + 1e-9
+            heat_ok = 0.60 + total_short <= 0.95 + 1e-9
+            if _targets and single_ok and agg_ok and heat_ok:
+                PASS(
+                    f"Short sizing respects caps (total {total_short:.0%}, "
+                    f"max single {max(abs(w) for w in _targets.values()):.0%})"
+                )
+            else:
+                FAIL(
+                    f"Short sizing violated caps: total={total_short:.2%} "
+                    f"single_ok={single_ok} agg_ok={agg_ok} heat_ok={heat_ok}"
+                )
+            if not is_bear_regime(None):
+                PASS("is_bear_regime(None) fails safe to False")
+        except Exception as e:
+            FAIL(f"Shorting config check failed: {e}")
+    else:
+        FAIL("shorting block missing from config")
+
     # Section 3: Strategy config merged
     strategy = config.get("strategy", {})
     if "rebalance_frequency" in strategy and "name" in strategy:
