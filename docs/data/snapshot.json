@@ -1,30 +1,30 @@
 {
-  "last_updated": "2026-11-11T20:01:34Z",
+  "last_updated": "2026-11-12T01:54:15Z",
   "inception_date": "2026-04-22",
   "inception_note": "Re-baselined 2026-04-22 per strategy review \u2014 bot had zero trading activity Mar 24\u2013Apr 21 (dead deployment period)",
   "probation_deadline": "2026-10-31",
   "probation_benchmark": "60/40",
   "account": {
-    "equity": 99426.03,
+    "equity": 99245.52,
     "cash": 51916.12,
-    "long_market_value": 47509.91,
-    "day_change": 708.18,
-    "day_change_pct": 0.72,
-    "total_return_pct": -0.67
+    "long_market_value": 47329.4,
+    "day_change": 527.67,
+    "day_change_pct": 0.53,
+    "total_return_pct": -0.85
   },
   "benchmarks": {
-    "spy_return_pct": 5.98,
+    "spy_return_pct": NaN,
     "qqq_return_pct": NaN,
-    "sixty_forty_return_pct": 2.88,
-    "vs_spy_pp": -6.64,
+    "sixty_forty_return_pct": 3.59,
+    "vs_spy_pp": NaN,
     "vs_qqq_pp": NaN,
-    "vs_6040_pp": -3.54
+    "vs_6040_pp": -4.44
   },
   "metrics": {
-    "total_return_pct": -1.16,
+    "total_return_pct": -1.37,
     "max_drawdown_pct": -5.92,
-    "sharpe": -0.35,
-    "volatility_pct": 6.92,
+    "sharpe": -0.42,
+    "volatility_pct": 6.89,
     "trades_total": 31,
     "win_rate_pct": null
   },
@@ -33,868 +33,875 @@
       "date": "2026-04-22",
       "bot": 100.0,
       "spy": 100.0,
-      "qqq": NaN,
+      "qqq": 100.0,
       "sixty_forty": 100.0
     },
     {
       "date": "2026-04-23",
       "bot": 100.1,
       "spy": 99.61,
-      "qqq": NaN,
-      "sixty_forty": 99.7
+      "qqq": 99.44,
+      "sixty_forty": 99.77
     },
     {
       "date": "2026-04-24",
       "bot": 99.98,
       "spy": 100.38,
-      "qqq": NaN,
-      "sixty_forty": 100.22
+      "qqq": 101.34,
+      "sixty_forty": 100.23
     },
     {
       "date": "2026-04-28",
       "bot": 100.23,
       "spy": 100.07,
-      "qqq": NaN,
-      "sixty_forty": 99.96
+      "qqq": 100.37,
+      "sixty_forty": 100.04
     },
     {
       "date": "2026-04-29",
       "bot": 100.33,
       "spy": 100.05,
-      "qqq": NaN,
-      "sixty_forty": 99.77
+      "qqq": 100.99,
+      "sixty_forty": 100.03
     },
     {
       "date": "2026-04-30",
       "bot": 100.47,
       "spy": 101.05,
-      "qqq": NaN,
-      "sixty_forty": 100.42
+      "qqq": 101.93,
+      "sixty_forty": 100.63
     },
     {
       "date": "2026-05-01",
       "bot": 101.3,
       "spy": 101.33,
-      "qqq": NaN,
-      "sixty_forty": 100.64
+      "qqq": 102.91,
+      "sixty_forty": 100.8
     },
     {
       "date": "2026-05-05",
       "bot": 101.28,
       "spy": 101.77,
-      "qqq": NaN,
-      "sixty_forty": 100.85
+      "qqq": 104.05,
+      "sixty_forty": 101.06
     },
     {
       "date": "2026-05-06",
       "bot": 101.33,
       "spy": 103.18,
-      "qqq": NaN,
-      "sixty_forty": 101.87
+      "qqq": 106.21,
+      "sixty_forty": 101.9
     },
     {
       "date": "2026-05-07",
       "bot": 101.93,
       "spy": 102.86,
-      "qqq": NaN,
-      "sixty_forty": 101.58
+      "qqq": 106.08,
+      "sixty_forty": 101.71
     },
     {
       "date": "2026-05-08",
       "bot": 101.36,
       "spy": 103.71,
-      "qqq": NaN,
-      "sixty_forty": 102.18
+      "qqq": 108.57,
+      "sixty_forty": 102.22
     },
     {
       "date": "2026-05-12",
       "bot": 101.77,
       "spy": 103.79,
-      "qqq": NaN,
-      "sixty_forty": 102.0
+      "qqq": 107.96,
+      "sixty_forty": 102.27
     },
     {
       "date": "2026-05-13",
       "bot": 101.79,
       "spy": 104.37,
-      "qqq": NaN,
-      "sixty_forty": 102.37
+      "qqq": 109.1,
+      "sixty_forty": 102.62
     },
     {
       "date": "2026-05-14",
       "bot": 102.05,
       "spy": 105.2,
-      "qqq": NaN,
-      "sixty_forty": 102.85
+      "qqq": 109.87,
+      "sixty_forty": 103.11
     },
     {
       "date": "2026-05-15",
       "bot": 102.14,
       "spy": 103.93,
-      "qqq": NaN,
-      "sixty_forty": 101.84
+      "qqq": 108.22,
+      "sixty_forty": 102.35
     },
     {
       "date": "2026-05-19",
       "bot": 101.67,
       "spy": 103.17,
-      "qqq": NaN,
-      "sixty_forty": 101.22
+      "qqq": 107.09,
+      "sixty_forty": 101.89
     },
     {
       "date": "2026-05-20",
       "bot": 101.85,
       "spy": 104.22,
-      "qqq": NaN,
-      "sixty_forty": 102.09
+      "qqq": 108.86,
+      "sixty_forty": 102.53
     },
     {
       "date": "2026-05-21",
       "bot": 102.3,
       "spy": 104.43,
-      "qqq": NaN,
-      "sixty_forty": 102.27
+      "qqq": 109.07,
+      "sixty_forty": 102.65
     },
     {
       "date": "2026-05-22",
       "bot": 102.61,
       "spy": 104.84,
-      "qqq": NaN,
-      "sixty_forty": 102.55
+      "qqq": 109.53,
+      "sixty_forty": 102.9
     },
     {
       "date": "2026-05-27",
       "bot": 103.17,
       "spy": 105.52,
-      "qqq": NaN,
-      "sixty_forty": 103.1
+      "qqq": 111.35,
+      "sixty_forty": 103.3
     },
     {
       "date": "2026-05-28",
       "bot": 103.16,
       "spy": 106.1,
-      "qqq": NaN,
-      "sixty_forty": 103.53
+      "qqq": 112.29,
+      "sixty_forty": 103.65
     },
     {
       "date": "2026-05-29",
       "bot": 103.32,
       "spy": 106.37,
-      "qqq": NaN,
-      "sixty_forty": 103.71
+      "qqq": 112.7,
+      "sixty_forty": 103.81
     },
     {
       "date": "2026-06-02",
       "bot": 103.24,
       "spy": 106.8,
-      "qqq": NaN,
-      "sixty_forty": 103.96
+      "qqq": 113.9,
+      "sixty_forty": 104.06
     },
     {
       "date": "2026-06-03",
       "bot": 103.34,
       "spy": 106.05,
-      "qqq": NaN,
-      "sixty_forty": 103.43
+      "qqq": 113.6,
+      "sixty_forty": 103.62
     },
     {
       "date": "2026-06-04",
       "bot": 103.15,
       "spy": 106.45,
-      "qqq": NaN,
-      "sixty_forty": 103.73
+      "qqq": 113.05,
+      "sixty_forty": 103.86
     },
     {
       "date": "2026-06-05",
       "bot": 103.56,
       "spy": 103.7,
-      "qqq": NaN,
-      "sixty_forty": 101.92
+      "qqq": 107.62,
+      "sixty_forty": 102.25
     },
     {
       "date": "2026-06-09",
       "bot": 102.13,
       "spy": 103.63,
-      "qqq": NaN,
-      "sixty_forty": 101.96
+      "qqq": 108.05,
+      "sixty_forty": 102.21
     },
     {
       "date": "2026-06-10",
       "bot": 101.73,
       "spy": 102.0,
-      "qqq": NaN,
-      "sixty_forty": 100.98
+      "qqq": 105.89,
+      "sixty_forty": 101.25
     },
     {
       "date": "2026-06-11",
       "bot": 101.41,
       "spy": 103.73,
-      "qqq": NaN,
-      "sixty_forty": 102.24
+      "qqq": 109.47,
+      "sixty_forty": 102.26
     },
     {
       "date": "2026-06-12",
       "bot": 101.6,
       "spy": 104.29,
-      "qqq": NaN,
-      "sixty_forty": 102.51
+      "qqq": 110.11,
+      "sixty_forty": 102.59
     },
     {
       "date": "2026-06-16",
       "bot": 102.16,
       "spy": 105.5,
-      "qqq": NaN,
-      "sixty_forty": 103.31
+      "qqq": 111.41,
+      "sixty_forty": 103.3
     },
     {
       "date": "2026-06-17",
       "bot": 101.86,
       "spy": 104.18,
-      "qqq": NaN,
-      "sixty_forty": 102.39
+      "qqq": 110.29,
+      "sixty_forty": 102.53
     },
     {
       "date": "2026-06-18",
       "bot": 101.14,
       "spy": 105.27,
-      "qqq": NaN,
-      "sixty_forty": 103.14
+      "qqq": 113.05,
+      "sixty_forty": 103.16
     },
     {
       "date": "2026-06-23",
       "bot": 102.04,
       "spy": 103.41,
-      "qqq": NaN,
-      "sixty_forty": 101.98
+      "qqq": 109.06,
+      "sixty_forty": 102.08
     },
     {
       "date": "2026-06-24",
       "bot": 102.14,
       "spy": 103.36,
-      "qqq": NaN,
-      "sixty_forty": 102.15
+      "qqq": 108.59,
+      "sixty_forty": 102.05
     },
     {
       "date": "2026-06-25",
       "bot": 102.28,
       "spy": 103.51,
-      "qqq": NaN,
-      "sixty_forty": 102.26
+      "qqq": 109.47,
+      "sixty_forty": 102.14
     },
     {
       "date": "2026-06-26",
       "bot": 102.43,
       "spy": 102.76,
-      "qqq": NaN,
-      "sixty_forty": 101.86
+      "qqq": 107.97,
+      "sixty_forty": 101.7
     },
     {
       "date": "2026-06-30",
       "bot": 102.12,
       "spy": 105.27,
-      "qqq": NaN,
-      "sixty_forty": 103.18
+      "qqq": 112.53,
+      "sixty_forty": 103.16
     },
     {
       "date": "2026-07-01",
       "bot": 102.73,
       "spy": 105.13,
-      "qqq": NaN,
-      "sixty_forty": 103.03
+      "qqq": 110.82,
+      "sixty_forty": 103.08
     },
     {
       "date": "2026-07-02",
       "bot": 101.99,
       "spy": 104.99,
-      "qqq": NaN,
+      "qqq": 108.9,
       "sixty_forty": 103.0
     },
     {
       "date": "2026-07-07",
       "bot": 102.39,
       "spy": 105.4,
-      "qqq": NaN,
-      "sixty_forty": 103.07
+      "qqq": 108.41,
+      "sixty_forty": 103.24
     },
     {
       "date": "2026-07-08",
       "bot": 101.94,
       "spy": 105.08,
-      "qqq": NaN,
-      "sixty_forty": 102.81
+      "qqq": 108.72,
+      "sixty_forty": 103.05
     },
     {
       "date": "2026-07-09",
       "bot": 102.05,
       "spy": 105.97,
-      "qqq": NaN,
-      "sixty_forty": 103.39
+      "qqq": 110.53,
+      "sixty_forty": 103.57
     },
     {
       "date": "2026-07-10",
       "bot": 102.57,
       "spy": 106.42,
-      "qqq": NaN,
-      "sixty_forty": 103.62
+      "qqq": 110.87,
+      "sixty_forty": 103.84
     },
     {
       "date": "2026-07-14",
       "bot": 102.4,
       "spy": 105.98,
-      "qqq": NaN,
-      "sixty_forty": 103.33
+      "qqq": 109.98,
+      "sixty_forty": 103.58
     },
     {
       "date": "2026-07-15",
       "bot": 102.41,
       "spy": 106.4,
-      "qqq": NaN,
-      "sixty_forty": 103.63
+      "qqq": 109.68,
+      "sixty_forty": 103.83
     },
     {
       "date": "2026-07-16",
       "bot": 102.41,
       "spy": 105.83,
-      "qqq": NaN,
-      "sixty_forty": 103.29
+      "qqq": 107.88,
+      "sixty_forty": 103.49
     },
     {
       "date": "2026-07-17",
       "bot": 102.16,
       "spy": 104.78,
-      "qqq": NaN,
-      "sixty_forty": 102.7
+      "qqq": 106.26,
+      "sixty_forty": 102.88
     },
     {
       "date": "2026-07-21",
       "bot": 101.46,
       "spy": 105.48,
-      "qqq": NaN,
-      "sixty_forty": 102.92
+      "qqq": 108.34,
+      "sixty_forty": 103.29
     },
     {
       "date": "2026-07-22",
       "bot": 101.73,
       "spy": 105.36,
-      "qqq": NaN,
-      "sixty_forty": 102.78
+      "qqq": 107.79,
+      "sixty_forty": 103.22
     },
     {
       "date": "2026-07-23",
       "bot": 101.71,
       "spy": 104.06,
-      "qqq": NaN,
-      "sixty_forty": 101.92
+      "qqq": 105.74,
+      "sixty_forty": 102.45
     },
     {
       "date": "2026-07-24",
       "bot": 101.34,
       "spy": 104.17,
-      "qqq": NaN,
-      "sixty_forty": 102.03
+      "qqq": 104.56,
+      "sixty_forty": 102.51
     },
     {
       "date": "2026-07-28",
       "bot": 101.54,
       "spy": 104.44,
-      "qqq": NaN,
-      "sixty_forty": 102.38
+      "qqq": 103.22,
+      "sixty_forty": 102.67
     },
     {
       "date": "2026-07-29",
       "bot": 101.56,
       "spy": 102.83,
-      "qqq": NaN,
-      "sixty_forty": 101.28
+      "qqq": 101.12,
+      "sixty_forty": 101.73
     },
     {
       "date": "2026-07-30",
       "bot": 101.54,
       "spy": 104.55,
-      "qqq": NaN,
-      "sixty_forty": 102.33
+      "qqq": 104.46,
+      "sixty_forty": 102.74
     },
     {
       "date": "2026-07-31",
       "bot": 102.02,
       "spy": 105.31,
-      "qqq": NaN,
-      "sixty_forty": 102.66
+      "qqq": 105.13,
+      "sixty_forty": 103.19
     },
     {
       "date": "2026-08-04",
       "bot": 101.92,
       "spy": 108.73,
-      "qqq": NaN,
-      "sixty_forty": 104.93
+      "qqq": 110.61,
+      "sixty_forty": 105.2
     },
     {
       "date": "2026-08-05",
       "bot": 102.37,
       "spy": 108.52,
-      "qqq": NaN,
-      "sixty_forty": 104.83
+      "qqq": 109.61,
+      "sixty_forty": 105.07
     },
     {
       "date": "2026-08-06",
       "bot": 102.02,
       "spy": 108.34,
-      "qqq": NaN,
-      "sixty_forty": 104.61
+      "qqq": 109.21,
+      "sixty_forty": 104.97
     },
     {
       "date": "2026-08-07",
       "bot": 101.54,
       "spy": 109.0,
-      "qqq": NaN,
-      "sixty_forty": 105.07
+      "qqq": 110.49,
+      "sixty_forty": 105.36
     },
     {
       "date": "2026-08-11",
       "bot": 101.71,
       "spy": 108.62,
-      "qqq": NaN,
-      "sixty_forty": 104.73
+      "qqq": 109.79,
+      "sixty_forty": 105.14
     },
     {
       "date": "2026-08-12",
       "bot": 101.67,
       "spy": 108.9,
-      "qqq": NaN,
-      "sixty_forty": 104.93
+      "qqq": 110.59,
+      "sixty_forty": 105.3
     },
     {
       "date": "2026-08-13",
       "bot": 101.84,
       "spy": 109.66,
-      "qqq": NaN,
-      "sixty_forty": 105.49
+      "qqq": 111.87,
+      "sixty_forty": 105.74
     },
     {
       "date": "2026-08-14",
       "bot": 102.24,
       "spy": 109.44,
-      "qqq": NaN,
-      "sixty_forty": 105.27
+      "qqq": 111.72,
+      "sixty_forty": 105.62
     },
     {
       "date": "2026-08-18",
       "bot": 102.21,
       "spy": 108.19,
-      "qqq": NaN,
-      "sixty_forty": 104.48
+      "qqq": 109.65,
+      "sixty_forty": 104.88
     },
     {
       "date": "2026-08-19",
       "bot": 102.21,
       "spy": 108.41,
-      "qqq": NaN,
-      "sixty_forty": 104.81
+      "qqq": 109.43,
+      "sixty_forty": 105.01
     },
     {
       "date": "2026-08-20",
       "bot": 101.98,
       "spy": 107.5,
-      "qqq": NaN,
-      "sixty_forty": 104.14
+      "qqq": 108.64,
+      "sixty_forty": 104.48
     },
     {
       "date": "2026-08-21",
       "bot": 101.8,
       "spy": 107.94,
-      "qqq": NaN,
-      "sixty_forty": 104.34
+      "qqq": 109.02,
+      "sixty_forty": 104.74
     },
     {
       "date": "2026-08-25",
       "bot": 101.97,
       "spy": 107.97,
-      "qqq": NaN,
-      "sixty_forty": 104.63
+      "qqq": 108.61,
+      "sixty_forty": 104.75
     },
     {
       "date": "2026-08-26",
       "bot": 101.95,
       "spy": 107.99,
-      "qqq": NaN,
-      "sixty_forty": 104.59
+      "qqq": 108.71,
+      "sixty_forty": 104.77
     },
     {
       "date": "2026-08-27",
       "bot": 101.92,
       "spy": 108.7,
-      "qqq": NaN,
-      "sixty_forty": 104.99
+      "qqq": 110.2,
+      "sixty_forty": 105.18
     },
     {
       "date": "2026-08-28",
       "bot": 102.04,
       "spy": 108.45,
-      "qqq": NaN,
-      "sixty_forty": 104.7
+      "qqq": 109.48,
+      "sixty_forty": 105.04
     },
     {
       "date": "2026-09-01",
       "bot": 101.57,
       "spy": 107.39,
-      "qqq": NaN,
-      "sixty_forty": 103.92
+      "qqq": 108.14,
+      "sixty_forty": 104.42
     },
     {
       "date": "2026-09-02",
       "bot": 101.25,
       "spy": 107.86,
-      "qqq": NaN,
-      "sixty_forty": 104.22
+      "qqq": 108.38,
+      "sixty_forty": 104.69
     },
     {
       "date": "2026-09-03",
       "bot": 101.38,
       "spy": 108.99,
-      "qqq": NaN,
-      "sixty_forty": 104.92
+      "qqq": 109.67,
+      "sixty_forty": 105.35
     },
     {
       "date": "2026-09-04",
       "bot": 101.52,
       "spy": 108.57,
-      "qqq": NaN,
-      "sixty_forty": 104.7
+      "qqq": 109.87,
+      "sixty_forty": 105.11
     },
     {
       "date": "2026-09-09",
       "bot": 101.08,
       "spy": 107.47,
-      "qqq": NaN,
-      "sixty_forty": 103.93
+      "qqq": 109.46,
+      "sixty_forty": 104.47
     },
     {
       "date": "2026-09-10",
       "bot": 100.76,
       "spy": 106.83,
-      "qqq": NaN,
-      "sixty_forty": 103.28
+      "qqq": 108.3,
+      "sixty_forty": 104.09
     },
     {
       "date": "2026-09-11",
       "bot": 100.03,
       "spy": 107.74,
-      "qqq": NaN,
-      "sixty_forty": 103.78
+      "qqq": 109.24,
+      "sixty_forty": 104.62
     },
     {
       "date": "2026-09-15",
       "bot": 99.33,
       "spy": 106.77,
-      "qqq": NaN,
-      "sixty_forty": 103.16
+      "qqq": 107.66,
+      "sixty_forty": 104.06
     },
     {
       "date": "2026-09-16",
       "bot": 99.34,
       "spy": 106.3,
-      "qqq": NaN,
-      "sixty_forty": 102.87
+      "qqq": 107.69,
+      "sixty_forty": 103.78
     },
     {
       "date": "2026-09-17",
       "bot": 98.89,
       "spy": 107.5,
-      "qqq": NaN,
-      "sixty_forty": 103.79
+      "qqq": 109.56,
+      "sixty_forty": 104.48
     },
     {
       "date": "2026-09-18",
       "bot": 99.49,
       "spy": 107.64,
-      "qqq": NaN,
-      "sixty_forty": 103.71
+      "qqq": 110.25,
+      "sixty_forty": 104.56
     },
     {
       "date": "2026-09-22",
       "bot": 99.61,
       "spy": 109.29,
-      "qqq": NaN,
-      "sixty_forty": 104.8
+      "qqq": 114.34,
+      "sixty_forty": 105.52
     },
     {
       "date": "2026-09-23",
       "bot": 99.52,
       "spy": 108.51,
-      "qqq": NaN,
-      "sixty_forty": 103.98
+      "qqq": 113.39,
+      "sixty_forty": 105.07
     },
     {
       "date": "2026-09-24",
       "bot": 99.22,
       "spy": 108.42,
-      "qqq": NaN,
-      "sixty_forty": 103.73
+      "qqq": 113.37,
+      "sixty_forty": 105.01
     },
     {
       "date": "2026-09-25",
       "bot": 99.49,
       "spy": 109.01,
-      "qqq": NaN,
-      "sixty_forty": 104.14
+      "qqq": 113.89,
+      "sixty_forty": 105.36
     },
     {
       "date": "2026-09-29",
       "bot": 99.57,
       "spy": 108.0,
-      "qqq": NaN,
-      "sixty_forty": 103.33
+      "qqq": 112.88,
+      "sixty_forty": 104.77
     },
     {
       "date": "2026-09-30",
       "bot": 99.57,
       "spy": 107.77,
-      "qqq": NaN,
-      "sixty_forty": 103.18
+      "qqq": 113.16,
+      "sixty_forty": 104.64
     },
     {
       "date": "2026-10-01",
       "bot": 99.64,
       "spy": 107.97,
-      "qqq": NaN,
-      "sixty_forty": 103.38
+      "qqq": 113.51,
+      "sixty_forty": 104.75
     },
     {
       "date": "2026-10-02",
       "bot": 99.81,
       "spy": 108.76,
-      "qqq": NaN,
-      "sixty_forty": 103.77
+      "qqq": 114.67,
+      "sixty_forty": 105.22
     },
     {
       "date": "2026-10-06",
       "bot": 100.31,
       "spy": 110.1,
-      "qqq": NaN,
-      "sixty_forty": 104.58
+      "qqq": 116.21,
+      "sixty_forty": 106.0
     },
     {
       "date": "2026-10-07",
       "bot": 100.34,
       "spy": 109.83,
-      "qqq": NaN,
-      "sixty_forty": 104.41
+      "qqq": 115.91,
+      "sixty_forty": 105.84
     },
     {
       "date": "2026-10-08",
       "bot": 100.18,
       "spy": 109.37,
-      "qqq": NaN,
-      "sixty_forty": 104.28
+      "qqq": 114.36,
+      "sixty_forty": 105.57
     },
     {
       "date": "2026-10-09",
       "bot": 100.11,
       "spy": 110.03,
-      "qqq": NaN,
-      "sixty_forty": 104.64
+      "qqq": 114.92,
+      "sixty_forty": 105.95
     },
     {
       "date": "2026-10-13",
       "bot": 100.28,
       "spy": 109.95,
-      "qqq": NaN,
-      "sixty_forty": 104.65
+      "qqq": 113.75,
+      "sixty_forty": 105.91
     },
     {
       "date": "2026-10-14",
       "bot": 100.22,
       "spy": 108.76,
-      "qqq": NaN,
-      "sixty_forty": 104.01
+      "qqq": 111.51,
+      "sixty_forty": 105.21
     },
     {
       "date": "2026-10-15",
       "bot": 99.75,
       "spy": 109.07,
-      "qqq": NaN,
-      "sixty_forty": 104.45
+      "qqq": 111.36,
+      "sixty_forty": 105.39
     },
     {
       "date": "2026-10-16",
       "bot": 100.03,
       "spy": 107.86,
-      "qqq": NaN,
-      "sixty_forty": 103.74
+      "qqq": 108.58,
+      "sixty_forty": 104.69
     },
     {
       "date": "2026-10-20",
       "bot": 99.76,
       "spy": 108.68,
-      "qqq": NaN,
-      "sixty_forty": 104.17
+      "qqq": 109.78,
+      "sixty_forty": 105.17
     },
     {
       "date": "2026-10-21",
       "bot": 99.9,
       "spy": 109.25,
-      "qqq": NaN,
-      "sixty_forty": 104.51
+      "qqq": 110.94,
+      "sixty_forty": 105.5
     },
     {
       "date": "2026-10-22",
       "bot": 100.04,
       "spy": 107.96,
-      "qqq": NaN,
-      "sixty_forty": 104.12
+      "qqq": 107.76,
+      "sixty_forty": 104.75
     },
     {
       "date": "2026-10-23",
       "bot": 99.55,
       "spy": 107.4,
-      "qqq": NaN,
-      "sixty_forty": 103.73
+      "qqq": 107.75,
+      "sixty_forty": 104.42
     },
     {
       "date": "2026-10-27",
       "bot": 99.67,
       "spy": 108.77,
-      "qqq": NaN,
-      "sixty_forty": 104.57
+      "qqq": 110.33,
+      "sixty_forty": 105.22
     },
     {
       "date": "2026-10-28",
       "bot": 99.92,
       "spy": 109.14,
-      "qqq": NaN,
-      "sixty_forty": 104.7
+      "qqq": 111.0,
+      "sixty_forty": 105.44
     },
     {
       "date": "2026-10-29",
       "bot": 100.05,
       "spy": 108.72,
-      "qqq": NaN,
-      "sixty_forty": 104.58
+      "qqq": 109.43,
+      "sixty_forty": 105.19
     },
     {
       "date": "2026-10-30",
       "bot": 100.0,
       "spy": 106.8,
-      "qqq": NaN,
-      "sixty_forty": 103.56
+      "qqq": 105.63,
+      "sixty_forty": 104.07
     },
     {
       "date": "2026-11-03",
       "bot": 99.3,
       "spy": 106.6,
-      "qqq": NaN,
-      "sixty_forty": 103.27
+      "qqq": 104.83,
+      "sixty_forty": 103.96
     },
     {
       "date": "2026-11-04",
       "bot": 99.25,
       "spy": 108.36,
-      "qqq": NaN,
-      "sixty_forty": 104.48
+      "qqq": 105.85,
+      "sixty_forty": 104.99
     },
     {
       "date": "2026-11-05",
       "bot": 99.55,
       "spy": 103.59,
-      "qqq": NaN,
-      "sixty_forty": 101.8
+      "qqq": 98.98,
+      "sixty_forty": 102.19
     },
     {
       "date": "2026-11-06",
       "bot": 97.43,
       "spy": 103.91,
-      "qqq": NaN,
-      "sixty_forty": 101.96
+      "qqq": 100.37,
+      "sixty_forty": 102.38
     },
     {
       "date": "2026-11-10",
       "bot": 98.84,
       "spy": 105.98,
+      "qqq": 103.22,
+      "sixty_forty": 103.59
+    },
+    {
+      "date": "2026-11-11",
+      "bot": 98.63,
+      "spy": NaN,
       "qqq": NaN,
-      "sixty_forty": 102.88
+      "sixty_forty": 103.59
     }
   ],
   "positions": [
     {
       "symbol": "XLE",
       "qty": 67.10655,
-      "market_value": 4234.09,
+      "market_value": 4233.75,
       "avg_entry_price": 65.89,
       "current_price": 63.09,
-      "unrealized_pl": -187.79,
+      "unrealized_pl": -188.13,
       "unrealized_pl_pct": -4.25
-    },
-    {
-      "symbol": "XLF",
-      "qty": 67.10655,
-      "market_value": 3932.78,
-      "avg_entry_price": 57.75,
-      "current_price": 58.6,
-      "unrealized_pl": 57.35,
-      "unrealized_pl_pct": 1.48
-    },
-    {
-      "symbol": "SPY",
-      "qty": 11.563493,
-      "market_value": 8795.54,
-      "avg_entry_price": 755.87,
-      "current_price": 760.63,
-      "unrealized_pl": 54.99,
-      "unrealized_pl_pct": 0.63
-    },
-    {
-      "symbol": "QQQ",
-      "qty": 10.388933,
-      "market_value": 7192.16,
-      "avg_entry_price": 687.52,
-      "current_price": 692.29,
-      "unrealized_pl": 49.52,
-      "unrealized_pl_pct": 0.69
-    },
-    {
-      "symbol": "EEM",
-      "qty": 71.729945,
-      "market_value": 4458.37,
-      "avg_entry_price": 61.47,
-      "current_price": 62.16,
-      "unrealized_pl": 48.93,
-      "unrealized_pl_pct": 1.11
     },
     {
       "symbol": "XLK",
       "qty": 26.432812,
-      "market_value": 4629.44,
+      "market_value": 4559.4,
       "avg_entry_price": 176.19,
-      "current_price": 175.14,
-      "unrealized_pl": -27.78,
-      "unrealized_pl_pct": -0.6
+      "current_price": 172.49,
+      "unrealized_pl": -97.82,
+      "unrealized_pl_pct": -2.1
+    },
+    {
+      "symbol": "XLF",
+      "qty": 67.10655,
+      "market_value": 3935.8,
+      "avg_entry_price": 57.75,
+      "current_price": 58.65,
+      "unrealized_pl": 60.37,
+      "unrealized_pl_pct": 1.56
+    },
+    {
+      "symbol": "EEM",
+      "qty": 71.729945,
+      "market_value": 4450.13,
+      "avg_entry_price": 61.47,
+      "current_price": 62.04,
+      "unrealized_pl": 40.68,
+      "unrealized_pl_pct": 0.92
     },
     {
       "symbol": "VGK",
       "qty": 70.473079,
-      "market_value": 6309.45,
+      "market_value": 6304.52,
       "avg_entry_price": 89.85,
-      "current_price": 89.53,
-      "unrealized_pl": -22.85,
-      "unrealized_pl_pct": -0.36
+      "current_price": 89.46,
+      "unrealized_pl": -27.78,
+      "unrealized_pl_pct": -0.44
     },
     {
       "symbol": "IWM",
       "qty": 21.141838,
-      "market_value": 5983.98,
+      "market_value": 5982.08,
       "avg_entry_price": 282.06,
-      "current_price": 283.04,
-      "unrealized_pl": 20.7,
-      "unrealized_pl_pct": 0.35
+      "current_price": 282.95,
+      "unrealized_pl": 18.81,
+      "unrealized_pl_pct": 0.32
+    },
+    {
+      "symbol": "QQQ",
+      "qty": 10.388933,
+      "market_value": 7127.12,
+      "avg_entry_price": 687.52,
+      "current_price": 686.03,
+      "unrealized_pl": -15.53,
+      "unrealized_pl_pct": -0.22
+    },
+    {
+      "symbol": "SPY",
+      "qty": 11.563493,
+      "market_value": 8754.95,
+      "avg_entry_price": 755.87,
+      "current_price": 757.12,
+      "unrealized_pl": 14.41,
+      "unrealized_pl_pct": 0.17
     },
     {
       "symbol": "TLT",
       "qty": 24.410566,
-      "market_value": 1974.2,
+      "market_value": 1981.65,
       "avg_entry_price": 81.44,
-      "current_price": 80.88,
-      "unrealized_pl": -13.69,
-      "unrealized_pl_pct": -0.69
+      "current_price": 81.18,
+      "unrealized_pl": -6.24,
+      "unrealized_pl_pct": -0.31
     }
   ],
   "recent_orders": [
